@@ -1,0 +1,49 @@
+# UA-SAHI-MAL 재현 환경.
+#
+#   docker compose -f docker/docker-compose.yml build
+#   docker compose -f docker/docker-compose.yml run --rm verify     # 테스트 + 합성 스모크
+#   docker compose -f docker/docker-compose.yml run --rm shell      # 대화형 셸
+#
+# 데이터셋·산출물은 이미지에 굽지 않고 호스트에서 마운트한다.
+# datasets/ 와 runs/ 는 .gitignore 대상이며 저장소에 포함되지 않는다.
+
+services:
+  base: &base
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        # 사내 프록시가 download.pytorch.org 를 막으면 `pypi` 로 바꾼다.
+        TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+        PYTHON_VERSION: "3.12"
+    image: ua-sahi-mal:cpu
+    working_dir: /workspace
+    environment:
+      YOLO_CONFIG_DIR: /tmp/ultralytics
+      MPLBACKEND: Agg
+      # CPU latency 측정을 재현 가능하게 하려면 스레드 수를 고정해야 한다.
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      PYTHONHASHSEED: "0"
+    volumes:
+      - ../datasets:/workspace/datasets:ro
+      - ../runs:/workspace/runs
+      - ../output:/workspace/output
+    # 저장소는 오프라인 fail-closed 로 동작하도록 설계되어 있다.
+    # 학습·추론 실행 시에는 network_mode: none 으로 강제할 수 있다.
+
+  verify:
+    <<: *base
+    command: ["bash", "/workspace/scripts/verify_env.sh"]
+
+  shell:
+    <<: *base
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+
+  # 네트워크를 완전히 끊고 실행하는 프로파일 (실측 실행용).
+  offline:
+    <<: *base
+    network_mode: none
+    command: ["bash", "/workspace/scripts/verify_env.sh"]

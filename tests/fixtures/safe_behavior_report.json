@@ -1,0 +1,64 @@
+{
+  "info": {
+    "description": "Synthetic inert CAPE-shaped fixture; contains API names only"
+  },
+  "behavior": {
+    "processes": [
+      {
+        "calls": [
+          {
+            "category": "process",
+            "api": "CreateProcessW",
+            "arguments": {
+              "fixture_only": "THIS_ARGUMENT_MUST_NOT_BE_RENDERED"
+            }
+          },
+          {
+            "category": "process",
+            "api": "CreateProcessW"
+          },
+          {
+            "category": "registry",
+            "api": "RegOpenKeyExW"
+          },
+          {
+            "category": "network",
+            "api": "InternetOpenW"
+          },
+          {
+            "category": "filesystem",
+            "api": "CreateFileW"
+          },
+          {
+            "category": "misc",
+            "api": "IgnoredSyntheticApi"
+          }
+        ]
+      },
+      {
+        "calls": [
+          {
+            "category": "process",
+            "api": "CreateProcessW"
+          },
+          {
+            "category": "registry",
+            "api": "RegOpenKeyExW"
+          },
+          {
+            "category": "network",
+            "api": "InternetOpenW"
+          },
+          {
+            "category": "filesystem",
+            "api": "CreateFileW"
+          },
+          {
+            "category": "misc",
+            "api": "IgnoredSyntheticApi"
+          }
+        ]
+      }
+    ]
+  }
+}

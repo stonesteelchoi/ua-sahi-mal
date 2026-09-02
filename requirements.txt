@@ -1,0 +1,3 @@
+# Install PyTorch separately with the CUDA or CPU index that matches the host.
+-e ./external/sahi
+-e .[dev]

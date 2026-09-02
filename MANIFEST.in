@@ -1,0 +1,3 @@
+recursive-include configs *.yaml
+include scripts/check_repository_safety.py
+recursive-include tests/fixtures *.json

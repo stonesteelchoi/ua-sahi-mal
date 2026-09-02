@@ -1,0 +1,690 @@
+"""Tests for prediction and model inference."""
+
+from __future__ import annotations
+
+import shutil
+import sys
+from collections import Counter
+from os import path
+from typing import Any
+
+import numpy as np
+import pytest
+
+from sahi.models.ultralytics import UltralyticsDetectionModel
+from sahi.predict import get_prediction, get_sliced_prediction, predict
+from sahi.utils.cv import read_image
+from sahi.utils.file import download_from_url
+
+from .utils.ultralytics import UltralyticsConstants, download_yolo11n_model, download_yolo26n_model
+
+MODEL_DEVICE = "cpu"
+CONFIDENCE_THRESHOLD = 0.5
+IMAGE_SIZE = 320
+
+
+def test_prediction_score() -> None:
+    """Test PredictionScore value and comparison operations."""
+    from sahi.prediction import PredictionScore
+
+    prediction_score = PredictionScore(np.array(0.6))  # type: ignore
+    assert isinstance(prediction_score.value, float)
+    assert prediction_score.is_greater_than_threshold(0.5) is True
+    assert prediction_score.is_greater_than_threshold(0.7) is False
+    assert prediction_score == 0.6
+    assert prediction_score > 0.5
+    assert prediction_score < 0.7
+    assert not prediction_score > 0.7
+    assert not prediction_score < 0.5
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 11), reason="MMDet tests only run on Python 3.11")
+def test_get_prediction_mmdet() -> None:
+    """Test full-image prediction with MMDet model."""
+    # Skip if mmdet is not installed
+    pytest.importorskip("mmdet", reason="MMDet is not installed")
+    pytest.importorskip("mmcv", reason="MMCV is not installed")
+    pytest.importorskip("mmengine", reason="MMEngine is not installed")
+
+    from sahi.models.mmdet import MmdetDetectionModel
+    from sahi.predict import get_prediction
+    from sahi.utils.mmdet import MmdetTestConstants, download_mmdet_yolox_tiny_model
+
+    # init model
+    download_mmdet_yolox_tiny_model()
+
+    mmdet_detection_model = MmdetDetectionModel(
+        model_path=MmdetTestConstants.MMDET_YOLOX_TINY_MODEL_PATH,
+        config_path=MmdetTestConstants.MMDET_YOLOX_TINY_CONFIG_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        image_size=IMAGE_SIZE,
+    )
+    mmdet_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+    image = read_image(image_path)
+
+    # get full sized prediction
+    prediction_result = get_prediction(
+        image=image, detection_model=mmdet_detection_model, shift_amount=[0, 0], full_shape=None
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # compare
+    assert len(object_prediction_list) == 2
+    num_person = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "person":
+            num_person += 1
+    assert num_person == 0
+    num_truck = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "truck":
+            num_truck += 1
+    assert num_truck == 0
+    num_car = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "car":
+            num_car += 1
+    assert num_car == 2
+
+
+def test_get_prediction_automodel_yolo11() -> None:
+    """Test full-image prediction with auto-loaded YOLO11 model."""
+    from sahi.auto_model import AutoDetectionModel
+    from sahi.predict import get_prediction
+
+    # init model
+    download_yolo11n_model()
+
+    yolo11_detection_model = AutoDetectionModel.from_pretrained(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    yolo11_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+    image = read_image(image_path)
+
+    # get full sized prediction
+    prediction_result = get_prediction(
+        image=image, detection_model=yolo11_detection_model, shift_amount=[0, 0], full_shape=None, postprocess=None
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # assert any object has been detected
+    assert len(object_prediction_list) > 0
+
+    # the number of found objects per category
+    result_counts = Counter([p.category.name for p in object_prediction_list])
+
+    # the test image shows a lot of cars, so we expect only cars to be detected
+    assert result_counts["car"] > 0
+    assert result_counts["truck"] == 0
+    assert result_counts["person"] == 0
+
+
+def test_prediction_category_remapping() -> None:
+    """Test category remapping during prediction."""
+    from sahi.auto_model import AutoDetectionModel
+    from sahi.predict import get_prediction
+
+    # init model
+    download_yolo11n_model()
+
+    yolo11_detection_model = AutoDetectionModel.from_pretrained(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping={"0": 1, "1": 2, "2": 0},
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    yolo11_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+    image = read_image(image_path)
+
+    # get full sized prediction
+    prediction_result = get_prediction(
+        image=image, detection_model=yolo11_detection_model, shift_amount=[0, 0], full_shape=None, postprocess=None
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # assert any object has been detected
+    assert len(object_prediction_list) > 0
+
+    # the number of found objects per category
+    result_counts = Counter([p.category.name for p in object_prediction_list])
+
+    # the test image shows a lot of cars, so we expect only cars to be detected
+    assert result_counts["car"] > 0
+    assert result_counts["truck"] == 0
+    assert result_counts["person"] == 0
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 11), reason="MMDet tests only run on Python 3.11")
+def test_get_sliced_prediction_mmdet() -> None:
+    """Test sliced prediction with MMDet model."""
+    # Skip if mmdet is not installed
+    pytest.importorskip("mmdet", reason="MMDet is not installed")
+    pytest.importorskip("mmcv", reason="MMCV is not installed")
+    pytest.importorskip("mmengine", reason="MMEngine is not installed")
+
+    from sahi.models.mmdet import MmdetDetectionModel
+    from sahi.predict import get_sliced_prediction
+    from sahi.utils.mmdet import MmdetTestConstants, download_mmdet_yolox_tiny_model
+
+    # init model
+    download_mmdet_yolox_tiny_model()
+
+    mmdet_detection_model = MmdetDetectionModel(
+        model_path=MmdetTestConstants.MMDET_YOLOX_TINY_MODEL_PATH,
+        config_path=MmdetTestConstants.MMDET_YOLOX_TINY_CONFIG_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    mmdet_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+
+    slice_height = 512
+    slice_width = 512
+    overlap_height_ratio = 0.1
+    overlap_width_ratio = 0.2
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    class_agnostic = True
+
+    # get sliced prediction
+    prediction_result = get_sliced_prediction(
+        image=image_path,
+        detection_model=mmdet_detection_model,
+        slice_height=slice_height,
+        slice_width=slice_width,
+        overlap_height_ratio=overlap_height_ratio,
+        overlap_width_ratio=overlap_width_ratio,
+        perform_standard_pred=False,
+        postprocess_type=postprocess_type,
+        postprocess_match_threshold=match_threshold,
+        postprocess_match_metric=match_metric,
+        postprocess_class_agnostic=class_agnostic,
+        progress_bar=True,
+        progress_callback=None,
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # compare
+    assert len(object_prediction_list) == 15
+    num_person = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "person":
+            num_person += 1
+    assert num_person == 0
+    num_truck = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "truck":
+            num_truck += 1
+    assert num_truck == 0
+    num_car = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "car":
+            num_car += 1
+    assert num_car == 15
+
+
+def test_get_prediction_yolo11() -> None:
+    """Test full-image prediction with YOLO11 model."""
+    # init model
+    download_yolo11n_model()
+
+    yolo11_detection_model = UltralyticsDetectionModel(
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    yolo11_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+    image = read_image(image_path)
+
+    # get full sized prediction
+    prediction_result = get_prediction(
+        image=image, detection_model=yolo11_detection_model, shift_amount=[0, 0], full_shape=None, postprocess=None
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # compare
+    assert len(object_prediction_list) > 0
+    num_person = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "person":
+            num_person += 1
+    assert num_person == 0
+    num_truck = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "truck":
+            num_truck += 1
+    assert num_truck == 0
+    num_car = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "car":
+            num_car += 1
+    assert num_car > 0
+
+
+def test_get_sliced_prediction_yolo11() -> None:
+    """Test sliced prediction with YOLO11 model."""
+    # init model
+    download_yolo11n_model()
+
+    yolo11_detection_model = UltralyticsDetectionModel(
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    yolo11_detection_model.load_model()
+
+    # prepare image
+    image_path = "tests/data/small-vehicles1.jpeg"
+
+    slice_height = 512
+    slice_width = 512
+    overlap_height_ratio = 0.1
+    overlap_width_ratio = 0.2
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    class_agnostic = True
+
+    # get sliced prediction
+    prediction_result = get_sliced_prediction(
+        image=image_path,
+        detection_model=yolo11_detection_model,
+        slice_height=slice_height,
+        slice_width=slice_width,
+        overlap_height_ratio=overlap_height_ratio,
+        overlap_width_ratio=overlap_width_ratio,
+        perform_standard_pred=False,
+        postprocess_type=postprocess_type,
+        postprocess_match_threshold=match_threshold,
+        postprocess_match_metric=match_metric,
+        postprocess_class_agnostic=class_agnostic,
+    )
+    object_prediction_list = prediction_result.object_prediction_list
+
+    # compare
+    assert len(object_prediction_list) > 0
+    num_person = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "person":
+            num_person += 1
+    assert num_person == 0
+    num_truck = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "truck":
+            num_truck += 1
+    assert num_truck == 0
+    num_car = 0
+    for object_prediction in object_prediction_list:
+        if object_prediction.category.name == "car":
+            num_car += 1
+    assert num_car > 0
+
+
+def test_confidence_threshold_override_yolo26() -> None:
+    """Per-call confidence_threshold override takes effect and is always restored."""
+    download_yolo26n_model()
+
+    model = UltralyticsDetectionModel(
+        model_path=UltralyticsConstants.YOLO26N_MODEL_PATH,
+        confidence_threshold=0.3,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    model.load_model()
+    original = model.confidence_threshold
+
+    image_path = "tests/data/small-vehicles1.jpeg"
+
+    # override filters more aggressively than the baseline
+    baseline = get_prediction(image=image_path, detection_model=model, postprocess=None)
+    high = get_prediction(image=image_path, detection_model=model, confidence_threshold=0.99, postprocess=None)
+    assert len(high.object_prediction_list) <= len(baseline.object_prediction_list)
+    assert model.confidence_threshold == original
+
+    # sliced path: threshold sweep should be monotonically non-increasing in count
+    counts = []
+    for thresh in (0.2, 0.5, 0.9):
+        res = get_sliced_prediction(
+            image=image_path,
+            detection_model=model,
+            confidence_threshold=thresh,
+            slice_height=512,
+            slice_width=512,
+            overlap_height_ratio=0.1,
+            overlap_width_ratio=0.2,
+            perform_standard_pred=False,
+        )
+        counts.append(len(res.object_prediction_list))
+        assert model.confidence_threshold == original
+    assert counts == sorted(counts, reverse=True)
+
+    # threshold must be restored even if inference raises
+    original_perform_inference = model.perform_inference
+
+    def boom(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("inference failure")
+
+    model.perform_inference = boom  # type: ignore[assignment]
+    try:
+        with pytest.raises(RuntimeError):
+            get_prediction(image=image_path, detection_model=model, confidence_threshold=0.123, postprocess=None)
+        assert model.confidence_threshold == original
+    finally:
+        model.perform_inference = original_perform_inference  # type: ignore[assignment]
+
+
+def test_get_sliced_prediction_batch_size() -> None:
+    """Test that different batch sizes produce identical results."""
+    download_yolo11n_model()
+
+    yolo11_detection_model = UltralyticsDetectionModel(
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        confidence_threshold=CONFIDENCE_THRESHOLD,
+        device=MODEL_DEVICE,
+        category_remapping=None,
+        load_at_init=False,
+        image_size=IMAGE_SIZE,
+    )
+    yolo11_detection_model.load_model()
+
+    image_path = "tests/data/small-vehicles1.jpeg"
+    common_kwargs: dict[str, Any] = dict(
+        image=image_path,
+        detection_model=yolo11_detection_model,
+        slice_height=512,
+        slice_width=512,
+        overlap_height_ratio=0.1,
+        overlap_width_ratio=0.2,
+        perform_standard_pred=False,
+        postprocess_type="GREEDYNMM",
+        postprocess_match_threshold=0.5,
+        postprocess_match_metric="IOS",
+        postprocess_class_agnostic=True,
+    )
+
+    result_bs1 = get_sliced_prediction(**common_kwargs, batch_size=1)
+    result_bs4 = get_sliced_prediction(**common_kwargs, batch_size=4)
+
+    preds_bs1 = result_bs1.object_prediction_list
+    preds_bs4 = result_bs4.object_prediction_list
+
+    assert len(preds_bs1) > 0, "batch_size=1 should produce predictions"
+    assert len(preds_bs1) == len(preds_bs4), (
+        f"batch_size=1 gave {len(preds_bs1)} predictions, batch_size=4 gave {len(preds_bs4)}"
+    )
+
+    def serialize_pred(pred: Any) -> tuple[Any, ...]:
+        return (
+            pred.category.id,
+            pred.category.name,
+            tuple(round(c, 2) for c in pred.bbox.to_voc_bbox()),
+            round(pred.score.value, 4),
+        )
+
+    set_bs1 = sorted(serialize_pred(p) for p in preds_bs1)
+    set_bs4 = sorted(serialize_pred(p) for p in preds_bs4)
+    assert set_bs1 == set_bs4, "batch_size=1 and batch_size=4 should produce identical predictions"
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 11), reason="MMDet tests only run on Python 3.11")
+def test_mmdet_yolox_tiny_prediction() -> None:
+    """Test MMDet YOLOX tiny model prediction and export."""
+    # Skip if mmdet is not installed
+    pytest.importorskip("mmdet", reason="MMDet is not installed")
+    pytest.importorskip("mmcv", reason="MMCV is not installed")
+    pytest.importorskip("mmengine", reason="MMEngine is not installed")
+
+    from sahi.predict import predict
+    from sahi.utils.mmdet import MmdetTestConstants, download_mmdet_yolox_tiny_model
+
+    # init model
+    download_mmdet_yolox_tiny_model()
+
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    class_agnostic = True
+
+    # prepare paths
+    dataset_json_path = "tests/data/coco_utils/terrain_all_coco.json"
+    source = "tests/data/coco_utils/"
+    project_dir = "tests/data/predict_result"
+
+    # get sliced prediction
+    if path.isdir(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+    predict(
+        model_type="mmdet",
+        model_path=MmdetTestConstants.MMDET_YOLOX_TINY_MODEL_PATH,
+        model_config_path=MmdetTestConstants.MMDET_YOLOX_TINY_CONFIG_PATH,
+        model_confidence_threshold=CONFIDENCE_THRESHOLD,
+        model_device=MODEL_DEVICE,
+        model_category_mapping=None,
+        model_category_remapping=None,
+        source=source,
+        no_sliced_prediction=False,
+        no_standard_prediction=True,
+        slice_height=512,
+        slice_width=512,
+        overlap_height_ratio=0.2,
+        overlap_width_ratio=0.2,
+        postprocess_type=postprocess_type,
+        postprocess_match_metric=match_metric,
+        postprocess_match_threshold=match_threshold,
+        postprocess_class_agnostic=class_agnostic,
+        novisual=True,
+        export_pickle=False,
+        export_crop=False,
+        dataset_json_path=dataset_json_path,
+        project=project_dir,
+        name="exp",
+        verbose=1,
+    )
+
+
+def test_ultralytics_yolo11n_prediction() -> None:
+    """Test Ultralytics YOLO11n model prediction and export."""
+    from sahi.predict import predict
+
+    # init model
+    download_yolo11n_model()
+
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    class_agnostic = True
+
+    # prepare paths
+    dataset_json_path = "tests/data/coco_utils/terrain_all_coco.json"
+    source = "tests/data/coco_utils/"
+    project_dir = "tests/data/predict_result"
+
+    # get sliced prediction
+    if path.isdir(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+    predict(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        model_config_path=None,
+        model_confidence_threshold=CONFIDENCE_THRESHOLD,
+        model_device=MODEL_DEVICE,
+        model_category_mapping=None,
+        model_category_remapping=None,
+        source=source,
+        no_sliced_prediction=False,
+        no_standard_prediction=True,
+        slice_height=512,
+        slice_width=512,
+        overlap_height_ratio=0.2,
+        overlap_width_ratio=0.2,
+        postprocess_type=postprocess_type,
+        postprocess_match_metric=match_metric,
+        postprocess_match_threshold=match_threshold,
+        postprocess_class_agnostic=class_agnostic,
+        novisual=True,
+        export_pickle=False,
+        export_crop=False,
+        dataset_json_path=dataset_json_path,
+        project=project_dir,
+        name="exp",
+        verbose=1,
+    )
+
+
+def test_video_prediction() -> None:
+    """Test video file prediction with various configurations."""
+    # download video file
+    source_url = "https://github.com/obss/sahi/releases/download/0.9.2/test.mp4"
+    destination_path = "tests/data/test.mp4"
+    if not path.exists(destination_path):
+        download_from_url(source_url, destination_path)
+
+    # init model
+    download_yolo11n_model()
+
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    image_size = 320
+    class_agnostic = True
+
+    # prepare paths
+    source = destination_path
+    project_dir = "tests/data/predict_result"
+
+    # get sliced inference from video input without exporting visual
+    if path.isdir(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+    predict(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        model_config_path=None,
+        model_confidence_threshold=CONFIDENCE_THRESHOLD,
+        model_device=MODEL_DEVICE,
+        model_category_mapping=None,
+        model_category_remapping=None,
+        source=source,
+        no_sliced_prediction=False,
+        no_standard_prediction=True,
+        slice_height=512,
+        slice_width=512,
+        image_size=image_size,
+        overlap_height_ratio=0.2,
+        overlap_width_ratio=0.2,
+        postprocess_type=postprocess_type,
+        postprocess_match_metric=match_metric,
+        postprocess_match_threshold=match_threshold,
+        postprocess_class_agnostic=class_agnostic,
+        novisual=True,
+        export_pickle=False,
+        export_crop=False,
+        dataset_json_path=None,
+        project=project_dir,
+        name="exp",
+        verbose=1,
+    )
+
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    image_size = 320
+    class_agnostic = True
+
+    # get standard inference from video input without exporting visual
+    if path.isdir(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+    predict(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        model_config_path=None,
+        model_confidence_threshold=CONFIDENCE_THRESHOLD,
+        model_device=MODEL_DEVICE,
+        model_category_mapping=None,
+        model_category_remapping=None,
+        source=source,
+        no_sliced_prediction=True,
+        no_standard_prediction=False,
+        image_size=image_size,
+        postprocess_type=postprocess_type,
+        postprocess_match_metric=match_metric,
+        postprocess_match_threshold=match_threshold,
+        postprocess_class_agnostic=class_agnostic,
+        novisual=True,
+        export_pickle=False,
+        export_crop=False,
+        dataset_json_path=None,
+        project=project_dir,
+        name="exp",
+        verbose=1,
+    )
+
+    # get standard inference from video input and export visual
+    postprocess_type = "GREEDYNMM"
+    match_metric = "IOS"
+    match_threshold = 0.5
+    image_size = 320
+    class_agnostic = True
+
+    # get full sized prediction
+    if path.isdir(project_dir):
+        shutil.rmtree(project_dir, ignore_errors=True)
+    predict(
+        model_type="ultralytics",
+        model_path=UltralyticsConstants.YOLO11N_MODEL_PATH,
+        model_config_path=None,
+        model_confidence_threshold=CONFIDENCE_THRESHOLD,
+        model_device=MODEL_DEVICE,
+        model_category_mapping=None,
+        model_category_remapping=None,
+        source=source,
+        no_sliced_prediction=True,
+        no_standard_prediction=False,
+        image_size=image_size,
+        postprocess_type=postprocess_type,
+        postprocess_match_metric=match_metric,
+        postprocess_match_threshold=match_threshold,
+        postprocess_class_agnostic=class_agnostic,
+        export_pickle=False,
+        export_crop=False,
+        dataset_json_path=None,
+        project=project_dir,
+        name="exp",
+        verbose=1,
+    )

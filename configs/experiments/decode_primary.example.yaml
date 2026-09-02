@@ -1,0 +1,44 @@
+schema_version: 1
+experiment_id: decode-yolo11-primary-v1
+
+dataset:
+  name: decode
+  modality: dynamic_api_image
+  manifest: C:/secure-research/decode-manifest-v1.json
+  annotation_policy: human_verified_test_and_versioned_pseudo_train
+
+detector:
+  name: yolo11
+  checkpoint: yolo11n.pt
+  input_size: 640
+
+slicing:
+  tile_height: 400
+  tile_width: 400
+  overlap_ratio: 0.2
+  budget_fraction: 0.5
+
+routing:
+  probability_weight: 1.0
+  entropy_weight: 0.2
+  guard_threshold: 0.15
+  coverage_fraction: 0.2
+
+merge:
+  method: greedy_nmm
+  match_metric: ios
+  threshold: 0.5
+  class_aware: true
+
+success:
+  primary_metric: AP_S
+  maximum_loss_points: 1.5
+  minimum_detector_call_reduction: 0.4
+  minimum_latency_reduction: 0.25
+
+runtime:
+  seed: 42
+  device: cuda:0
+  warmup_runs: 3
+  measured_runs: 10
+  latency_statistic: p95_end_to_end_ms

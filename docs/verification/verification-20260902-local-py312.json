@@ -1,0 +1,52 @@
+{
+  "generated_utc": "2026-09-02T22:42:42.789717+00:00",
+  "environment": {
+    "python": "3.12.3",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "packages": {
+      "torch": "2.8.0",
+      "torchvision": "0.23.0",
+      "ultralytics": "8.4.67",
+      "sahi": "0.12.2",
+      "numpy": "2.2.6",
+      "opencv-python": "4.14.0.94",
+      "shapely": "2.1.2",
+      "pillow": "12.3.0",
+      "PyYAML": "6.0.3",
+      "click": "8.5.0",
+      "tqdm": "4.70.0",
+      "pytest": "8.4.2",
+      "ruff": "0.16.5"
+    },
+    "torch_cuda_available": false,
+    "torch_device_count": 0
+  },
+  "ruff": {
+    "exit_code": 0,
+    "passed": true,
+    "scope": "src scripts tests"
+  },
+  "pytest": {
+    "exit_code": 0,
+    "passed": true,
+    "tests_passed": 107
+  },
+  "smoke": {
+    "exit_code": 0,
+    "passed": true,
+    "summary": {
+      "output_dir": "/home/claude/repo/runs/verification/local-py312/smoke",
+      "prepared_samples": 2,
+      "prepared_annotations": 5,
+      "full_image_detections": 1,
+      "full_sahi_detections": 1,
+      "budgeted_detections": 1,
+      "full_sahi_detector_images": 4,
+      "budgeted_detector_images": 2,
+      "detector_call_reduction": 0.5,
+      "tile_recall": 1.0
+    }
+  },
+  "all_passed": true
+}
