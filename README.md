@@ -424,19 +424,24 @@ prepared/decode-v1/
 장비 간 의존성 차이를 없애기 위한 컨테이너 정의가 `docker/` 에 있다.
 
 ```bash
-docker compose -f docker/docker-compose.yml build
-docker compose -f docker/docker-compose.yml run --rm verify    # 정적 검사 + 테스트 107건 + 합성 스모크
-docker compose -f docker/docker-compose.yml run --rm offline   # 네트워크를 끊고 같은 검증
+make build      # 또는 docker compose -f docker/docker-compose.yml build
+make verify     # ruff + pytest 107건 + 외부 데이터 없는 합성 스모크
+make offline    # 네트워크를 끊고 같은 검증
 ```
 
-컨테이너 없이 같은 검증을 돌리려면 `bash scripts/verify_env.sh` 를 쓴다. 결과는
-`runs/verification/<타임스탬프>/verification.json` 에 남고, 논문에 인용할 실행은
-`docs/verification/` 에 복사해 커밋한다.
+Windows 는 `.\scripts\setup_docker.ps1` 하나로 빌드·검증·오프라인 재검증까지 끝내고,
+결과를 `docs/verification/` 에 커밋 가능한 형태로 복사한다.
 
-빌드 인자와 GPU 전환 방법, 그리고 **현재 무엇이 검증되었고 무엇이 검증되지 않았는지**는
-[docker/README.md](docker/README.md) 에 정리되어 있다. 요약하면 의존성 해결·정적 검사·
-테스트·스모크는 Python 3.12.3 / torch 2.8.0 조합에서 실측 통과했고, 이미지 빌드 자체는
-아직 실행되지 않았다.
+사내 프록시가 막힌 환경을 전제로 세 개의 손잡이를 뒀다 — `BASE_IMAGE`(레지스트리 미러),
+`TORCH_INDEX_URL`(`pypi` 또는 CUDA 인덱스), `APT_MIRROR`. 자세한 사용법과 **현재 무엇이
+검증되었고 무엇이 검증되지 않았는지**는 [docker/README.md](docker/README.md) 에 있다.
+
+컨테이너 없이 같은 검증을 돌리려면 `bash scripts/verify_env.sh` 또는 `make check` 를 쓴다.
+
+`.github/workflows/verify.yml` 은 push 마다 (1) Python 3.10·3.12 네이티브 검증,
+(2) 컨테이너 이미지 빌드 후 컨테이너 안 검증과 `--network none` 오프라인 재검증,
+(3) 저장소 안전 검사를 수행한다. 로컬에서 이미지 빌드가 막히는 환경이라도 이 워크플로가
+빌드 가능성을 대신 증명한다.
 
 ## 논문 초고
 

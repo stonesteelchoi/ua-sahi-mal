@@ -1,0 +1,111 @@
+# 컨테이너 이미지가 실제로 빌드되고 검증을 통과하는지 GitHub 러너에서 확인한다.
+# 작성 환경의 프록시가 컨테이너 레지스트리를 차단해 로컬에서 빌드할 수 없었기 때문에,
+# 이 워크플로가 그 마지막 한 조각을 대신 채운다.
+name: verify
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: 네이티브 (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]   # pyproject 는 >=3.10,<3.13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchvision==0.23.0
+          pip install --no-deps -e ./external/sahi
+          pip install --no-deps -e ./external/upsample-anything
+          pip install -e ".[dev]"
+
+      - name: 검증 (ruff + pytest + 합성 스모크)
+        env:
+          YOLO_CONFIG_DIR: /tmp/ultralytics
+          MPLBACKEND: Agg
+        run: bash scripts/verify_env.sh runs/verification/ci-py${{ matrix.python }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-native-py${{ matrix.python }}
+          path: runs/verification/ci-py${{ matrix.python }}/
+
+  docker:
+    name: Docker 이미지 빌드 및 검증
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 이미지 빌드
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: ua-sahi-mal:cpu
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 컨테이너 안에서 검증
+        run: |
+          mkdir -p runs output
+          docker run --rm \
+            -v "$PWD/runs:/workspace/runs" \
+            -v "$PWD/output:/workspace/output" \
+            ua-sahi-mal:cpu \
+            bash /workspace/scripts/verify_env.sh /workspace/runs/verification/ci-docker
+
+      - name: 네트워크를 끊고 다시 검증 (오프라인 fail-closed)
+        run: |
+          docker run --rm --network none \
+            -v "$PWD/runs:/workspace/runs" \
+            ua-sahi-mal:cpu \
+            bash /workspace/scripts/verify_env.sh /workspace/runs/verification/ci-docker-offline
+
+      - name: 검증 결과 요약
+        if: always()
+        run: |
+          for f in runs/verification/ci-docker/verification.json \
+                   runs/verification/ci-docker-offline/verification.json; do
+            [ -f "$f" ] || continue
+            echo "### $f" >> "$GITHUB_STEP_SUMMARY"
+            echo '```json' >> "$GITHUB_STEP_SUMMARY"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-docker
+          path: runs/verification/
+
+  safety:
+    name: 저장소 안전 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 악성 페이로드·비밀정보 추적 여부 확인
+        run: python scripts/check_repository_safety.py
