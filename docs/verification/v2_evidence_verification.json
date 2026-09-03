@@ -1,0 +1,92 @@
+{
+  "generated_utc": "2026-09-03T22:14:19.907100+00:00",
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "packages": {
+      "torch": "2.8.0",
+      "torchvision": "0.23.0",
+      "ultralytics": "8.4.67",
+      "sahi": "0.12.2",
+      "numpy": "2.2.6",
+      "opencv-python": "4.14.0.94",
+      "shapely": "2.1.2",
+      "pillow": "12.3.0",
+      "PyYAML": "6.0.3",
+      "click": "8.5.0",
+      "tqdm": "4.70.0",
+      "pytest": "8.4.2",
+      "ruff": "0.16.5"
+    },
+    "torch_cuda_available": false,
+    "torch_device_count": 0
+  },
+  "ruff": {
+    "exit_code": 0,
+    "passed": true,
+    "scope": "src scripts tests"
+  },
+  "pytest": {
+    "exit_code": 0,
+    "passed": true,
+    "tests_passed": 186
+  },
+  "smoke": {
+    "exit_code": 0,
+    "passed": true,
+    "summary": {
+      "output_dir": "/home/claude/work/repo/runs/verification/v2final/smoke",
+      "prepared_samples": 2,
+      "prepared_annotations": 5,
+      "full_image_detections": 1,
+      "full_sahi_detections": 1,
+      "budgeted_detections": 1,
+      "full_sahi_detector_images": 4,
+      "budgeted_detector_images": 2,
+      "detector_call_reduction": 0.5,
+      "tile_recall": 1.0
+    }
+  },
+  "paper_audit": {
+    "exit_code": 0,
+    "passed": true,
+    "source": "docs/results (커밋된 사본)",
+    "checks": 285,
+    "failures": [],
+    "all_passed": true,
+    "latency_ratios": {
+      "224 p50": 4.9787,
+      "224 p95": 16.4046,
+      "300 p50": 5.2837
+    },
+    "pre_registered_gates": {
+      "224": {
+        "ga_macro_f1_not_worse": true,
+        "gb_ece_not_worse": false,
+        "gc_p95_within_3x": false,
+        "p95_ratio": 16.4046,
+        "adopt": false
+      },
+      "300": {
+        "ga_macro_f1_not_worse": true,
+        "gb_ece_not_worse": false,
+        "gc_p95_within_3x": true,
+        "p95_ratio": 2.5181,
+        "adopt": false
+      }
+    }
+  },
+  "evidence_smoke": {
+    "exit_code": 0,
+    "passed": true,
+    "checks": {
+      "search_recovers_planted_range": true,
+      "evidence_beats_random_control": true,
+      "budget_reduces_forward_passes": true
+    },
+    "mean_byte_iou": 1.0,
+    "samples": 4
+  },
+  "all_passed": true
+}
