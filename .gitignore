@@ -49,3 +49,6 @@ Thumbs.db
 .vscode/
 tmp/
 .codex-review/
+
+# 사용자가 앱에서 받은 산출물 사본 (원본은 output/ 에 있다)
+Claude outputs/
