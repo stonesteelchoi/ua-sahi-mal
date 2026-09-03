@@ -210,22 +210,31 @@ def _build_tiled_module(class_count: int, seed: int):
         The first convolution has stride 4, so a 4 KB occlusion (8 rows) still
         spans two positions in the first feature map: the search signal is not
         averaged away before the network sees it.
+
+        Normalization is GroupNorm, not BatchNorm.  A sample contributes at most
+        four tiles, so a batch-statistics layer estimates mean and variance from
+        four samples during training and then uses different statistics at
+        inference.  Measured on this corpus, that diverges outright: validation
+        accuracy 0.149 against a 0.111 chance level, NLL 10.0.  GroupNorm's
+        statistics do not depend on the batch, so a tile scores the same whether
+        it arrives alone or with three others -- which is exactly what an
+        occlusion search re-scoring one tile at a time requires.
         """
 
         def __init__(self) -> None:
             super().__init__()
             self.encoder = nn.Sequential(
                 nn.Conv2d(1, 16, kernel_size=7, stride=4, padding=3),
-                nn.BatchNorm2d(16),
+                nn.GroupNorm(4, 16),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
-                nn.BatchNorm2d(32),
+                nn.GroupNorm(8, 32),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
-                nn.BatchNorm2d(64),
+                nn.GroupNorm(8, 64),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),
-                nn.BatchNorm2d(64),
+                nn.GroupNorm(8, 64),
                 nn.ReLU(inplace=True),
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),

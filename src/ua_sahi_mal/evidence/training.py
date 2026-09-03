@@ -181,6 +181,7 @@ def train_thumbnail_classifier(
             total += float(loss.item()) * len(indices)
             seen += len(indices)
         report.epochs.append({"epoch": epoch, "loss": total / max(seen, 1)})
+        print(f"  [{report.model}] epoch {epoch} loss {total / max(seen, 1):.4f}", flush=True)
     module.eval()
 
     report.seconds = time.time() - started
@@ -245,11 +246,16 @@ def train_tiled_classifier(
             total += float(loss.item())
             seen += 1
             if step % config.batch_size == 0:
+                # Clipping is not decoration here: one sample can contribute a
+                # very large gradient when its tiles disagree, and a single such
+                # step is enough to put the pooled head into a bad basin.
+                torch.nn.utils.clip_grad_norm_(module.parameters(), 1.0)
                 optimizer.step()
                 optimizer.zero_grad()
         optimizer.step()
         optimizer.zero_grad()
         report.epochs.append({"epoch": epoch, "loss": total / max(seen, 1)})
+        print(f"  [{report.model}] epoch {epoch} loss {total / max(seen, 1):.4f}", flush=True)
     module.eval()
 
     report.seconds = time.time() - started

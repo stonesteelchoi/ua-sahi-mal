@@ -1,0 +1,187 @@
+{
+  "format": "evidence-training-1",
+  "manifest": "data/big2015/manifest.json",
+  "class_count": 9,
+  "train_samples": 1103,
+  "validation_samples": 261,
+  "family_counts_train": {
+    "0": 137,
+    "1": 134,
+    "2": 132,
+    "3": 139,
+    "4": 28,
+    "5": 137,
+    "6": 128,
+    "7": 134,
+    "8": 134
+  },
+  "config": {
+    "epochs": 10,
+    "batch_size": 8,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "seed": 0,
+    "max_tiles": 4,
+    "thumbnail_size": 256,
+    "width": 512,
+    "tile_rows": 512,
+    "augmentation": "none -- horizontal flip and rotation destroy byte order"
+  },
+  "models": {
+    "text": {
+      "model": "text",
+      "epochs": [
+        {
+          "loss": 1.5874035348568694
+        }
+      ],
+      "validation": {
+        "accuracy": 0.5900383141762452,
+        "macro_f1": 0.5219004172770452,
+        "mean_nll": 1.5991913806291593,
+        "n": 261
+      },
+      "seconds": 28.81,
+      "config": {
+        "epochs": 10,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "seed": 0,
+        "max_tiles": 4,
+        "thumbnail_size": 256,
+        "width": 512,
+        "tile_rows": 512,
+        "augmentation": "none -- horizontal flip and rotation destroy byte order"
+      }
+    },
+    "tiled": {
+      "model": "tiled",
+      "epochs": [
+        {
+          "epoch": 0,
+          "loss": 1.7024595369960596
+        },
+        {
+          "epoch": 1,
+          "loss": 1.1682944210399877
+        },
+        {
+          "epoch": 2,
+          "loss": 1.0391123021352473
+        },
+        {
+          "epoch": 3,
+          "loss": 1.001378567468
+        },
+        {
+          "epoch": 4,
+          "loss": 0.9162283166657761
+        },
+        {
+          "epoch": 5,
+          "loss": 0.8470552628960145
+        },
+        {
+          "epoch": 6,
+          "loss": 0.745289927491507
+        },
+        {
+          "epoch": 7,
+          "loss": 0.7565834342837899
+        },
+        {
+          "epoch": 8,
+          "loss": 0.6677792782677436
+        },
+        {
+          "epoch": 9,
+          "loss": 0.6636976870023819
+        }
+      ],
+      "validation": {
+        "accuracy": 0.7969348659003831,
+        "macro_f1": 0.7315332238087184,
+        "mean_nll": 0.6756232902637355,
+        "n": 261
+      },
+      "seconds": 343.45,
+      "config": {
+        "epochs": 10,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "seed": 0,
+        "max_tiles": 4,
+        "thumbnail_size": 256,
+        "width": 512,
+        "tile_rows": 512,
+        "augmentation": "none -- horizontal flip and rotation destroy byte order"
+      }
+    },
+    "thumbnail": {
+      "model": "thumbnail",
+      "epochs": [
+        {
+          "epoch": 0,
+          "loss": 1.437095453711066
+        },
+        {
+          "epoch": 1,
+          "loss": 1.0634071347071492
+        },
+        {
+          "epoch": 2,
+          "loss": 0.8995551049763358
+        },
+        {
+          "epoch": 3,
+          "loss": 0.7621219508343141
+        },
+        {
+          "epoch": 4,
+          "loss": 0.7108139552966314
+        },
+        {
+          "epoch": 5,
+          "loss": 0.673231630517695
+        },
+        {
+          "epoch": 6,
+          "loss": 0.6053229034325261
+        },
+        {
+          "epoch": 7,
+          "loss": 0.538846182828585
+        },
+        {
+          "epoch": 8,
+          "loss": 0.5002029817534487
+        },
+        {
+          "epoch": 9,
+          "loss": 0.484613352138566
+        }
+      ],
+      "validation": {
+        "accuracy": 0.8773946360153256,
+        "macro_f1": 0.849939427493191,
+        "mean_nll": 0.48199433970739675,
+        "n": 261
+      },
+      "seconds": 840.36,
+      "config": {
+        "epochs": 10,
+        "batch_size": 8,
+        "learning_rate": 0.001,
+        "weight_decay": 0.0001,
+        "seed": 0,
+        "max_tiles": 4,
+        "thumbnail_size": 256,
+        "width": 512,
+        "tile_rows": 512,
+        "augmentation": "none -- horizontal flip and rotation destroy byte order"
+      }
+    }
+  }
+}
