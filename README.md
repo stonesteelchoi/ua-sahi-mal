@@ -425,7 +425,7 @@ prepared/decode-v1/
 
 ```bash
 make build      # 또는 docker compose -f docker/docker-compose.yml build
-make verify     # ruff + pytest 107건 + 외부 데이터 없는 합성 스모크
+make verify     # ruff + pytest 107건 + 합성 스모크 + 논문 수치 감사 255건
 make offline    # 네트워크를 끊고 같은 검증
 ```
 
@@ -449,13 +449,17 @@ Windows 는 `.\scripts\setup_docker.ps1` 하나로 빌드·검증·오프라인 
 
 | 파일 | 내용 |
 |---|---|
-| `UA-SAHI-MAL_논문초고_v1.docx` | 초고 본문 (4쪽) |
+| `UA-SAHI-MAL_논문초고_v2.docx` | 초고 본문 (5쪽). 실험 1 = MaleVis MC dropout, 실험 2 = BIG2015 경계 복원 |
 | `build_paper.js` | 초고 생성 스크립트 (`node output/paper/build_paper.js`) |
 | `figures/fig1_accuracy_calibration.png` | macro F1 과 ECE |
 | `figures/fig2_latency.png` | 구성별 이미지당 순전파 지연시간 |
+| `figures/fig3_boundary.png` | BIG2015 경계 복원 오차와 가이드 판별력 |
 
-초고의 모든 수치는 `runs/malevis/aggregate-20260829/` 와 `runs/malevis/isolated-timing-20260829.json`
-에서 가져온 것이며, 새로 실행한 실험은 없다. 저자·소속·투고 번호는 자리표시자이므로 투고 전에
+실험 1의 수치는 `runs/malevis/aggregate-20260829/` 와 `runs/malevis/isolated-timing-20260829.json`
+에서 가져온 것으로 새로 실행하지 않았다. 실험 2(BIG2015 경계 복원)는 이번에 실행한 것이며
+`scripts/big2015_p0a.py` 와 `scripts/big2015_boundary_experiment.py` 로 재현된다. 그 수치가 근거 데이터로부터 올바르게 도출됐는지는
+`python scripts/audit_paper_numbers.py` 가 285건의 검사로 대조한다(근거 사본은 [docs/results/](docs/results/)).
+논문을 고치면 감사 스크립트의 기대값 상수도 같이 고쳐야 하며, 그러지 않으면 검증이 실패한다. 저자·소속·투고 번호는 자리표시자이므로 투고 전에
 채워야 한다. 기존 `output/documents/malevis-decode-transfer-paper-ko.docx` 는 별도 문서이며
 이 초고가 대체하지 않는다.
 

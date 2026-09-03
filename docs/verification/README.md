@@ -5,7 +5,7 @@
 
 | 파일 | 환경 | 결과 |
 |---|---|---|
-| `verification-20260902-local-py312.json` | Python 3.12.3 / torch 2.8.0 / CPU (컨테이너 밖 네이티브) | ruff 통과, pytest 107건 통과, 합성 스모크 통과 |
+|  `verification-20260903-local-py312.json` | Python 3.12.3 / torch 2.8.0 / CPU (컨테이너 밖 네이티브) | ruff 통과, pytest 107건 통과, 합성 스모크 통과 |
 
 ## 아직 채워지지 않은 칸
 

@@ -1,5 +1,5 @@
 {
-  "generated_utc": "2026-09-02T23:07:37.253439+00:00",
+  "generated_utc": "2026-09-03T04:03:24.457765+00:00",
   "environment": {
     "python": "3.12.3",
     "platform": "Linux-6.18.44-fc-v24-x86_64-with-glibc2.39",
@@ -46,6 +46,35 @@
       "budgeted_detector_images": 2,
       "detector_call_reduction": 0.5,
       "tile_recall": 1.0
+    }
+  },
+  "paper_audit": {
+    "exit_code": 0,
+    "passed": true,
+    "source": "docs/results (커밋된 사본)",
+    "checks": 285,
+    "failures": [],
+    "all_passed": true,
+    "latency_ratios": {
+      "224 p50": 4.9787,
+      "224 p95": 16.4046,
+      "300 p50": 5.2837
+    },
+    "pre_registered_gates": {
+      "224": {
+        "ga_macro_f1_not_worse": true,
+        "gb_ece_not_worse": false,
+        "gc_p95_within_3x": false,
+        "p95_ratio": 16.4046,
+        "adopt": false
+      },
+      "300": {
+        "ga_macro_f1_not_worse": true,
+        "gb_ece_not_worse": false,
+        "gc_p95_within_3x": true,
+        "p95_ratio": 2.5181,
+        "adopt": false
+      }
     }
   },
   "all_passed": true

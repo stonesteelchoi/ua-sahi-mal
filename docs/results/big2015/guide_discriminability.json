@@ -1,0 +1,35 @@
+{
+ "note": "섹션 경계 전후 8행의 표준화 평균차(Cohen's d)",
+ "per_boundary": [
+  {
+   "sample": "0A32eTdBKayjCWhZqDOQ",
+   "boundary": ".rdata",
+   "cohen_d_byte_value": 0.414,
+   "cohen_d_row_entropy": 1.039
+  },
+  {
+   "sample": "0A32eTdBKayjCWhZqDOQ",
+   "boundary": ".data",
+   "cohen_d_byte_value": 2.239,
+   "cohen_d_row_entropy": 8.256
+  },
+  {
+   "sample": "0ACDbR5M3ZhBJajygTuf",
+   "boundary": ".rdata",
+   "cohen_d_byte_value": 1.045,
+   "cohen_d_row_entropy": 20.965
+  },
+  {
+   "sample": "0ACDbR5M3ZhBJajygTuf",
+   "boundary": ".data",
+   "cohen_d_byte_value": 0.034,
+   "cohen_d_row_entropy": 0.014
+  },
+  {
+   "sample": "0ACDbR5M3ZhBJajygTuf",
+   "boundary": ".rsrc",
+   "cohen_d_byte_value": 1.089,
+   "cohen_d_row_entropy": 12.247
+  }
+ ]
+}

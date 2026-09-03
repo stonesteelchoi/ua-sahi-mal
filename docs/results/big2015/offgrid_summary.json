@@ -1,0 +1,142 @@
+[
+ {
+  "shift_rows": 0,
+  "channels": "G1",
+  "upsampler": "nearest",
+  "n": 7,
+  "mae_start_bytes": 0.0
+ },
+ {
+  "shift_rows": 0,
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "n": 7,
+  "mae_start_bytes": 0.0
+ },
+ {
+  "shift_rows": 0,
+  "channels": "G1",
+  "upsampler": "jbu",
+  "n": 7,
+  "mae_start_bytes": 1609.1
+ },
+ {
+  "shift_rows": 0,
+  "channels": "G3",
+  "upsampler": "jbu",
+  "n": 7,
+  "mae_start_bytes": 0.0
+ },
+ {
+  "shift_rows": 1,
+  "channels": "G1",
+  "upsampler": "nearest",
+  "n": 6,
+  "mae_start_bytes": 512.0
+ },
+ {
+  "shift_rows": 1,
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "n": 6,
+  "mae_start_bytes": 170.7
+ },
+ {
+  "shift_rows": 1,
+  "channels": "G1",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 2645.3
+ },
+ {
+  "shift_rows": 1,
+  "channels": "G3",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 341.3
+ },
+ {
+  "shift_rows": 2,
+  "channels": "G1",
+  "upsampler": "nearest",
+  "n": 6,
+  "mae_start_bytes": 1024.0
+ },
+ {
+  "shift_rows": 2,
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "n": 6,
+  "mae_start_bytes": 682.7
+ },
+ {
+  "shift_rows": 2,
+  "channels": "G1",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 2816.0
+ },
+ {
+  "shift_rows": 2,
+  "channels": "G3",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 1024.0
+ },
+ {
+  "shift_rows": 3,
+  "channels": "G1",
+  "upsampler": "nearest",
+  "n": 6,
+  "mae_start_bytes": 1536.0
+ },
+ {
+  "shift_rows": 3,
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "n": 6,
+  "mae_start_bytes": 853.3
+ },
+ {
+  "shift_rows": 3,
+  "channels": "G1",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 3157.3
+ },
+ {
+  "shift_rows": 3,
+  "channels": "G3",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 1365.3
+ },
+ {
+  "shift_rows": 4,
+  "channels": "G1",
+  "upsampler": "nearest",
+  "n": 6,
+  "mae_start_bytes": 2048.0
+ },
+ {
+  "shift_rows": 4,
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "n": 6,
+  "mae_start_bytes": 682.7
+ },
+ {
+  "shift_rows": 4,
+  "channels": "G1",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 3328.0
+ },
+ {
+  "shift_rows": 4,
+  "channels": "G3",
+  "upsampler": "jbu",
+  "n": 6,
+  "mae_start_bytes": 1706.7
+ }
+]

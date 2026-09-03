@@ -71,7 +71,7 @@ RUN pip install --no-deps -e /workspace/external/upsample-anything
 # ---------------------------------------------------------------------------
 # 3) 프로젝트 본체
 # ---------------------------------------------------------------------------
-COPY pyproject.toml README.md LICENSE MANIFEST.in /workspace/
+COPY pyproject.toml README.md LICENSE /workspace/
 COPY src /workspace/src
 RUN pip install -e ".[dev]" \
  && python -c "import ua_sahi_mal, sahi, ultralytics, cv2; print('imports ok')"

@@ -1,0 +1,149 @@
+{
+  "samples": [
+    {
+      "id": "0A32eTdBKayjCWhZqDOQ",
+      "base_va": 4198400,
+      "dump_bytes": 1201668,
+      "valid_fraction": 0.9904166541840176,
+      "unknown_fraction": 0.009583345815982414,
+      "rows": 2348,
+      "row_entropy_mean": 4.814902305603027,
+      "row_entropy_p05": 0.0,
+      "row_entropy_p95": 6.4260759353637695,
+      "segments": [
+        {
+          "name": ".text",
+          "va_lo": 4198400,
+          "va_hi": 4368384,
+          "dump_offset": 0,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".rdata",
+          "va_lo": 4370432,
+          "va_hi": 4417024,
+          "dump_offset": 172032,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".data",
+          "va_lo": 4419584,
+          "va_hi": 5396100,
+          "dump_offset": 221184,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".idata",
+          "va_lo": 5399348,
+          "va_hi": 5400024,
+          "dump_offset": 1200948,
+          "real_section": false,
+          "in_range": true,
+          "aligned_512": false,
+          "aligned_4096": false
+        }
+      ]
+    },
+    {
+      "id": "0ACDbR5M3ZhBJajygTuf",
+      "base_va": 4198400,
+      "dump_bytes": 1581056,
+      "valid_fraction": 0.6189432885362695,
+      "unknown_fraction": 0.38105671146373055,
+      "rows": 3088,
+      "row_entropy_mean": 2.9938831329345703,
+      "row_entropy_p05": 0.0,
+      "row_entropy_p95": 4.878378391265869,
+      "segments": [
+        {
+          "name": "HEADER",
+          "va_lo": 4194304,
+          "va_hi": 4194304,
+          "dump_offset": -4096,
+          "real_section": false,
+          "in_range": false,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".text",
+          "va_lo": 4198400,
+          "va_hi": 4661760,
+          "dump_offset": 0,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".idata",
+          "va_lo": 4650204,
+          "va_hi": 4650580,
+          "dump_offset": 451804,
+          "real_section": false,
+          "in_range": true,
+          "aligned_512": false,
+          "aligned_4096": false
+        },
+        {
+          "name": ".rdata",
+          "va_lo": 4665344,
+          "va_hi": 4915712,
+          "dump_offset": 466944,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".data",
+          "va_lo": 4919296,
+          "va_hi": 5509119,
+          "dump_offset": 720896,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".rsrc",
+          "va_lo": 5509120,
+          "va_hi": 5509120,
+          "dump_offset": 1310720,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        },
+        {
+          "name": ".reloc",
+          "va_lo": 5775360,
+          "va_hi": 5775360,
+          "dump_offset": 1576960,
+          "real_section": true,
+          "in_range": true,
+          "aligned_512": true,
+          "aligned_4096": true
+        }
+      ]
+    }
+  ],
+  "width": 512,
+  "verdict": {
+    "n_real_sections": 8,
+    "real_sections_aligned_512": 8,
+    "real_sections_aligned_4096": 8,
+    "n_nonsection_labels": 3,
+    "nonsection_aligned_512": 1,
+    "coordinate_systems_match": true
+  }
+}

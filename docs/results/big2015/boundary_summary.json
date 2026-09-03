@@ -1,0 +1,122 @@
+[
+ {
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "stride": 8,
+  "n": 8,
+  "mae_start_bytes": 0.0,
+  "mae_end_bytes": 256.0,
+  "hit_512": 0.875,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G1",
+  "upsampler": "jbu",
+  "stride": 8,
+  "n": 8,
+  "mae_start_bytes": 1728.0,
+  "mae_end_bytes": 2496.0,
+  "hit_512": 0.0,
+  "hit_4096": 0.75
+ },
+ {
+  "channels": "G1",
+  "upsampler": "nearest",
+  "stride": 8,
+  "n": 8,
+  "mae_start_bytes": 0.0,
+  "mae_end_bytes": 256.0,
+  "hit_512": 0.875,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "stride": 16,
+  "n": 8,
+  "mae_start_bytes": 0.0,
+  "mae_end_bytes": 768.0,
+  "hit_512": 0.75,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G1",
+  "upsampler": "jbu",
+  "stride": 16,
+  "n": 8,
+  "mae_start_bytes": 2752.0,
+  "mae_end_bytes": 6656.0,
+  "hit_512": 0.125,
+  "hit_4096": 0.375
+ },
+ {
+  "channels": "G1",
+  "upsampler": "nearest",
+  "stride": 16,
+  "n": 8,
+  "mae_start_bytes": 512.0,
+  "mae_end_bytes": 768.0,
+  "hit_512": 0.625,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G1",
+  "upsampler": "bilinear",
+  "stride": 32,
+  "n": 8,
+  "mae_start_bytes": 512.0,
+  "mae_end_bytes": 832.0,
+  "hit_512": 0.625,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G1",
+  "upsampler": "jbu",
+  "stride": 32,
+  "n": 8,
+  "mae_start_bytes": 8064.0,
+  "mae_end_bytes": 13248.0,
+  "hit_512": 0.0,
+  "hit_4096": 0.125
+ },
+ {
+  "channels": "G1",
+  "upsampler": "nearest",
+  "stride": 32,
+  "n": 8,
+  "mae_start_bytes": 3584.0,
+  "mae_end_bytes": 4864.0,
+  "hit_512": 0.125,
+  "hit_4096": 0.375
+ },
+ {
+  "channels": "G3",
+  "upsampler": "jbu",
+  "stride": 8,
+  "n": 8,
+  "mae_start_bytes": 320.0,
+  "mae_end_bytes": 576.0,
+  "hit_512": 0.625,
+  "hit_4096": 1.0
+ },
+ {
+  "channels": "G3",
+  "upsampler": "jbu",
+  "stride": 16,
+  "n": 8,
+  "mae_start_bytes": 4224.0,
+  "mae_end_bytes": 4416.0,
+  "hit_512": 0.375,
+  "hit_4096": 0.75
+ },
+ {
+  "channels": "G3",
+  "upsampler": "jbu",
+  "stride": 32,
+  "n": 8,
+  "mae_start_bytes": 2752.0,
+  "mae_end_bytes": 6464.0,
+  "hit_512": 0.0,
+  "hit_4096": 0.75
+ }
+]

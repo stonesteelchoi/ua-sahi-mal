@@ -1,0 +1,93 @@
+{
+  "schema": "ua-sahi-mal-malevis-isolated-timing-v1",
+  "protocol": "Seed-42 checkpoints are benchmarked sequentially in one fresh process after all training jobs finish; no other project training job may run concurrently.",
+  "host": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 68 Stepping 1, AuthenticAMD",
+    "logical_cpu_count": 16
+  },
+  "runs": [
+    {
+      "image_size": 224,
+      "seed": 42,
+      "run_dir": "C:\\dev\\ua-sahi-mal-yolo\\runs\\malevis\\full-20260829\\224-seed42",
+      "checkpoint_sha256": "930a8c73fe270226c98dd5d5753ec80eeb02c2ad7bd72a7dd6cf290286a6b6e3",
+      "dataset_fingerprint_sha256": "17fef896940818d9d5a09dedb1345107d9080c35bd1035603a6f3ce54291be43",
+      "paired_manifest_sha256": "63c07184429fa8716aa6b27fcc297358dd8c1290132d0d6b1e74820f66c5585c",
+      "device": "cpu",
+      "torch": "2.13.0+cpu",
+      "torchvision": "0.28.0+cpu",
+      "torch_threads": 8,
+      "modes": {
+        "deterministic": {
+          "mc_passes": 1,
+          "measured_images": 14997,
+          "batch_size": 32,
+          "latency_scope": "model_forward_after_batch_load",
+          "throughput_scope": "dataloader_transfer_and_model_forward",
+          "aggregation_note": "Per-image latency divides each batch forward time by its batch size; it is not single-request end-to-end latency.",
+          "latency_mean_ms_per_image": 1.97476374607254,
+          "latency_p50_ms_per_image": 1.4116156244199374,
+          "latency_p95_ms_per_image": 1.7951375002667191,
+          "throughput_images_per_second": 198.4918933505676,
+          "wall_time_seconds": 75.55472290000762
+        },
+        "mc_dropout": {
+          "mc_passes": 5,
+          "measured_images": 14997,
+          "batch_size": 32,
+          "latency_scope": "model_forward_after_batch_load",
+          "throughput_scope": "dataloader_transfer_and_model_forward",
+          "aggregation_note": "Per-image latency divides each batch forward time by its batch size; it is not single-request end-to-end latency.",
+          "latency_mean_ms_per_image": 9.127373474731064,
+          "latency_p50_ms_per_image": 7.027943749562837,
+          "latency_p95_ms_per_image": 29.448468750160828,
+          "throughput_images_per_second": 84.93681138178401,
+          "wall_time_seconds": 176.56655290001072
+        }
+      }
+    },
+    {
+      "image_size": 300,
+      "seed": 42,
+      "run_dir": "C:\\dev\\ua-sahi-mal-yolo\\runs\\malevis\\full-20260829\\300-seed42",
+      "checkpoint_sha256": "f8a6ce4665be895ca4fd95da93509aefd332830ec05fac2413c1b0d623a710da",
+      "dataset_fingerprint_sha256": "637d1cb50fd1f9bd4b982ba8f0d0f2cdccceb9f04154d194cad4c7d336ddc6da",
+      "paired_manifest_sha256": "63c07184429fa8716aa6b27fcc297358dd8c1290132d0d6b1e74820f66c5585c",
+      "device": "cpu",
+      "torch": "2.13.0+cpu",
+      "torchvision": "0.28.0+cpu",
+      "torch_threads": 8,
+      "modes": {
+        "deterministic": {
+          "mc_passes": 1,
+          "measured_images": 14997,
+          "batch_size": 32,
+          "latency_scope": "model_forward_after_batch_load",
+          "throughput_scope": "dataloader_transfer_and_model_forward",
+          "aggregation_note": "Per-image latency divides each batch forward time by its batch size; it is not single-request end-to-end latency.",
+          "latency_mean_ms_per_image": 3.241458324998643,
+          "latency_p50_ms_per_image": 2.517475000786362,
+          "latency_p95_ms_per_image": 9.02511250023963,
+          "throughput_images_per_second": 127.38388943189608,
+          "wall_time_seconds": 117.73074339999584
+        },
+        "mc_dropout": {
+          "mc_passes": 5,
+          "measured_images": 14997,
+          "batch_size": 32,
+          "latency_scope": "model_forward_after_batch_load",
+          "throughput_scope": "dataloader_transfer_and_model_forward",
+          "aggregation_note": "Per-image latency divides each batch forward time by its batch size; it is not single-request end-to-end latency.",
+          "latency_mean_ms_per_image": 15.267355057663242,
+          "latency_p50_ms_per_image": 13.30161249916273,
+          "latency_p95_ms_per_image": 22.726481250174402,
+          "throughput_images_per_second": 52.965802748653985,
+          "wall_time_seconds": 283.1449580999906
+        }
+      }
+    }
+  ],
+  "wall_time_seconds": 659.707345599978,
+  "interpretation": "Per-image p50/p95 divides batch model-forward time after loading by batch size. Throughput includes data loading and transfer. Neither is single-request end-to-end latency."
+}
