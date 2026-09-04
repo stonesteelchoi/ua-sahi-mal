@@ -1,0 +1,2057 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+  10pt,
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\newenvironment{Shaded}{}{}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.53,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.56,0.13,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.73,0.13,0.13}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.40,0.40,0.40}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.74,0.48,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.73,0.40,0.53}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+% definitions for citeproc citations
+\NewDocumentCommand\citeproctext{}{}
+\NewDocumentCommand\citeproc{mm}{%
+  \begingroup\def\citeproctext{#2}\cite{#1}\endgroup}
+\makeatletter
+ % allow citations to break across lines
+ \let\@cite@ofmt\@firstofone
+ % avoid brackets around text for \cite:
+ \def\@biblabel#1{}
+ \def\@cite#1#2{{#1\if@tempswa , #2\fi}}
+\makeatother
+\newlength{\cslhangindent}
+\setlength{\cslhangindent}{1.5em}
+\newlength{\csllabelwidth}
+\setlength{\csllabelwidth}{3em}
+\newenvironment{CSLReferences}[2] % #1 hanging-indent, #2 entry-spacing
+ {\begin{list}{}{%
+  \setlength{\itemindent}{0pt}
+  \setlength{\leftmargin}{0pt}
+  \setlength{\parsep}{0pt}
+  % turn on hanging indent if param 1 is 1
+  \ifodd #1
+   \setlength{\leftmargin}{\cslhangindent}
+   \setlength{\itemindent}{-1\cslhangindent}
+  \fi
+  % set entry spacing
+  \setlength{\itemsep}{#2\baselineskip}}}
+ {\end{list}}
+\usepackage{calc}
+\newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut\ignorespaces#1\strut}}
+\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{\strut#1\strut}}
+\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={From File Labels to Byte Evidence: Budget-Aware Weakly Supervised Localization in Static PE Binaries},
+  pdfauthor={{[}Author 1{]}; {[}Author 2{]}},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{From File Labels to Byte Evidence: Budget-Aware Weakly Supervised
+Localization in Static PE Binaries}
+\usepackage{etoolbox}
+\makeatletter
+\providecommand{\subtitle}[1]{% add subtitle to \maketitle
+  \apptocmd{\@title}{\par {\large #1 \par}}{}{}
+}
+\makeatother
+\subtitle{UA-SAHI-Mal --- Venue-neutral pre-results manuscript draft}
+\author{{[}Author 1{]} \and {[}Author 2{]}}
+\date{Draft: 2026-09-04}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+Static malware detectors can classify a Portable Executable (PE) file
+without identifying the byte regions or functions that justify the
+decision. This gap limits analyst trust and leaves reverse engineers
+with most of the original program to inspect. Building supervised
+localizers is difficult because public malware corpora predominantly
+provide file-level labels, while independently validated component-level
+annotations remain scarce, heterogeneous, or unavailable at scale. We
+present UA-SAHI-Mal, a budget-aware weakly supervised framework that
+learns from file labels to rank and recursively refine security-relevant
+byte intervals in statically analyzable PE binaries. The framework
+introduces PEAtlas, an invertible, structure-aware mapping between file
+offsets, PE sections, virtual addresses, program-analysis entities, and
+image coordinates. A relation-aware multiple-instance learner produces a
+coarse evidence map; a structure-guided feature upsampler reconstructs
+the map at higher resolution; and a guarded subset selector allocates a
+fixed analysis budget to high-value and uncertain regions. The final
+output is a ranked union of byte intervals, with masks and bounding
+boxes derived only for visualization and detector compatibility. To
+avoid evaluating localization solely against model explanations or a
+single rule engine, we define a non-pooled, multi-tier benchmark
+comprising controlled-provenance builds, rule-derived silver evidence,
+source-grounded analyst-audited gold annotations, and an in-the-wild
+analyst study. This pre-results manuscript specifies the threat model,
+hypotheses, baselines, leakage controls, statistical analysis, and
+reporting protocol. Experimental values are intentionally left as
+{[}TBD{]} until measured.
+\end{abstract}
+
+{
+\setcounter{tocdepth}{3}
+\tableofcontents
+}
+\section{1. Introduction}\label{introduction}
+
+Static machine-learning detectors have made it possible to score Windows
+Portable Executable (PE) files at scale using engineered features, raw
+bytes, or image-like representations
+(\citeproc{ref-anderson2018ember}{Anderson and Roth 2018};
+\citeproc{ref-raff2018malconv}{Raff et al. 2018};
+\citeproc{ref-nataraj2011malwareimages}{Nataraj et al. 2011}). Their
+standard output, however, is a file-level label or probability. A
+malware analyst who receives a positive verdict must still identify the
+functions, basic blocks, strings, embedded objects, or byte regions that
+implement the behavior of interest. This distinction is operationally
+important: a high-confidence classifier can reduce triage volume while
+providing little guidance for reverse engineering.
+
+Prior work has begun to address component localization. DeepReflect
+ranks suspicious functions and basic blocks without requiring component
+labels for training and showed that such prioritization can reduce
+analyst workload (\citeproc{ref-downing2021deepreflect}{Downing et al.
+2021}). Capability systems such as capa identify code-level behaviors
+through expert-authored rules (\citeproc{ref-mandiant2026capa}{Mandiant
+FLARE Team 2026}). More recent PE models use multiple-instance learning
+(MIL) or position-preserving features to expose influential byte
+segments (\citeproc{ref-peters2023highresolution}{Peters and Farhat
+2023}; \citeproc{ref-kim2026pemilcon}{Kim, Trung, and Pham 2026};
+\citeproc{ref-yevsikov2026dllicious}{Yevsikov and Nissim 2026}). These
+systems establish that local evidence is useful, but they do not yield a
+widely adopted public benchmark in which raw PE bytes, benign and
+malicious files, independently validated malicious components,
+reversible address mappings, and leakage-controlled splits are all
+available together.
+
+The absence of such a benchmark should not be interpreted as proof that
+no component-level data exist, nor does it make supervised localization
+impossible. Private corpora, manual reverse engineering, active
+learning, and source-grounded builds are possible. The practical problem
+is narrower: public, reproducible evaluation of malicious-component
+localization remains constrained by annotation cost, licensing,
+malware-handling restrictions, disassembly uncertainty, and ambiguity
+about what constitutes a malicious component.
+
+At the same time, weak supervision does not solve localization
+automatically. A positive malware file contains substantial benign or
+shared code, and a behavior may arise through interactions among
+multiple functions. Attention weights or class activation maps can
+reveal features used by a classifier, but they are not, by themselves,
+evidence that a highlighted region implements malicious behavior.
+High-resolution patch selection also has substantial precedent in MIL
+and computational pathology (\citeproc{ref-ilse2018abmil}{Ilse, Tomczak,
+and Welling 2018}; \citeproc{ref-lu2021clam}{Lu et al. 2021};
+\citeproc{ref-li2021dsmil}{Li, Li, and Eliceiri 2021};
+\citeproc{ref-shao2021transmil}{Shao et al. 2021}), and high-resolution
+malware-image MIL has already used attention to prioritize patches
+(\citeproc{ref-peters2023highresolution}{Peters and Farhat 2023}).
+Consequently, a contribution based only on ``CAM or MIL followed by
+top-\(K\) tiles'' would be insufficient.
+
+This paper studies a more specific problem: \textbf{under an explicit
+analysis budget, can a model trained primarily with file-level labels
+retrieve byte intervals that independent evidence and analysts associate
+with security-relevant malware components?} We introduce UA-SAHI-Mal, a
+hierarchical evidence-retrieval framework for statically analyzable PE
+files. The system first constructs an invertible, structure-aware
+representation, PEAtlas. A relation-aware MIL model learns a coarse
+tile-level evidence distribution. A structure-guided instance of
+Upsample Anything (UA) (\citeproc{ref-seo2026upsample}{Seo, Hamilton,
+and Kim 2026}) reconstructs higher-resolution evidence, and a guarded
+budget selector balances high scores, uncertainty, and section coverage.
+Selected regions are recursively refined until the budget is exhausted
+or the desired byte granularity is reached.
+
+The canonical output is a ranked set of byte intervals and mapped
+program-analysis entities, not a two-dimensional bounding box. Bounding
+boxes are derived views because a contiguous one-dimensional byte
+interval can wrap across image rows, and optimized functions can occupy
+multiple disjoint code chunks. This design keeps evaluation in the
+native PE coordinate system while retaining compatibility with image
+models and visual analyst interfaces.
+
+We further introduce an evaluation protocol that separates evidence by
+provenance rather than pooling incompatible labels.
+Controlled-provenance builds test mapping and shortcut resistance. YARA
+and capa matches provide scalable silver evidence. Source-grounded
+builds and selected DeepReflect artifacts form an analyst-audited gold
+set. Finally, a blinded analyst study evaluates whether ranked regions
+reduce time and code reviewed. Each tier is reported separately.
+
+This work makes the following intended contributions, subject to the
+empirical gates defined in Section 8:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{A reproducible audit and task definition.} We formalize public
+  static-PE localization requirements, distinguish file detection from
+  component retrieval, and document inclusion and exclusion criteria for
+  existing datasets and methods.
+\item
+  \textbf{PEAtlas.} We provide an invertible mapping among raw file
+  offsets, PE sections, RVAs, disassembly entities, and image
+  coordinates, preserving disjoint byte intervals as the canonical
+  annotation.
+\item
+  \textbf{A budget-aware weak localizer.} UA-SAHI-Mal combines
+  relation-aware MIL, structure-guided evidence reconstruction,
+  counterfactual and layout-consistency objectives, and guarded
+  hierarchical selection under an explicit cost constraint.
+\item
+  \textbf{A non-pooled multi-tier benchmark.} We construct
+  controlled-provenance, silver, source-grounded gold, and
+  analyst-evaluation tiers with explicit provenance and leakage
+  controls.
+\item
+  \textbf{Analyst-centered evaluation.} We report evidence recall at
+  fixed byte, function, latency, and compute budgets, along with
+  time-to-first-relevant-function and reviewed-code reduction.
+\end{enumerate}
+
+No numerical result is claimed in this draft. All values, sample counts,
+and effect sizes marked \texttt{{[}TBD{]}} must be replaced only after
+executing the registered protocol.
+
+\section{2. Background, Motivation, and
+Scope}\label{background-motivation-and-scope}
+
+\subsection{2.1 Static PE malware
+detection}\label{static-pe-malware-detection}
+
+A PE file consists of headers, sections, optional overlays, and metadata
+that define how on-disk bytes are mapped into memory. Large malware
+datasets such as EMBER and EMBER2024 support file-level learning from
+static features (\citeproc{ref-anderson2018ember}{Anderson and Roth
+2018}; \citeproc{ref-joyce2025ember2024}{Joyce et al. 2025}). BODMAS
+provides temporal labels and disarmed malware binaries, while its
+original benign binaries are not publicly distributed
+(\citeproc{ref-yang2021bodmas}{Yang et al. 2021}). These resources are
+suitable for detection benchmarks but do not directly provide
+malicious-component intervals.
+
+Raw-byte neural networks avoid manual feature engineering, while
+visualization methods reshape bytes into grayscale or multichannel
+images (\citeproc{ref-raff2018malconv}{Raff et al. 2018};
+\citeproc{ref-nataraj2011malwareimages}{Nataraj et al. 2011}). Image
+representations enable the use of convolutional or vision-transformer
+backbones, but they introduce layout choices. Adjacent pixels at a row
+boundary may be far apart in program structure, and visual edges do not
+necessarily correspond to semantic function boundaries. Our evaluation
+therefore compares one-dimensional raw-byte, fixed-width raster, and
+section-aligned representations.
+
+\subsection{2.2 Local evidence and analyst
+workload}\label{local-evidence-and-analyst-workload}
+
+DeepReflect demonstrated that function prioritization can reduce
+reverse-engineering effort and that unsupervised reconstruction can
+identify malware components without component labels during training
+(\citeproc{ref-downing2021deepreflect}{Downing et al. 2021}). capa
+complements learned methods with expert-authored capability rules
+operating at instruction, basic-block, function, and file scopes
+(\citeproc{ref-mandiant2026capa}{Mandiant FLARE Team 2026}). YARA
+provides exact offsets and lengths for matched strings or byte patterns
+(\citeproc{ref-virustotal2026yara}{VirusTotal 2026}). These tools are
+useful baselines and annotation sources, but their outputs have
+different semantics:
+
+\begin{itemize}
+\tightlist
+\item
+  a YARA match is a signature interval;
+\item
+  a capa match is a capability-bearing program-analysis scope;
+\item
+  a model attribution is a region influential to a prediction;
+\item
+  a source-grounded annotation is a component linked to known
+  implementation and analyst judgment.
+\end{itemize}
+
+We retain these distinctions throughout the paper.
+
+\subsection{2.3 Weakly supervised
+localization}\label{weakly-supervised-localization}
+
+In MIL, a bag is labeled while individual instances are unlabelled
+(\citeproc{ref-ilse2018abmil}{Ilse, Tomczak, and Welling 2018}).
+Attention-based MIL can assign interpretable weights to instances, and
+pathology systems such as CLAM, DSMIL, and TransMIL have localized
+diagnostically relevant regions in gigapixel images using slide-level
+labels (\citeproc{ref-lu2021clam}{Lu et al. 2021};
+\citeproc{ref-li2021dsmil}{Li, Li, and Eliceiri 2021};
+\citeproc{ref-shao2021transmil}{Shao et al. 2021}). Malware files create
+a harder identification problem: positive bags may contain shared
+libraries, runtime code, benign resources, and multiple cooperating
+malicious functions. A file-level label does not imply that every tile
+is positive, or even that one isolated tile is sufficient.
+
+UA-SAHI-Mal treats benign bags as stronger negative supervision and
+positive bags as positive-unlabeled mixtures. It uses cross-layout
+consistency and counterfactual tests to reduce dependence on arbitrary
+image placement. Even with these constraints, the output remains a
+ranked hypothesis until validated against independent evidence.
+
+\subsection{2.4 Slicing and feature
+upsampling}\label{slicing-and-feature-upsampling}
+
+SAHI applies an object detector to overlapping image slices and merges
+detections, primarily to improve small-object detection
+(\citeproc{ref-akyon2022sahi}{Akyon, Altinuc, and Temizel 2022}). Our
+system is inspired by its resolution-preserving slicing principle but
+differs in two ways. First, PE localization begins without dense object
+labels. Second, the primary output is byte evidence rather than
+natural-image objects. We therefore use the term \textbf{budgeted
+hierarchical slicing} for the core retrieval mechanism. The name
+``SAHI'' is retained in the system name to identify its design lineage;
+any experiment described as ``SAHI'' uses an actual detector or
+segmenter on slices and follows the original merge protocol.
+
+Upsample Anything learns a per-input anisotropic Gaussian operator to
+transfer low-resolution features or probability maps to high resolution
+(\citeproc{ref-seo2026upsample}{Seo, Hamilton, and Kim 2026}). Its
+edge-aware reconstruction is potentially useful, but raw-byte edges need
+not be semantic. We evaluate byte-only and structure-guided variants and
+charge all test-time optimization cost to the end-to-end budget.
+
+\section{3. Threat Model and Task
+Definition}\label{threat-model-and-task-definition}
+
+\subsection{3.1 Scope}\label{scope}
+
+The primary scope is statically analyzable native Windows PE32 and PE32+
+files. The system does not execute samples. The main benchmark excludes,
+or separately labels:
+
+\begin{itemize}
+\tightlist
+\item
+  packed samples that cannot be unpacked with the declared preprocessing
+  pipeline;
+\item
+  self-modifying code;
+\item
+  managed .NET assemblies;
+\item
+  kernel drivers requiring specialized semantics;
+\item
+  files for which the selected disassembler cannot recover stable
+  function boundaries.
+\end{itemize}
+
+Packed and optimized files are evaluated as domain-shift strata where
+feasible, not silently mixed into the primary gold set.
+
+\subsection{3.2 Adversary}\label{adversary}
+
+The adversary may alter nonsemantic file layout, add padding or
+overlays, reorder sections when functionality permits, use common
+packers, or introduce benign-looking code. The initial study does not
+claim robustness to an adaptive attacker with full knowledge of the
+model and arbitrary semantics-preserving binary rewriting. We
+nevertheless include padding, row-width, section-layout, compiler,
+optimization, and selected packing perturbations to detect
+representation shortcuts.
+
+\subsection{3.3 Input and output}\label{input-and-output}
+
+For a PE file \(F\) with on-disk byte sequence
+
+\[
+\mathbf{b} = (b_0, b_1, \ldots, b_{N-1}), \qquad b_o \in \{0,\ldots,255\},
+\]
+
+UA-SAHI-Mal receives the bytes and statically derived structural
+metadata. It returns a ranked collection
+
+\[
+\mathcal{R}(F) = \{(I_k, s_k, m_k)\}_{k=1}^{K},
+\]
+
+where \(I_k\) is a union of one or more half-open file-offset intervals,
+\(s_k\) is a confidence score, and \(m_k\) contains section, RVA, mapped
+function/basic-block identifiers, and provenance metadata. The total
+cost must satisfy
+
+\[
+C(\mathcal{R}) \le B,
+\]
+
+where \(B\) may be defined in bytes, tiles, functions, encoder calls,
+FLOPs, or wall-clock time.
+
+\subsection{3.4 Target semantics}\label{target-semantics}
+
+The target is \textbf{security-relevant evidence associated with
+malicious behavior}, not every byte in a malware file. For gold
+annotations, analysts assign one of:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{MALICIOUS\_COMPONENT}: directly implements or enables the
+  malicious objective;
+\item
+  \texttt{SUPPORTING\_COMPONENT}: infrastructure required by the
+  malicious component but not independently malicious;
+\item
+  \texttt{BENIGN\_OR\_SHARED}: runtime, library, or ordinary
+  functionality;
+\item
+  \texttt{UNCERTAIN}: insufficient evidence for adjudication.
+\end{itemize}
+
+Primary gold localization metrics use \texttt{MALICIOUS\_COMPONENT};
+sensitivity analyses may include supporting components. Silver evidence
+is never relabeled as gold without analyst adjudication.
+
+\section{4. Auditing the Ground-Truth
+Gap}\label{auditing-the-ground-truth-gap}
+
+\subsection{4.1 Audit question}\label{audit-question}
+
+We ask whether a publicly accessible benchmark satisfies all of the
+following:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  raw PE bytes or a provably reversible representation;
+\item
+  benign and malicious files;
+\item
+  independently validated malicious-component labels;
+\item
+  a mapping from labels to file offsets and program-analysis entities;
+\item
+  leakage-controlled family, temporal, source, and duplicate splits.
+\end{enumerate}
+
+The audit protocol, search strings, databases, dates, inclusion
+criteria, and exclusion reasons will be released in Appendix A and the
+artifact repository. We use the cautious conclusion ``no widely adopted
+public benchmark was identified within the audit scope,'' rather than a
+universal nonexistence claim.
+
+\subsection{4.2 Position of existing
+resources}\label{position-of-existing-resources}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1500}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2000}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.2000}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1500}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1500}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1500}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Resource
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Raw/reversible PE
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Benign + malicious
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Local evidence
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Evidence status
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Intended use
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+EMBER / EMBER2024 & Features and metadata; raw files not generally
+included & Yes & No component intervals & File labels & Detection and
+temporal baselines \\
+BODMAS & Disarmed malware binaries; benign originals not public & Labels
+include both & No component intervals & File labels & Detection and time
+split \\
+DeepReflect artifacts & Limited malware/source artifacts & Limited &
+Function/basic-block evidence & Source/analyst-grounded seed & Gold seed
+and localization baseline \\
+EMBER2024-capa & Function bytes and disassembly for many malicious
+functions & No balanced raw-file corpus & Capability-bearing functions &
+Silver & Pretraining and silver evaluation \\
+YARA & Applied to local corpus & Depends on corpus & Exact match offsets
+& Silver signature & Rule agreement \\
+capa & Applied to local corpus & Depends on corpus &
+Instruction/BB/function capabilities & Silver capability & Rule
+agreement and baseline \\
+Source-compiled corpus & Yes & Constructed controls & Source-linked
+interval unions & Gold after audit & Primary controlled gold \\
+\end{longtable}
+
+The final paper will expand this table with citations and dataset
+version identifiers.
+
+\subsection{4.3 Why supervised detection remains a
+baseline}\label{why-supervised-detection-remains-a-baseline}
+
+The lack of a large public gold corpus does not make supervised learning
+invalid. Once Tier 3 annotations exist, we train supervised
+detector/segmenter baselines on the available gold training portion, use
+cross-validation where necessary, and report uncertainty. This
+comparison prevents weak supervision from receiving an artificial
+advantage.
+
+\section{5. PEAtlas: Invertible Structure-Preserving
+Representation}\label{peatlas-invertible-structure-preserving-representation}
+
+\subsection{5.1 Coordinate spaces}\label{coordinate-spaces}
+
+PEAtlas distinguishes five coordinate systems:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  file offsets on disk;
+\item
+  RVAs in the loaded image;
+\item
+  VAs after adding the image base;
+\item
+  instruction, basic-block, and function entities recovered by analysis;
+\item
+  pixels or patches in a model representation.
+\end{enumerate}
+
+A PE section records, among other fields, \texttt{VirtualAddress},
+\texttt{VirtualSize}, \texttt{PointerToRawData}, and
+\texttt{SizeOfRawData}; raw and virtual extents may differ
+(\citeproc{ref-microsoft2025pe}{Microsoft 2025b}). Therefore, every
+conversion can fail explicitly:
+
+\[
+\operatorname{rva2off}(r) \in \{o, \bot_{\text{unmapped}}\},
+\]
+
+\[
+\operatorname{off2rva}(o) \in \{r, \bot_{\text{nonloaded}}\}.
+\]
+
+Certificate data, debug data, overlays, and zero-filled virtual ranges
+are tagged rather than coerced into a false one-to-one mapping.
+
+\subsection{5.2 Fixed-width raster}\label{fixed-width-raster}
+
+For a baseline image width \(W\), a valid file offset \(o\) maps to
+
+\[
+\pi_W(o) = (x,y) = (o \bmod W, \lfloor o/W \rfloor).
+\]
+
+The inverse is \(o=yW+x\) for valid pixels. Each pixel retains its
+original offset. A byte interval crossing a row boundary becomes
+multiple horizontal runs, not one enclosing rectangle.
+
+\subsection{5.3 Section-aligned atlas}\label{section-aligned-atlas}
+
+The proposed layout assigns each section and nonsection region to a
+distinct band. Alignment pixels map to \(\bot\) and are excluded from
+loss and metrics. The tensor includes:
+
+\[
+X = [v, e, q, r, w, x, m_{raw}, m_{loaded}],
+\]
+
+where \(v\) is normalized byte value, \(e\) local entropy, \(q\) a
+section embedding or ID channel, \(r/w/x\) are section permissions, and
+masks identify valid raw and memory-mapped bytes.
+
+The atlas stores an explicit pixel-to-offset lookup table and an
+interval-to-mask routine. We release round-trip tests for at least
+\texttt{{[}TBD:\ 10\^{}6\ or\ more{]}} randomly sampled offsets and edge
+cases.
+
+\subsection{5.4 Program-analysis
+mapping}\label{program-analysis-mapping}
+
+A disassembler returns instruction, basic-block, and function address
+sets. PEAtlas maps each recovered address to a set of file-offset
+intervals when possible. A function may map to disjoint intervals
+because of inlining, cold-code splitting, or compiler/linker
+optimization. Optimized code can eliminate, merge, or inline functions,
+and identical COMDAT folding can merge code
+(\citeproc{ref-microsoft2021optimized}{Microsoft 2021},
+\citeproc{ref-microsoft2025opt}{2025a}). Consequently, the annotation
+schema stores interval unions rather than a single start/end pair.
+
+\section{6. UA-SAHI-Mal}\label{ua-sahi-mal}
+
+\subsection{6.1 Overview}\label{overview}
+
+UA-SAHI-Mal comprises five stages:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  PEAtlas construction;
+\item
+  coarse tile encoding and relation-aware MIL;
+\item
+  structure-guided evidence reconstruction;
+\item
+  guarded subset selection under budget;
+\item
+  recursive fine localization and evidence export.
+\end{enumerate}
+
+A system diagram will appear as Figure 1.
+
+\subsection{6.2 Tile encoder and relation-aware
+MIL}\label{tile-encoder-and-relation-aware-mil}
+
+PEAtlas is divided into possibly overlapping coarse tiles \(t_j\) with
+positional and section metadata \(u_j\). An encoder produces
+
+\[
+h_j = f_\theta(t_j).
+\]
+
+A relation-aware aggregator, instantiated with ABMIL, DSMIL, or a
+transformer during ablation, computes context-dependent evidence scores
+
+\[
+a_j = g_\phi(h_j, u_j, \{h_\ell,u_\ell\}_{\ell \ne j})
+\]
+
+and a file representation
+
+\[
+z = \sum_j \operatorname{softmax}(a)_j h_j.
+\]
+
+The file probability is \(p=\sigma(q(z))\).
+
+For a benign bag, all tiles receive negative-instance regularization.
+For a malicious bag, tile labels are unobserved and are treated as
+positive-unlabeled. The model is not allowed to infer gold labels from
+YARA or capa during the file-label-only training condition.
+
+\subsection{6.3 Coarse evidence map}\label{coarse-evidence-map}
+
+Tile scores are projected into a low-resolution evidence map \(E_{lr}\).
+Overlap is combined using a calibrated aggregation rule. We compare
+mean, maximum, noisy-OR, and learned aggregation. Scores are
+temperature-calibrated on validation data without gold test annotations.
+
+\subsection{6.4 Structure-guided UA}\label{structure-guided-ua}
+
+We optimize a per-file upsampling operator using PEAtlas guidance \(G\):
+
+\[
+\phi^* = \arg\min_\phi \mathcal{L}_{guide}(U_\phi(G_{lr},G_{hr}),G_{hr}),
+\]
+
+then transfer the operator to evidence:
+
+\[
+E_{hr}=U_{\phi^*}(E_{lr},G_{hr}).
+\]
+
+We test two guidance conditions:
+
+\begin{itemize}
+\tightlist
+\item
+  byte-only grayscale guidance;
+\item
+  structural guidance using byte, entropy, section, permissions, and
+  validity masks.
+\end{itemize}
+
+Nearest, bilinear, bicubic, guided/JBU, and UA are compared. UA
+optimization time and memory are included in all online efficiency
+numbers.
+
+\subsection{6.5 Guarded budget selector}\label{guarded-budget-selector}
+
+For candidate tile \(j\), the selector computes
+
+\[
+s_j = \hat e_j + \alpha \hat u_j + \beta \hat n_j + \gamma \hat c_j,
+\]
+
+where \(\hat e_j\) is evidence, \(\hat u_j\) predictive or ensemble
+uncertainty, \(\hat n_j\) diversity/novelty relative to selected tiles,
+and \(\hat c_j\) coverage value for underrepresented executable sections
+or spatial regions.
+
+We select \(S\) subject to
+
+\[
+\max_{S \subseteq \mathcal{T}} \sum_{j\in S}s_j, \qquad
+\text{s.t. } \sum_{j\in S}c_j \le B.
+\]
+
+A differentiable soft-selection relaxation may be used during training;
+inference uses a deterministic algorithm with fixed tie breaking. The
+paper reports both tile-count and wall-clock budgets.
+
+\subsection{6.6 Hierarchical refinement}\label{hierarchical-refinement}
+
+Selected tiles are subdivided and re-encoded at higher resolution.
+Refinement continues until one of the following holds:
+
+\begin{itemize}
+\tightlist
+\item
+  the minimum interval granularity is reached;
+\item
+  evidence concentration exceeds threshold \(\tau_e\);
+\item
+  uncertainty falls below \(\tau_u\);
+\item
+  the remaining budget cannot fund another split.
+\end{itemize}
+
+The fine stage produces a score for each retained subinterval.
+Neighboring intervals may be merged only when the merge does not bridge
+unrelated invalid or low-score bytes beyond a declared tolerance.
+
+\subsection{6.7 Training objective}\label{training-objective}
+
+The complete objective is
+
+\[
+\mathcal{L} = \mathcal{L}_{file}
++ \lambda_{neg}\mathcal{L}_{neg}
++ \lambda_{cons}\mathcal{L}_{layout}
++ \lambda_{cf}\mathcal{L}_{cf}
++ \lambda_{stab}\mathcal{L}_{stab}
++ \lambda_{cost}\mathcal{L}_{cost}.
+\]
+
+\subsubsection{File classification}\label{file-classification}
+
+\[
+\mathcal{L}_{file}=\operatorname{BCE}(p,y).
+\]
+
+\subsubsection{Negative-instance
+regularization}\label{negative-instance-regularization}
+
+For benign files,
+
+\[
+\mathcal{L}_{neg}=\frac{1}{|\mathcal{T}|}\sum_j -\log(1-\sigma(a_j)).
+\]
+
+\subsubsection{Cross-layout consistency}\label{cross-layout-consistency}
+
+Let \(T_1\) and \(T_2\) be invertible layout transformations, such as
+different raster widths or raster versus section atlas. After mapping
+evidence back to offsets,
+
+\[
+\mathcal{L}_{layout}=D(E^{off}_{T_1},E^{off}_{T_2}).
+\]
+
+\subsubsection{Counterfactual sufficiency and
+comprehensiveness}\label{counterfactual-sufficiency-and-comprehensiveness}
+
+Let \(F_S\) retain selected bytes/tiles with a neutralized context, and
+\(F_{\setminus S}\) neutralize selected evidence while preserving the
+rest. We encourage
+
+\[
+p(F_S) \approx p(F), \qquad p(F_{\setminus S}) < p(F)-\delta.
+\]
+
+Controls verify that neutralization does not corrupt PE parsing or
+introduce an obvious marker.
+
+\subsubsection{Stability}\label{stability}
+
+Functionality-preserving or representation-preserving perturbations
+\(A(F)\) include permitted padding, row-width changes, and benign
+overlay modifications:
+
+\[
+\mathcal{L}_{stab}=D(E^{off}(F),E^{off}(A(F))).
+\]
+
+\subsubsection{Cost}\label{cost}
+
+\[
+\mathcal{L}_{cost}=\max(0,C(S)-B).
+\]
+
+\section{7. Multi-Tier Evaluation
+Benchmark}\label{multi-tier-evaluation-benchmark}
+
+The tiers differ in semantic strength and are never pooled into a single
+localization score.
+
+\subsection{7.1 Tier 0: Mapping tests}\label{tier-0-mapping-tests}
+
+Tier 0 verifies PEAtlas rather than machine learning. Tests include:
+
+\begin{itemize}
+\tightlist
+\item
+  file-offset/pixel round trips;
+\item
+  RVA/file-offset conversion for raw, zero-filled, and unmapped ranges;
+\item
+  section alignment and overlay handling;
+\item
+  interval-to-mask-to-interval exact recovery;
+\item
+  agreement among at least two parsers on supported fields;
+\item
+  disjoint function chunk representation.
+\end{itemize}
+
+A release gate requires zero unexplained mapping errors on
+\texttt{{[}TBD{]}} deterministic and randomized cases.
+
+\subsection{7.2 Tier 1: Controlled-provenance
+builds}\label{tier-1-controlled-provenance-builds}
+
+Tier 1 consists of benign host programs linked with safe, source-known
+modules. Modules emulate security-relevant code patterns without harmful
+external effects. Examples may include mock process enumeration, local
+file transformation in a sandbox path, or network-client code redirected
+to a local test service. Each module has a matched inert control with
+similar size, entropy, compiler, and placement.
+
+The build system randomizes:
+
+\begin{itemize}
+\tightlist
+\item
+  source module;
+\item
+  compiler and version;
+\item
+  architecture;
+\item
+  optimization mode;
+\item
+  section placement;
+\item
+  interval length;
+\item
+  padding and overlay conditions;
+\item
+  image layout width.
+\end{itemize}
+
+Ground truth is the union of source-linked code and data intervals
+produced by debug and map information, verified against disassembly.
+Tier 1 measures provenance localization and shortcut resistance, not
+real-world malware accuracy. \texttt{secml\_malware} manipulations may
+be used to generate padding/slack perturbations, but the library is not
+treated as a malicious-payload annotator
+(\citeproc{ref-demetrio2021secmlmalware}{Demetrio and Biggio 2021}).
+
+\subsection{7.3 Tier 2: Rule-derived silver
+evidence}\label{tier-2-rule-derived-silver-evidence}
+
+Tier 2 applies YARA and capa to a legally authorized local PE corpus.
+YARA provides match offsets and lengths; capa provides matched
+instruction, basic-block, function, or file scopes
+(\citeproc{ref-virustotal2026yara}{VirusTotal 2026};
+\citeproc{ref-mandiant2026capa}{Mandiant FLARE Team 2026}).
+EMBER2024-capa provides function-level bytes and disassembly for a large
+collection of malicious-file functions and is used for fragment
+pretraining or silver analysis, not whole-file coordinate reconstruction
+unless the corresponding authorized PE is available
+(\citeproc{ref-joyce2026embercapa}{Joyce and collaborators 2026}).
+
+We report:
+
+\begin{itemize}
+\tightlist
+\item
+  overlap with YARA intervals;
+\item
+  capa function recall@budget;
+\item
+  capability-stratified results;
+\item
+  rule-family and capability holdout;
+\item
+  disagreement between learned evidence and rules.
+\end{itemize}
+
+No silver record is included in gold metrics without manual review.
+
+\subsection{7.4 Tier 3: Source-grounded analyst-audited
+gold}\label{tier-3-source-grounded-analyst-audited-gold}
+
+Tier 3 combines selected DeepReflect source-grounded artifacts with
+reproducible source builds. Each project is built in at least two modes:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Gold mode:} optimization and inlining disabled, no
+  identical-code folding, symbols and map data retained;
+\item
+  \textbf{Shift mode:} realistic optimization enabled to evaluate
+  transfer and annotation fragmentation.
+\end{enumerate}
+
+A source-to-binary pipeline yields candidate interval unions. Two
+analysts independently assign component labels and supporting evidence.
+Disagreements are adjudicated by a third reviewer or joint review. The
+released schema records:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{sample\_sha256}
+\NormalTok{project\_id}
+\NormalTok{build\_id}
+\NormalTok{architecture}
+\NormalTok{compiler\_and\_flags}
+\NormalTok{packer\_status}
+\NormalTok{component\_id}
+\NormalTok{component\_semantics}
+\NormalTok{label\_class}
+\NormalTok{file\_offset\_intervals}
+\NormalTok{rva\_intervals}
+\NormalTok{mapped\_functions}
+\NormalTok{source\_locations}
+\NormalTok{annotator\_ids\_pseudonymous}
+\NormalTok{agreement\_status}
+\NormalTok{provenance}
+\end{Highlighting}
+\end{Shaded}
+
+The gold set excludes ambiguous components from primary metrics and
+reports them separately.
+
+\subsection{7.5 Tier 4: In-the-wild analyst
+audit}\label{tier-4-in-the-wild-analyst-audit}
+
+A blinded crossover study compares UA-SAHI-Mal, DeepReflect, capa, and a
+no-guidance control. Analysts receive the same time or function budget
+and may use the same reverse-engineering environment. The presentation
+order is randomized.
+
+Primary outcomes:
+
+\begin{itemize}
+\tightlist
+\item
+  time to first relevant function;
+\item
+  number of functions reviewed before first relevant evidence;
+\item
+  precision among the first \(K\) recommendations;
+\item
+  fraction of analyst-confirmed relevant functions recovered;
+\item
+  analyst confidence and perceived usefulness.
+\end{itemize}
+
+The study protocol, recruitment criteria, consent, and compensation are
+reviewed by the applicable institutional process before data collection.
+
+\section{8. Experimental Methodology}\label{experimental-methodology}
+
+\subsection{8.1 Pre-registration and empirical
+gates}\label{pre-registration-and-empirical-gates}
+
+Before evaluating the test sets, we freeze:
+
+\begin{itemize}
+\tightlist
+\item
+  primary metrics and budgets;
+\item
+  dataset split hashes;
+\item
+  gold and silver label versions;
+\item
+  model-selection metric;
+\item
+  hyperparameter search space;
+\item
+  exclusion rules;
+\item
+  analyst-study endpoints.
+\end{itemize}
+
+The project proceeds through five gates:
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{G0 Mapping integrity:} no unexplained coordinate errors;
+\item
+  \textbf{G1 Gold feasibility:} diverse, analyst-verifiable component
+  intervals can be constructed;
+\item
+  \textbf{G2 Localization signal:} the model exceeds random, entropy,
+  and base MIL rankings on validation gold;
+\item
+  \textbf{G3 Budget Pareto:} the method improves evidence recall at
+  matched cost or reduces cost at matched recall;
+\item
+  \textbf{G4 Analyst utility:} the blinded study shows meaningful
+  workload reduction;
+\item
+  \textbf{G5 Robustness:} evidence is not dominated by layout, padding,
+  or compiler shortcuts.
+\end{itemize}
+
+Failure of G1 changes the claim from malicious-component localization to
+weak evidence retrieval. Failure of G3 removes the efficiency claim.
+Failure of G4 limits the paper to a benchmark/method study rather than
+an analyst-productivity claim.
+
+\subsection{8.2 Datasets}\label{datasets}
+
+The final dataset table will report exact counts after legal and
+technical validation.
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1200}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1200}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1600}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1600}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1600}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1600}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 12\tabcolsep) * \real{0.1200}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Split/source
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Role
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Files
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Families/projects
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Gold components
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Silver components
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Time range
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+File-label training corpus & Weak training & {[}TBD{]} & {[}TBD{]} & 0 &
+0 or excluded & {[}TBD{]} \\
+Tier 1 controlled provenance & Sanity/robustness & {[}TBD{]} & {[}TBD{]}
+& {[}TBD{]} & 0 & generated \\
+Tier 2 rule evidence & Scalable silver & {[}TBD{]} & {[}TBD{]} & 0 &
+{[}TBD{]} & {[}TBD{]} \\
+Tier 3 source-grounded & Primary gold & {[}TBD{]} & {[}TBD{]} &
+{[}TBD{]} & optional & {[}TBD{]} \\
+Tier 4 analyst study & Utility & {[}TBD{]} & {[}TBD{]} &
+analyst-confirmed & optional & {[}TBD{]} \\
+\end{longtable}
+
+EMBER/EMBER2024 features may support file-level baselines, but
+whole-file image training requires authorized raw PEs. BODMAS disarmed
+malware binaries may contribute malicious images, while benign raw
+binaries require a separately licensed corpus
+(\citeproc{ref-joyce2025ember2024}{Joyce et al. 2025};
+\citeproc{ref-yang2021bodmas}{Yang et al. 2021}).
+
+\subsection{8.3 Splitting and leakage
+prevention}\label{splitting-and-leakage-prevention}
+
+We construct grouped splits using:
+
+\begin{itemize}
+\tightlist
+\item
+  chronological collection time;
+\item
+  malware family;
+\item
+  source project;
+\item
+  compiler/toolchain;
+\item
+  packer;
+\item
+  exact file hash;
+\item
+  near-duplicate clustering;
+\item
+  function hash;
+\item
+  source-function identity across builds;
+\item
+  YARA/capa rule and capability group.
+\end{itemize}
+
+All builds of the same source component remain in one split unless the
+experiment explicitly studies build transfer. EMBER2024-capa function
+duplicates are removed or grouped before training and evaluation.
+
+\subsection{8.4 Baselines}\label{baselines}
+
+\subsubsection{File-level detection}\label{file-level-detection}
+
+\begin{itemize}
+\tightlist
+\item
+  EMBER LightGBM;
+\item
+  MalConv or MalConv2;
+\item
+  full-image CNN;
+\item
+  vision transformer;
+\item
+  Peters--Farhat high-resolution malware MIL;
+\item
+  PE-MILCon;
+\item
+  UA-SAHI-Mal file head.
+\end{itemize}
+
+\subsubsection{Localization and ranking}\label{localization-and-ranking}
+
+\begin{itemize}
+\tightlist
+\item
+  random-\(K\);
+\item
+  uniform grid/section-\(K\);
+\item
+  entropy-\(K\);
+\item
+  Grad-CAM and a higher-resolution CAM variant;
+\item
+  Integrated Gradients;
+\item
+  ABMIL;
+\item
+  CLAM;
+\item
+  DSMIL;
+\item
+  TransMIL;
+\item
+  Peters--Farhat attention;
+\item
+  PE-MILCon attention;
+\item
+  DeepReflect;
+\item
+  capa and YARA;
+\item
+  exhaustive tile scan;
+\item
+  supervised detector/segmenter trained on available Tier 3 gold;
+\item
+  DLLicious/X-MinHash-style attribution if a faithful implementation is
+  available.
+\end{itemize}
+
+\subsubsection{Upsampling}\label{upsampling}
+
+\begin{itemize}
+\tightlist
+\item
+  nearest;
+\item
+  bilinear;
+\item
+  bicubic;
+\item
+  guided/JBU;
+\item
+  UA byte-only;
+\item
+  UA structural guidance.
+\end{itemize}
+
+\subsection{8.5 Metrics}\label{metrics}
+
+\subsubsection{File-level metrics}\label{file-level-metrics}
+
+\begin{itemize}
+\tightlist
+\item
+  PR-AUC;
+\item
+  ROC-AUC;
+\item
+  F1;
+\item
+  TPR at FPR 0.1\% and 1\%;
+\item
+  expected calibration error.
+\end{itemize}
+
+\subsubsection{Localization metrics}\label{localization-metrics}
+
+Let \(G\) be the union of gold byte intervals and \(R_B\) the retrieved
+intervals under budget \(B\).
+
+Byte recall:
+
+\[
+\operatorname{Recall}_{byte}(B)=\frac{|R_B\cap G|}{|G|}.
+\]
+
+Byte precision:
+
+\[
+\operatorname{Precision}_{byte}(B)=\frac{|R_B\cap G|}{|R_B|}.
+\]
+
+Function recall:
+
+\[
+\operatorname{Recall}_{func}(K)=\frac{\#\text{gold functions intersecting top-}K}{\#\text{gold functions}}.
+\]
+
+We additionally report:
+
+\begin{itemize}
+\tightlist
+\item
+  byte-level AUPRC;
+\item
+  interval IoU;
+\item
+  first relevant function rank;
+\item
+  reviewed-byte fraction;
+\item
+  reviewed-function fraction;
+\item
+  derived mask IoU and bbox AP50/AP75 as secondary metrics.
+\end{itemize}
+
+\subsubsection{Efficiency metrics}\label{efficiency-metrics}
+
+\begin{itemize}
+\tightlist
+\item
+  coarse encoder time;
+\item
+  UA optimization time;
+\item
+  selector time;
+\item
+  refinement time;
+\item
+  online disassembly/parsing time;
+\item
+  end-to-end wall-clock latency;
+\item
+  throughput;
+\item
+  peak RAM and VRAM;
+\item
+  encoder/detector calls;
+\item
+  FLOPs where meaningful.
+\end{itemize}
+
+Preprocessing is reported as online or amortized offline rather than
+omitted.
+
+\subsection{8.6 Statistical analysis}\label{statistical-analysis}
+
+We use at least \texttt{{[}TBD{]}} independent seeds or bootstrap
+resamples. Confidence intervals are computed at the file or project
+group level to avoid treating correlated functions as independent.
+Comparisons use paired bootstrap or permutation tests and report effect
+sizes. Tier 1, Tier 2, Tier 3, and Tier 4 results are never averaged
+into one score.
+
+\subsection{8.7 Research questions}\label{research-questions}
+
+\begin{itemize}
+\tightlist
+\item
+  \textbf{RQ1 --- File-level validity:} Does weak evidence learning
+  preserve competitive malware detection?
+\item
+  \textbf{RQ2 --- Budgeted localization:} At matched cost, does
+  UA-SAHI-Mal retrieve more gold malicious components than attribution,
+  MIL, rules, and DeepReflect?
+\item
+  \textbf{RQ3 --- Reconstruction:} Does structure-guided UA improve
+  offset-level localization enough to justify its cost?
+\item
+  \textbf{RQ4 --- Objective and guards:} Which constraints reduce
+  false-negative components and representation shortcuts?
+\item
+  \textbf{RQ5 --- Analyst utility:} Does ranked evidence reduce time and
+  code reviewed?
+\item
+  \textbf{RQ6 --- Robustness:} How does localization change across
+  layout, compiler, optimization, padding, family, temporal, and packing
+  shifts?
+\item
+  \textbf{RQ7 --- Component scale:} Conditional on the observed
+  gold-size distribution, are small components disproportionately missed
+  by full-image models?
+\end{itemize}
+
+\section{9. Results}\label{results}
+
+This section is a reporting template. It must not be populated with
+estimated or illustrative values presented as measurements.
+
+\subsection{9.1 RQ1: File-level
+detection}\label{rq1-file-level-detection}
+
+\textbf{Planned statement:} UA-SAHI-Mal achieved \texttt{{[}TBD{]}}
+PR-AUC and \texttt{{[}TBD{]}} TPR at 0.1\% FPR on the temporal test set.
+Relative to \texttt{{[}best\ baseline{]}}, the difference was
+\texttt{{[}TBD{]}} with a 95\% confidence interval of
+\texttt{{[}TBD{]}}.
+
+\begin{longtable}[]{@{}lrrrrr@{}}
+\toprule\noalign{}
+Method & PR-AUC & ROC-AUC & TPR@0.1\% FPR & F1 & ECE \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+EMBER LightGBM & TBD & TBD & TBD & TBD & TBD \\
+MalConv & TBD & TBD & TBD & TBD & TBD \\
+Full-image CNN & TBD & TBD & TBD & TBD & TBD \\
+Peters MIL & TBD & TBD & TBD & TBD & TBD \\
+PE-MILCon & TBD & TBD & TBD & TBD & TBD \\
+UA-SAHI-Mal & TBD & TBD & TBD & TBD & TBD \\
+\end{longtable}
+
+\subsection{9.2 RQ2: Gold evidence
+retrieval}\label{rq2-gold-evidence-retrieval}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1304}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Method
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Byte AUPRC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Function Recall@10
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Recall@25\% byte budget
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+First-hit rank
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Reviewed-byte fraction
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Random & TBD & TBD & TBD & TBD & TBD \\
+Entropy & TBD & TBD & TBD & TBD & TBD \\
+Grad-CAM & TBD & TBD & TBD & TBD & TBD \\
+ABMIL & TBD & TBD & TBD & TBD & TBD \\
+DSMIL & TBD & TBD & TBD & TBD & TBD \\
+TransMIL & TBD & TBD & TBD & TBD & TBD \\
+DeepReflect & TBD & TBD & TBD & TBD & TBD \\
+Full scan & TBD & TBD & 1.000 & TBD & 1.000 \\
+UA-SAHI-Mal & TBD & TBD & TBD & TBD & TBD \\
+\end{longtable}
+
+Figure 2 will plot gold component recall against end-to-end latency and
+reviewed-byte fraction.
+
+\subsection{9.3 RQ3: Upsampling}\label{rq3-upsampling}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1304}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Reconstruction
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Byte AUPRC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Interval IoU
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Layout stability
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Added latency
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Peak VRAM
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Nearest & TBD & TBD & TBD & TBD & TBD \\
+Bilinear & TBD & TBD & TBD & TBD & TBD \\
+Bicubic & TBD & TBD & TBD & TBD & TBD \\
+JBU & TBD & TBD & TBD & TBD & TBD \\
+UA, byte-only & TBD & TBD & TBD & TBD & TBD \\
+UA, structural & TBD & TBD & TBD & TBD & TBD \\
+\end{longtable}
+
+The text will explicitly report whether UA remains Pareto-efficient
+after charging its test-time optimization cost.
+
+\subsection{9.4 RQ4: Ablation}\label{rq4-ablation}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1304}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Variant
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+File PR-AUC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Gold function recall
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Byte AUPRC
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Latency
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Padding stability
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Full model & TBD & TBD & TBD & TBD & TBD \\
+-- UA & TBD & TBD & TBD & TBD & TBD \\
+-- counterfactual loss & TBD & TBD & TBD & TBD & TBD \\
+-- layout consistency & TBD & TBD & TBD & TBD & TBD \\
+-- uncertainty guard & TBD & TBD & TBD & TBD & TBD \\
+-- coverage guard & TBD & TBD & TBD & TBD & TBD \\
+byte-only representation & TBD & TBD & TBD & TBD & TBD \\
+raster instead of section atlas & TBD & TBD & TBD & TBD & TBD \\
+\end{longtable}
+
+\subsection{9.5 RQ5: Analyst study}\label{rq5-analyst-study}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1304}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 10\tabcolsep) * \real{0.1739}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Condition
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Median time-to-first evidence
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Functions reviewed
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Precision@10
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Confidence
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Workload score
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+No guidance & TBD & TBD & TBD & TBD & TBD \\
+capa & TBD & TBD & TBD & TBD & TBD \\
+DeepReflect & TBD & TBD & TBD & TBD & TBD \\
+UA-SAHI-Mal & TBD & TBD & TBD & TBD & TBD \\
+\end{longtable}
+
+The analysis will use participant-aware paired statistics and disclose
+sample size, experience, order effects, and exclusions.
+
+\subsection{9.6 RQ6: Robustness}\label{rq6-robustness}
+
+We report stratified localization under:
+
+\begin{itemize}
+\tightlist
+\item
+  raster width changes;
+\item
+  benign padding and overlay insertion;
+\item
+  compiler and optimization changes;
+\item
+  family and time shifts;
+\item
+  packer strata where static analysis succeeds;
+\item
+  disassembler disagreement.
+\end{itemize}
+
+A model that preserves file classification but moves evidence to
+inserted padding fails the localization robustness criterion.
+
+\subsection{9.7 RQ7: Component scale}\label{rq7-component-scale}
+
+We first report the empirical distribution of gold interval length,
+function size, image-mask area, fragmentation, and post-resize pixel
+count. Only if small components are sufficiently represented do we
+report scale-stratified recall. COCO small-object thresholds are not
+adopted without justification because PE byte intervals have different
+semantics from natural-image objects.
+
+\section{10. Security Analysis}\label{security-analysis}
+
+\subsection{10.1 Shortcut tests}\label{shortcut-tests}
+
+We test whether the model relies on:
+
+\begin{itemize}
+\tightlist
+\item
+  file size;
+\item
+  section count or names;
+\item
+  packer markers;
+\item
+  padding entropy;
+\item
+  certificate presence;
+\item
+  import-table artifacts;
+\item
+  family-specific build signatures;
+\item
+  image row boundaries.
+\end{itemize}
+
+Controls match these attributes while changing component provenance.
+Cross-layout consistency is evaluated in offset space.
+
+\subsection{10.2 Adaptive considerations}\label{adaptive-considerations}
+
+A knowledgeable attacker may move or split malicious functionality,
+interleave it with benign code, or add decoy high-scoring regions. We
+evaluate bounded transformations and discuss the remaining adaptive
+surface. The system is an analyst-prioritization aid, not a standalone
+guarantee that unselected code is benign.
+
+\subsection{10.3 Parser and disassembler
+disagreement}\label{parser-and-disassembler-disagreement}
+
+We compare at least two PE parsers and, on a subset, at least two
+disassembly backends. Disagreement is recorded as annotation
+uncertainty. Samples with unresolved mapping differences are excluded
+from primary gold metrics under a preregistered rule and retained for
+failure analysis.
+
+\section{11. Case Studies}\label{case-studies}
+
+Each case study will include:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  a PEAtlas view with ranked intervals;
+\item
+  original file offsets and mapped RVAs;
+\item
+  functions/basic blocks in the reverse-engineering tool;
+\item
+  source or analyst evidence supporting the label;
+\item
+  comparison with capa, DeepReflect, and one MIL baseline;
+\item
+  counterfactual deletion and layout-stability checks;
+\item
+  analysis of false positives and missed components.
+\end{enumerate}
+
+At least one success, one partial success, and one failure case will be
+shown. Case studies will not replace aggregate evaluation.
+
+\section{12. Discussion}\label{discussion}
+
+\subsection{12.1 What localization means}\label{what-localization-means}
+
+UA-SAHI-Mal retrieves regions associated with a file-level decision and
+validated against available evidence. It does not prove causality in the
+program-execution sense. A component can be security-relevant because it
+enables persistence, evasion, command and control, credential access, or
+another malicious objective, but static evidence may be incomplete or
+ambiguous.
+
+\subsection{12.2 Why not train a detector
+directly?}\label{why-not-train-a-detector-directly}
+
+We do train supervised baselines on available gold data. The weak
+formulation is motivated by the scale mismatch between file labels and
+component annotations, not by a claim that supervised detection is
+conceptually invalid. The comparison quantifies when weak supervision is
+useful and where it falls short.
+
+\subsection{12.3 Why use an image
+representation?}\label{why-use-an-image-representation}
+
+Images provide a convenient multiscale spatial substrate and access to
+mature visual encoders and upsamplers. However, the one-dimensional byte
+domain remains authoritative. The representation comparison and
+cross-layout objective test whether any benefit survives arbitrary
+rasterization choices.
+
+\subsection{12.4 Relationship to SAHI}\label{relationship-to-sahi}
+
+The proposed selection mechanism is SAHI-inspired. We reserve the term
+``Full SAHI'' for experiments that run an actual detector over all
+slices and merge detections according to the SAHI protocol. Other
+experiments are described as hierarchical slicing to avoid conflating
+patch MIL with object detection.
+
+\section{13. Ethics, Safety, and Artifact
+Handling}\label{ethics-safety-and-artifact-handling}
+
+The project handles malware only in isolated, access-controlled
+environments. Samples are never executed on production systems. Raw
+malware redistribution follows source licenses, provider agreements,
+institutional policy, and applicable law. Where binaries cannot be
+redistributed, the artifact releases hashes, build recipes, derived
+annotations, feature records, and evaluation code to the extent
+permitted.
+
+Controlled-provenance modules are designed to avoid harmful external
+effects. Analyst-study data are pseudonymized, and participants receive
+informed consent and compensation under applicable institutional review.
+The system is framed as decision support; analysts are warned that
+unselected regions may still contain malicious behavior.
+
+\section{14. Limitations}\label{limitations}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Static analysis can miss runtime-decrypted, dynamically resolved,
+  self-modifying, or environment-dependent behavior.
+\item
+  Source-grounded builds may differ from in-the-wild malware in
+  optimization, packing, compiler, and operational context.
+\item
+  YARA and capa provide partial, rule-dependent evidence and cannot
+  serve as complete maliciousness ground truth.
+\item
+  Debug information can describe code layout without deciding whether a
+  function is malicious; analyst adjudication remains necessary.
+\item
+  File-level labels may not identify distributed multi-function
+  behavior, even with MIL and counterfactual constraints.
+\item
+  UA may sharpen structural boundaries that are unrelated to semantic
+  behavior and may not justify its online cost.
+\item
+  The primary gold corpus may remain small relative to file-level
+  detection datasets, limiting family coverage.
+\item
+  An adaptive attacker can target the selector with decoys or
+  distributed payloads.
+\item
+  Results for unpacked native PE files may not generalize to packed
+  files, .NET, drivers, scripts, or other formats.
+\end{enumerate}
+
+\section{15. Related Work}\label{related-work}
+
+\subsection{Static PE detection and malware
+images}\label{static-pe-detection-and-malware-images}
+
+Malware-image classification maps byte patterns to visual texture
+(\citeproc{ref-nataraj2011malwareimages}{Nataraj et al. 2011}). Raw-byte
+networks such as MalConv avoid image transformation
+(\citeproc{ref-raff2018malconv}{Raff et al. 2018}), while EMBER provides
+a strong engineered-feature baseline
+(\citeproc{ref-anderson2018ember}{Anderson and Roth 2018}). EMBER2024
+expands formats, tasks, and temporal evaluation
+(\citeproc{ref-joyce2025ember2024}{Joyce et al. 2025}). UA-SAHI-Mal
+differs by targeting independently evaluated component evidence under a
+budget.
+
+\subsection{Malware component localization and
+explainability}\label{malware-component-localization-and-explainability}
+
+DeepReflect localizes anomalous functions and incrementally clusters
+malware functionality (\citeproc{ref-downing2021deepreflect}{Downing et
+al. 2021}). capa matches expert-defined capabilities
+(\citeproc{ref-mandiant2026capa}{Mandiant FLARE Team 2026}), and
+DLLicious uses position-preserving attribution to indicate byte regions
+associated with malicious DLL patterns
+(\citeproc{ref-yevsikov2026dllicious}{Yevsikov and Nissim 2026}). These
+are direct baselines or complementary evidence sources.
+
+\subsection{Weak supervision and MIL}\label{weak-supervision-and-mil}
+
+ABMIL introduced attention-based permutation-invariant aggregation
+(\citeproc{ref-ilse2018abmil}{Ilse, Tomczak, and Welling 2018}). CLAM,
+DSMIL, and TransMIL model representative and correlated regions in very
+high-resolution weakly labeled images (\citeproc{ref-lu2021clam}{Lu et
+al. 2021}; \citeproc{ref-li2021dsmil}{Li, Li, and Eliceiri 2021};
+\citeproc{ref-shao2021transmil}{Shao et al. 2021}). Peters and Farhat
+applied patch MIL to high-resolution malware images
+(\citeproc{ref-peters2023highresolution}{Peters and Farhat 2023}), and
+PE-MILCon combines byte-segment MIL with PE structural features
+(\citeproc{ref-kim2026pemilcon}{Kim, Trung, and Pham 2026}). Our focus
+is not attention visualization alone, but budgeted retrieval evaluated
+against external evidence.
+
+\subsection{High-resolution selective
+inference}\label{high-resolution-selective-inference}
+
+SAHI performs detector inference over slices to recover small objects
+(\citeproc{ref-akyon2022sahi}{Akyon, Altinuc, and Temizel 2022}).
+Upsample Anything reconstructs low-resolution features and probability
+maps using per-input, edge-aware optimization
+(\citeproc{ref-seo2026upsample}{Seo, Hamilton, and Kim 2026}).
+UA-SAHI-Mal adapts these concepts to a weakly supervised byte-evidence
+task and evaluates whether their added cost and representation
+assumptions are justified.
+
+\section{16. Conclusion}\label{conclusion}
+
+This paper defines static PE malware localization as budgeted retrieval
+of analyst-verifiable byte evidence rather than direct prediction of
+unverified image boxes. UA-SAHI-Mal combines an invertible PE
+representation, weak tile learning, structure-guided reconstruction,
+guarded subset selection, and recursive refinement. Its evaluation
+separates controlled provenance, silver rules, source-grounded gold, and
+analyst utility. The design deliberately avoids treating model
+attention, injected markers, or capability rules as interchangeable
+ground truth. The empirical study will determine whether the proposed
+system improves the evidence-recall--cost frontier and reduces
+reverse-engineering workload. Until those experiments are complete, all
+performance claims remain open hypotheses.
+
+\section{Appendix A. Planned Systematic Audit
+Protocol}\label{appendix-a.-planned-systematic-audit-protocol}
+
+The final appendix will include:
+
+\begin{itemize}
+\tightlist
+\item
+  databases and repositories searched;
+\item
+  exact search strings;
+\item
+  search and update dates;
+\item
+  language and publication filters;
+\item
+  inclusion criteria;
+\item
+  duplicate handling;
+\item
+  two-reviewer screening procedure;
+\item
+  evidence extraction form;
+\item
+  reasons each dataset fails or satisfies the five benchmark conditions;
+\item
+  a public machine-readable audit table.
+\end{itemize}
+
+\section{Appendix B. Annotation
+Schema}\label{appendix-b.-annotation-schema}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{\{}
+  \DataTypeTok{"sample\_sha256"}\FunctionTok{:} \StringTok{"..."}\FunctionTok{,}
+  \DataTypeTok{"build\_id"}\FunctionTok{:} \StringTok{"..."}\FunctionTok{,}
+  \DataTypeTok{"coordinate\_version"}\FunctionTok{:} \StringTok{"peatlas{-}v1"}\FunctionTok{,}
+  \DataTypeTok{"component\_id"}\FunctionTok{:} \StringTok{"..."}\FunctionTok{,}
+  \DataTypeTok{"label\_class"}\FunctionTok{:} \StringTok{"MALICIOUS\_COMPONENT"}\FunctionTok{,}
+  \DataTypeTok{"semantic\_tags"}\FunctionTok{:} \OtherTok{[}\StringTok{"..."}\OtherTok{]}\FunctionTok{,}
+  \DataTypeTok{"file\_offset\_intervals"}\FunctionTok{:} \OtherTok{[[}\DecValTok{1000}\OtherTok{,} \DecValTok{1040}\OtherTok{],} \OtherTok{[}\DecValTok{2048}\OtherTok{,} \DecValTok{2112}\OtherTok{]]}\FunctionTok{,}
+  \DataTypeTok{"rva\_intervals"}\FunctionTok{:} \OtherTok{[[}\DecValTok{8192}\OtherTok{,} \DecValTok{8232}\OtherTok{],} \OtherTok{[}\DecValTok{12288}\OtherTok{,} \DecValTok{12352}\OtherTok{]]}\FunctionTok{,}
+  \DataTypeTok{"mapped\_functions"}\FunctionTok{:} \OtherTok{[}\StringTok{"sub\_401000"}\OtherTok{]}\FunctionTok{,}
+  \DataTypeTok{"source\_locations"}\FunctionTok{:} \OtherTok{[}\StringTok{"module.c:20{-}71"}\OtherTok{]}\FunctionTok{,}
+  \DataTypeTok{"provenance"}\FunctionTok{:} \StringTok{"SOURCE\_AND\_ANALYST"}\FunctionTok{,}
+  \DataTypeTok{"annotator\_agreement"}\FunctionTok{:} \StringTok{"AGREED"}\FunctionTok{,}
+  \DataTypeTok{"notes"}\FunctionTok{:} \StringTok{"..."}
+\FunctionTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\section{Appendix C. Minimum Reproducibility
+Checklist}\label{appendix-c.-minimum-reproducibility-checklist}
+
+\begin{itemize}
+\tightlist
+\item
+  source code and pinned environments;
+\item
+  dataset and split hashes;
+\item
+  PEAtlas mapping tests;
+\item
+  compiler/build containers for controlled and gold builds;
+\item
+  model checkpoints and hyperparameters;
+\item
+  all baseline adapters;
+\item
+  inference-time accounting script;
+\item
+  annotation guidelines and adjudication log;
+\item
+  statistical-analysis notebook;
+\item
+  failure-case inventory;
+\item
+  malware-handling and access instructions.
+\end{itemize}
+
+\phantomsection\label{refs}
+\begin{CSLReferences}{1}{0}
+\bibitem[\citeproctext]{ref-akyon2022sahi}
+Akyon, Fatih Cagatay, Sinan Onur Altinuc, and Alptekin Temizel. 2022.
+{``Slicing Aided Hyper Inference and Fine-Tuning for Small Object
+Detection.''} In \emph{2022 IEEE International Conference on Image
+Processing (ICIP)}, 966--70.
+\url{https://doi.org/10.1109/ICIP46576.2022.9897990}.
+
+\bibitem[\citeproctext]{ref-anderson2018ember}
+Anderson, Hyrum S., and Phil Roth. 2018. {``{EMBER}: An Open Dataset for
+Training Static PE Malware Machine Learning Models.''} \emph{arXiv
+Preprint arXiv:1804.04637}. \url{https://arxiv.org/abs/1804.04637}.
+
+\bibitem[\citeproctext]{ref-demetrio2021secmlmalware}
+Demetrio, Luca, and Battista Biggio. 2021. {``Secml-Malware: A Python
+Library for Adversarial Robustness Evaluation of Windows Malware
+Classifiers.''} \emph{arXiv Preprint arXiv:2104.12848}.
+\url{https://github.com/pralab/secml_malware}.
+
+\bibitem[\citeproctext]{ref-downing2021deepreflect}
+Downing, Evan, Yisroel Mirsky, Kyuhong Park, and Wenke Lee. 2021.
+{``{DeepReflect}: Discovering Malicious Functionality Through Binary
+Reconstruction.''} In \emph{30th USENIX Security Symposium (USENIX
+Security 21)}, 3469--86. USENIX Association.
+\url{https://www.usenix.org/conference/usenixsecurity21/presentation/downing}.
+
+\bibitem[\citeproctext]{ref-ilse2018abmil}
+Ilse, Maximilian, Jakub Tomczak, and Max Welling. 2018.
+{``Attention-Based Deep Multiple Instance Learning.''} In
+\emph{Proceedings of the 35th International Conference on Machine
+Learning}, 80:2127--36. Proceedings of Machine Learning Research. PMLR.
+\url{https://proceedings.mlr.press/v80/ilse18a.html}.
+
+\bibitem[\citeproctext]{ref-joyce2026embercapa}
+Joyce, Robert J. 2025. {``{EMBER2024-capa}:
+Function-Level Capability, Byte, and Disassembly Records.''} Hugging
+Face dataset.
+\url{https://huggingface.co/datasets/joyce8/EMBER2024-capa}.
+
+\bibitem[\citeproctext]{ref-joyce2025ember2024}
+Joyce, Robert J., Gideon Miller, Phil Roth, Richard Zak, Elliott
+Zaresky-Williams, Hyrum Anderson, Edward Raff, and James Holt. 2025.
+{``{EMBER2024}: A Benchmark Dataset for Holistic Evaluation of Malware
+Classifiers.''} In \emph{Proceedings of the 31st ACM SIGKDD Conference
+on Knowledge Discovery and Data Mining}.
+\url{https://doi.org/10.1145/3711896.3737431}.
+
+\bibitem[\citeproctext]{ref-kim2026pemilcon}
+Kim, Tuan Nguyen, Son Doan Trung, and Nguyen Minh Nhut Pham. 2026.
+{``{PE-MILCon}: Multiple-Instance Learning with Contrastive Multi-View
+Representation for Static Windows PE Malware Detection.''}
+\emph{Computers, Materials \& Continua} 89 (1): 43.
+\url{https://doi.org/10.32604/cmc.2026.084268}.
+
+\bibitem[\citeproctext]{ref-li2021dsmil}
+Li, Bin, Yin Li, and Kevin W. Eliceiri. 2021. {``Dual-Stream Multiple
+Instance Learning Network for Whole Slide Image Classification with
+Self-Supervised Contrastive Learning.''} In \emph{Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition}.
+\url{https://arxiv.org/abs/2011.08939}.
+
+\bibitem[\citeproctext]{ref-lu2021clam}
+Lu, Ming Y., Drew F. K. Williamson, Tiffany Y. Chen, Richard J. Chen,
+Matteo Barbieri, and Faisal Mahmood. 2021. {``Data-Efficient and Weakly
+Supervised Computational Pathology on Whole-Slide Images.''}
+\emph{Nature Biomedical Engineering} 5: 555--70.
+\url{https://doi.org/10.1038/s41551-020-00682-w}.
+
+\bibitem[\citeproctext]{ref-mandiant2026capa}
+Mandiant FLARE Team. 2026. {``Capa: Extract Capabilities from Executable
+Files.''} Software and documentation.
+\url{https://mandiant.github.io/capa/}.
+
+\bibitem[\citeproctext]{ref-microsoft2021optimized}
+Microsoft. 2021. {``Debugging Optimized Code and Inline Functions.''}
+\url{https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/debugging-optimized-code-and-inline-functions-external}.
+
+\bibitem[\citeproctext]{ref-microsoft2025opt}
+---------. 2025a. {``/OPT (Optimizations).''}
+\url{https://learn.microsoft.com/en-us/cpp/build/reference/opt-optimizations}.
+
+\bibitem[\citeproctext]{ref-microsoft2025pe}
+---------. 2025b. {``PE Format.''}
+\url{https://learn.microsoft.com/en-us/windows/win32/debug/pe-format}.
+
+\bibitem[\citeproctext]{ref-nataraj2011malwareimages}
+Nataraj, Lakshmanan, Sreejith Karthikeyan, Gregoire Jacob, and B. S.
+Manjunath. 2011. {``Malware Images: Visualization and Automatic
+Classification.''} In \emph{Proceedings of the 8th International
+Symposium on Visualization for Cyber Security}.
+\url{https://doi.org/10.1145/2016904.2016908}.
+
+\bibitem[\citeproctext]{ref-peters2023highresolution}
+Peters, Tim, and Hikmat Farhat. 2023. {``High-Resolution Image-Based
+Malware Classification Using Multiple Instance Learning.''} \emph{arXiv
+Preprint arXiv:2311.12760}.
+\url{https://doi.org/10.48550/arXiv.2311.12760}.
+
+\bibitem[\citeproctext]{ref-raff2018malconv}
+Raff, Edward, Jon Barker, Jared Sylvester, Robert Brandon, Bryan
+Catanzaro, and Charles Nicholas. 2018. {``Malware Detection by Eating a
+Whole EXE.''} \emph{arXiv Preprint arXiv:1710.09435}.
+\url{https://arxiv.org/abs/1710.09435}.
+
+\bibitem[\citeproctext]{ref-seo2026upsample}
+Seo, Minseok, Mark Hamilton, and Changick Kim. 2026. {``Upsample
+Anything: A Simple and Hard to Beat Baseline for Feature Upsampling.''}
+In \emph{Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition}. \url{https://arxiv.org/abs/2511.16301}.
+
+\bibitem[\citeproctext]{ref-shao2021transmil}
+Shao, Zhuchen, Hao Bian, Yang Chen, Yifeng Wang, Jian Zhang, Xiangyang
+Ji, and Yongbing Zhang. 2021. {``{TransMIL}: Transformer-Based
+Correlated Multiple Instance Learning for Whole Slide Image
+Classification.''} In \emph{Advances in Neural Information Processing
+Systems}. Vol. 34.
+\url{https://proceedings.neurips.cc/paper/2021/hash/10c272d06794d3e5785d5e7c5356e9ff-Abstract.html}.
+
+\bibitem[\citeproctext]{ref-virustotal2026yara}
+VirusTotal. 2026. {``YARA c API Documentation.''}
+\url{https://yara.readthedocs.io/en/latest/capi.html}.
+
+\bibitem[\citeproctext]{ref-yang2021bodmas}
+Yang, Limin, Arridhana Ciptadi, Ihar Laziuk, Ali Ahmadzadeh, and Gang
+Wang. 2021. {``{BODMAS}: An Open Dataset for Learning-Based Temporal
+Analysis of PE Malware.''} In \emph{4th Deep Learning and Security
+Workshop}. \url{https://whyisyoung.github.io/BODMAS/}.
+
+\bibitem[\citeproctext]{ref-yevsikov2026dllicious}
+Yevsikov, Alexander, and Nir Nissim. 2026. {``{DLLicious}: Detection and
+Explainability of Malicious DLL Files Using Novel Static Feature
+Extraction Methods.''} \emph{Expert Systems with Applications} 320:
+132188. \url{https://doi.org/10.1016/j.eswa.2026.132188}.
+
+\end{CSLReferences}
+
+\end{document}

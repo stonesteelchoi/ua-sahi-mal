@@ -1,5 +1,12 @@
 # 근거 구간 프로토콜 — 1차 실행 결과 (2026-09-03)
 
+> **상태: 잠정 결과(provisional), 2026-09-04.** 후속 감사에서 `.bytes` validity
+> mask가 모델 입력에서 버려진 점, tiled classifier A의 single-sample class weight가
+> 상쇄된 점, random control이 evidence와 겹칠 수 있었던 점을 확인했다. 아래 수치는
+> 당시 실행을 정확히 기록하므로 삭제하지 않지만, 수정 코드로 모델을 재학습하고
+> D1–D5를 재실행하기 전에는 논문 결론의 근거로 사용할 수 없다. 상세:
+> [`../../RESEARCH_AUDIT_2026-09-04.md`](../../RESEARCH_AUDIT_2026-09-04.md)
+
 코퍼스 1,636 검체(계열당 200 상한), 판정 부분집합 45 검체(계열당 5), 블록 4,096 B, 예산 B = 1/16.
 원자료: `evidence_results.json`, `sensitivity_curve.json`.
 

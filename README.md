@@ -1,6 +1,19 @@
 # UA-SAHI-MAL
 
-악성코드의 바이트·opcode·동적 행위 시각화에서 미세한 위험 근거를 객체탐지 바운딩 박스로 지역화하고, 고위험 슬라이스만 선택해 정밀 추론하는 연구용 저장소입니다.
+정적 Windows PE에서 파일 단위 라벨로 학습한 모델이 분석가가 검증할 수 있는 함수·basic block·바이트 구간을 제한된 비용으로 우선순위화할 수 있는지 연구하는 저장소입니다. 정답과 출력의 기준 좌표는 2차원 bounding box가 아니라 원본 PE의 half-open byte-interval union입니다.
+
+> **[2026-09-04] 현재 연구 방향 — v3**
+>
+> 논문의 직접 비교군에서 **DECODE를 제외하고 DeepReflect를 주 정적 지역화 baseline으로 채택**했습니다. DECODE는 동적 API-call 영상·multi-label 행동 분류·Bayesian Grad-CAM pseudo-box를 사용하는 다른 입력/과제이므로 관련 연구로만 다룹니다. DeepReflect 또한 단독 baseline으로 두지 않고 random/entropy, attribution, MIL, capa/YARA, supervised-gold 및 exhaustive 기준선과 같은 비용·같은 표본 단위에서 비교합니다.
+>
+> - 현재 논문 작업 허브: [`paper/README.md`](paper/README.md)
+> - 통합 연구·실험 계획 v3: [`paper/plan/RESEARCH_PLAN_v3.md`](paper/plan/RESEARCH_PLAN_v3.md)
+> - baseline 결정 기록: [`paper/decisions/ADR-001-deepreflect-baseline.md`](paper/decisions/ADR-001-deepreflect-baseline.md)
+> - 초안 재검토 결과: [`paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md`](paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md)
+>
+> 아래의 DECODE/YOLO 및 BIG2015 v1/v2 구현·결과는 새 논문의 결과로 재해석하지 않습니다. 재현성과 실패 분석을 위해 보존한 과거 연구선입니다.
+
+## 보존된 v1/v2 연구선
 
 > **[2026-09-03] 연구 질문이 바뀌었습니다 — v2**
 >
@@ -8,10 +21,12 @@
 >
 > v2는 질문을 바꿉니다: **어느 바이트 구간이 계열 판정의 근거인가.** 마스킹 후 재추론이라는 연산으로 정의되고 검증되며, 사람 주석을 요구하지 않습니다. 순환 평가는 탐색에 참여하지 않은 독립 모델과 이미지를 보지 않는 모델로 끊습니다.
 >
-> **1차 실행 결과는 부정적입니다.** 사전등록 기준 5개 중 4개 미달 — 개별 4 KB 블록이 계열 판정을 거의 움직이지 못하고(블록당 ΔNLL 0.0056), 근거가 국소화되지 않습니다. 자세한 수치와 해석: [`docs/results/evidence/README.md`](docs/results/evidence/README.md)
+> **1차 실행 결과는 부정적이지만 현재 잠정 결과입니다.** 사전등록 기준 5개 중 4개 미달 — 개별 4 KB 블록이 계열 판정을 거의 움직이지 않았습니다(블록당 ΔNLL 0.0056). 다만 2026-09-04 감사에서 `.bytes` validity mask 누락, A의 class-weight 상쇄, random-control overlap 가능성을 확인했으므로 “근거가 국소화되지 않는다”는 결론은 수정 코드로 재학습·재실행하기 전에는 논문에 사용할 수 없습니다. 자세한 수치: [`docs/results/evidence/README.md`](docs/results/evidence/README.md), 감사 판정: [`docs/RESEARCH_AUDIT_2026-09-04.md`](docs/RESEARCH_AUDIT_2026-09-04.md)
 >
 > - 설계·사전등록: [`docs/RESEARCH_PLAN_v2.md`](docs/RESEARCH_PLAN_v2.md)
 > - 실행 안내: [`docs/EVIDENCE_PROTOCOL.md`](docs/EVIDENCE_PROTOCOL.md)
+> - 선행연구 점검: [`docs/LITERATURE_REVIEW.md`](docs/LITERATURE_REVIEW.md)
+> - 당시 DECODE 검토 기록: [`docs/DECODE_BASELINE_PLAN.md`](docs/DECODE_BASELINE_PLAN.md) — v3 baseline 결정으로 대체됨
 > - 구현: `src/ua_sahi_mal/evidence/` · 진입점 `python -m ua_sahi_mal.evidence`
 >
 > **아래 v1 문서는 그대로 둡니다.** 완성된 논문 초고(부정 결과 2건)와 285건 수치 감사가 그 코드에 걸려 있어, 지우면 재현 경로가 사라집니다. v1 자산과 v2 파이프라인은 같은 저장소에서 독립적으로 돌아갑니다.

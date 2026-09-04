@@ -2,7 +2,7 @@
 
 **작성일**: 2026-09-03
 **대체 대상**: `docs/legacy_remote_sensing/`, `UA-SAHI-Mal_연구설계서_v1`
-**상태**: 실험 착수 전 사전등록 초안
+**상태**: 과거 BIG2015 family-decision evidence 연구선. 현재 논문 계획은 [`../paper/plan/RESEARCH_PLAN_v3.md`](../paper/plan/RESEARCH_PLAN_v3.md)
 
 ---
 

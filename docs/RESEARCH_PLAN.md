@@ -1,5 +1,9 @@
 # UA-SAHI-MAL implementation and experiment plan
 
+> **Historical v1 plan.** This DECODE/YOLO object-detection lane is retained for
+> reproducibility. The active paper plan is
+> [`paper/plan/RESEARCH_PLAN_v3.md`](../paper/plan/RESEARCH_PLAN_v3.md).
+
 ## Scope decision
 
 The first milestone is not “prove UA is better.” It is a reproducible path from malware evidence to detector labels and comparable baselines. The final FPN-logit/entropy/UA router cannot be evaluated honestly until boxes, splits, metrics, and timing are fixed.

@@ -389,7 +389,10 @@ class TiledClassifier:
     @classmethod
     def load(cls, path: str | Path) -> TiledClassifier:
         torch = _require_torch()
-        payload = torch.load(Path(path), map_location="cpu", weights_only=False)
+        # These paths are supplied by the CLI.  The checkpoint only contains
+        # tensors and primitive metadata, so allowing Python pickle objects is
+        # unnecessary and would make an untrusted checkpoint executable.
+        payload = torch.load(Path(path), map_location="cpu", weights_only=True)
         model = cls(
             class_count=int(payload["class_count"]),
             seed=int(payload["seed"]),
@@ -474,7 +477,7 @@ class ThumbnailClassifier:
     @classmethod
     def load(cls, path: str | Path) -> ThumbnailClassifier:
         torch = _require_torch()
-        payload = torch.load(Path(path), map_location="cpu", weights_only=False)
+        payload = torch.load(Path(path), map_location="cpu", weights_only=True)
         model = cls(
             class_count=int(payload["class_count"]),
             seed=int(payload["seed"]),

@@ -136,14 +136,16 @@ def random_control_ranges(
     *,
     max_attempts: int = 64,
 ) -> np.ndarray:
-    """Same number of ranges, same lengths, placed at random non-overlapping offsets.
+    """Same geometry, randomly placed away from evidence and other controls.
 
-    Falls back to allowing overlap if the sample is too short to place them
-    disjointly, so the control always exists; the caller can detect this by
-    comparing the covered byte count with the requested one.
+    A control that overlaps the candidate evidence removes part of the
+    treatment and biases the paired difference toward zero.  If a disjoint
+    placement cannot be found, fail explicitly: there is no valid matched
+    control at that coverage.
     """
     array = _normalize_ranges(ranges, byte_count)
     lengths = (array[:, 1] - array[:, 0]).astype(np.int64)
+    excluded = [(int(start), int(end)) for start, end in array]
     placed: list[tuple[int, int]] = []
     for length in lengths:
         if length > byte_count:
@@ -151,12 +153,15 @@ def random_control_ranges(
         for _ in range(max_attempts):
             start = int(rng.integers(0, byte_count - length + 1))
             end = start + int(length)
-            if all(end <= other_start or start >= other_end for other_start, other_end in placed):
+            occupied = excluded + placed
+            if all(end <= other_start or start >= other_end for other_start, other_end in occupied):
                 placed.append((start, end))
                 break
         else:
-            start = int(rng.integers(0, byte_count - length + 1))
-            placed.append((start, start + int(length)))
+            raise ValueError(
+                "cannot place a random control disjoint from the evidence and other controls; "
+                "reduce the covered fraction or report the control as unavailable"
+            )
     return np.asarray(sorted(placed), dtype=np.int64).reshape(-1, 2)
 
 

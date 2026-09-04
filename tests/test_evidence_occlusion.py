@@ -98,6 +98,21 @@ def test_random_control_avoids_overlapping_itself_when_there_is_room():
     assert (control[1:, 0] >= control[:-1, 1]).all()
 
 
+def test_random_control_does_not_overlap_the_evidence_it_controls_for():
+    rng = np.random.default_rng(7)
+    evidence = np.array([[10_000, 20_000], [40_000, 50_000]])
+    control = occlusion.random_control_ranges(evidence, 200_000, rng)
+
+    for start, end in control:
+        assert all(end <= source_start or start >= source_end for source_start, source_end in evidence)
+
+
+def test_random_control_refuses_impossible_disjoint_geometry():
+    rng = np.random.default_rng(0)
+    with pytest.raises(ValueError, match="cannot place a random control disjoint"):
+        occlusion.random_control_ranges(np.array([[0, 70]]), 100, rng)
+
+
 def test_block_entropy_separates_uniform_noise_from_a_constant_run():
     rng = np.random.default_rng(0)
     data = np.concatenate(

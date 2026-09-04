@@ -228,7 +228,13 @@ def train_tiled_classifier(
         module.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
     )
     weights = _class_weights([entry.label for entry in entries], class_count)
-    criterion = nn.CrossEntropyLoss(weight=torch.tensor(weights, dtype=torch.float32))
+    # Model A contributes one sample per forward pass.  With the default mean
+    # reduction PyTorch divides a one-element batch by that sample's class
+    # weight, cancelling the weighting.  Sum reduction preserves the intended
+    # inverse-frequency multiplier while gradients are accumulated below.
+    criterion = nn.CrossEntropyLoss(
+        weight=torch.tensor(weights, dtype=torch.float32), reduction="sum"
+    )
     rng = np.random.default_rng(config.seed)
 
     report = TrainingReport(model=classifiers.MODEL_TILED, config=config.to_dict())

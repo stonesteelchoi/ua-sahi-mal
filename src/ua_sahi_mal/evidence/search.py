@@ -355,6 +355,53 @@ def verify_necessity(
     )
 
 
+def cumulative_deletion_curve(
+    classifier: Any,
+    data: np.ndarray,
+    label: int,
+    ordered_ranges: Sequence[Sequence[int]],
+    *,
+    fill: occlusion.FillPlan | None = None,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Re-infer after each cumulative deletion; do not sum one-block effects.
+
+    One fill vector is drawn up front and reused at every step, so each input is
+    a strict extension of the previous mask.  This preserves block interactions
+    that an additive sum of independent occlusion deltas necessarily loses.
+    """
+    if data.dtype != np.uint8:
+        raise TypeError(f"data must be uint8, got {data.dtype}")
+    table = np.asarray(list(ordered_ranges), dtype=np.int64).reshape(-1, 2)
+    # range_mask performs the bounds and non-empty checks for the full table.
+    occlusion.range_mask(table, int(data.size))
+    plan = fill or occlusion.make_fill_plan(occlusion.PRIMARY_FILL, data)
+    rng = np.random.default_rng(seed)
+    replacement = plan.draw(int(data.size), rng)
+    cumulative = np.zeros(data.size, dtype=bool)
+
+    baseline_nll = float(classifier.negative_log_likelihood(data, label))
+    nll = [baseline_nll]
+    fractions = [0.0]
+    for start, end in table:
+        cumulative[int(start) : int(end)] = True
+        masked = data.copy()
+        masked[cumulative] = replacement[cumulative]
+        nll.append(float(classifier.negative_log_likelihood(masked, label)))
+        fractions.append(float(cumulative.mean()))
+
+    auc = float(np.trapezoid(nll, fractions)) if len(nll) > 1 else 0.0
+    return {
+        "baseline_nll": baseline_nll,
+        "nll": nll,
+        "delta_nll": [float(value - baseline_nll) for value in nll],
+        "fractions": fractions,
+        "auc": auc,
+        "forward_passes": len(nll),
+        "fill": plan.name,
+    }
+
+
 def evidence_ranges(
     result: SearchResult, *, budget: float = routing.DEFAULT_BUDGET, merge: bool = True
 ) -> np.ndarray:

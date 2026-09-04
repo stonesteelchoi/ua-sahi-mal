@@ -166,3 +166,22 @@ def test_tiles_touched_reports_every_tile_a_range_crosses():
     span = features.tile_bytes()
     touched = features.tiles_touched(np.array([[span - 10, span + 10]]))
     assert touched.tolist() == [0, 1]
+
+
+def test_cumulative_deletion_reinfers_interacting_blocks_instead_of_adding_deltas():
+    class InteractionClassifier:
+        def negative_log_likelihood(self, data, label, valid=None):
+            del label, valid
+            return float((data == 0xCC).sum() ** 2)
+
+    curve = search.cumulative_deletion_curve(
+        InteractionClassifier(),
+        np.zeros(10, dtype=np.uint8),
+        0,
+        [[0, 2], [2, 4]],
+        fill=occlusion.FillPlan(occlusion.FILL_INT3),
+    )
+
+    assert curve["fractions"] == pytest.approx([0.0, 0.2, 0.4])
+    assert curve["nll"] == pytest.approx([0.0, 4.0, 16.0])
+    assert curve["forward_passes"] == 3

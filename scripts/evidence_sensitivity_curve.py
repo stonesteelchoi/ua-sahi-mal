@@ -93,11 +93,20 @@ def main() -> int:
             baseline = model.log_probabilities(data)
 
             masked = occlusion.occlude(data, [window], plan, rng)
-            control_window = occlusion.random_control_ranges(np.asarray([window]), data.size, rng)
-            control = occlusion.occlude(data, control_window, plan, rng)
+            try:
+                control_window = occlusion.random_control_ranges(np.asarray([window]), data.size, rng)
+            except ValueError:
+                # Above 50% coverage, an equal-length disjoint control cannot
+                # exist.  Null is preferable to erasing some evidence and
+                # calling that overlap a control.
+                control = None
+            else:
+                control = occlusion.occlude(data, control_window, plan, rng)
 
             evidence_nll = float(-model.log_probabilities(masked)[host.label])
-            control_nll = float(-model.log_probabilities(control)[host.label])
+            control_nll = (
+                float(-model.log_probabilities(control)[host.label]) if control is not None else None
+            )
             base_nll = float(-baseline[host.label])
 
             rows.append(
@@ -112,7 +121,7 @@ def main() -> int:
                     "predicts_family": bool(int(np.argmax(baseline)) == host.label),
                     "baseline_nll": base_nll,
                     "delta_evidence": evidence_nll - base_nll,
-                    "delta_control": control_nll - base_nll,
+                    "delta_control": control_nll - base_nll if control_nll is not None else None,
                 }
             )
         print(f"{host.sample_id[:8]} family {host.label} done", flush=True)
@@ -121,17 +130,21 @@ def main() -> int:
     for fraction in DEFAULT_FRACTIONS:
         subset = [row for row in rows if row["fraction"] == fraction]
         recognized = [row for row in subset if row["predicts_family"]]
+        controlled = [row for row in subset if row["delta_control"] is not None]
         entry = {
             "fraction": fraction,
             "n": len(subset),
             "recognized": len(recognized),
             "mean_delta_evidence": float(np.mean([row["delta_evidence"] for row in subset])),
-            "mean_delta_control": float(np.mean([row["delta_control"] for row in subset])),
+            "control_n": len(controlled),
+            "mean_delta_control": (
+                float(np.mean([row["delta_control"] for row in controlled])) if controlled else None
+            ),
         }
-        if len(subset) >= 2:
+        if len(controlled) >= 2:
             paired = metrics.summarize_paired(
-                [row["delta_evidence"] for row in subset],
-                [row["delta_control"] for row in subset],
+                [row["delta_evidence"] for row in controlled],
+                [row["delta_control"] for row in controlled],
                 label=f"preserve {fraction:.0%}: evidence window vs random window",
                 seed=args.seed,
             )
@@ -164,7 +177,8 @@ def main() -> int:
         interval = entry.get("paired", {}).get("difference", {})
         print(
             f"{entry['fraction']:>6.2f} {entry['n']:>3} {entry['recognized']:>5} "
-            f"{entry['mean_delta_evidence']:>11.3f} {entry['mean_delta_control']:>10.3f} "
+            f"{entry['mean_delta_evidence']:>11.3f} "
+            f"{entry['mean_delta_control'] if entry['mean_delta_control'] is not None else float('nan'):>10.3f} "
             f"{str(interval.get('excludes_zero')):>14}"
         )
     print(f"-> {out}")
