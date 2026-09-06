@@ -91,7 +91,7 @@ v3에서 구현·검증할 흐름
 가중치와 데이터셋은 `.gitignore` 대상입니다. Git에는 코드·설정·문서와 공개 가능한 집계 근거를 보존하고, 대용량 파일은 별도 Google Drive 보관본으로 연결합니다.
 
 <!-- ASSET_DOWNLOADS_START -->
-**ZIP 8/31개 · 원본 ZIP 조각 26/377개 업로드·크기 검증 완료.**
+**ZIP 31/31개 · 원본 ZIP 조각 71/377개 업로드·크기 검증 완료.**
 
 [전체 보관 폴더](https://drive.google.com/drive/folders/1nQWy27-OQmfamBgIvc2822QDXn2_iL4C) · [파일별 다운로드](docs/artifacts/FILES.md) · [복원 안내](docs/artifacts/README.md) · [SHA-256 목록](docs/artifacts/manifest.json)
 
@@ -101,7 +101,7 @@ v3에서 구현·검증할 흐름
 | MaleVis 300 × 300 · 3.14GB | [기존 ZIP](https://drive.google.com/file/d/1oz0I2X-jCPUc78m0d8sgzMEPEiOW8Nc2/view?usp=drivesdk) | `datasets/malevis_train_val_300x300/` |
 | 실험 결과·MaleVis 가중치 · 25.1MB ZIP | [다운로드](https://drive.google.com/file/d/1M-LRKgEcpZl3124dcjR4yVNQloNrDLko/view?usp=drivesdk) | `runs/` 전체. MaleVis checkpoint 7개 포함 |
 | YOLO11n 초기 가중치 · 5.61MB | [다운로드](https://drive.google.com/file/d/1DWwiQQ23g4cP0s-wb7f-DQhWFZ9MKWm-/view?usp=drivesdk) | 저장소 루트. 일반 사전학습 가중치 |
-| 합성 검증용 YOLO 가중치 · 19.7MB ZIP | 업로드 중 | `.codex-review/`의 원래 경로. checkpoint 4개 |
+| 합성 검증용 YOLO 가중치 · 19.7MB ZIP | [다운로드](https://drive.google.com/file/d/1ep4K6FUbcZ_r9pHrsEMB6stOajngd5dU/view?usp=drivesdk) | `.codex-review/`의 원래 경로. checkpoint 4개 |
 | BIG2015 파생 이미지 · 독립 ZIP 10개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/big2015/` |
 | BIG2015 정적 샘플 · 9.59MB ZIP | [다운로드](https://drive.google.com/file/d/1PAN6ta6oiK6lW295MQ3HMBlDMeZhN50f/view?usp=drivesdk) | `datasets/big2015_sample/` |
 | 실험 캐시 · 독립 ZIP 18개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/uasahi_cache/` |
