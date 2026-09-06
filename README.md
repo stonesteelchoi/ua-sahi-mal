@@ -91,7 +91,7 @@ v3에서 구현·검증할 흐름
 가중치와 데이터셋은 `.gitignore` 대상입니다. Git에는 코드·설정·문서와 공개 가능한 집계 근거를 보존하고, 대용량 파일은 별도 Google Drive 보관본으로 연결합니다.
 
 <!-- ASSET_DOWNLOADS_START -->
-**ZIP 31/31개 · 원본 ZIP 조각 71/377개 업로드·크기 검증 완료.**
+**가중치·파생 데이터 ZIP 31개와 BIG2015 원본 ZIP 업로드·크기 검증 완료.**
 
 [전체 보관 폴더](https://drive.google.com/drive/folders/1nQWy27-OQmfamBgIvc2822QDXn2_iL4C) · [파일별 다운로드](docs/artifacts/FILES.md) · [복원 안내](docs/artifacts/README.md) · [SHA-256 목록](docs/artifacts/manifest.json)
 
@@ -105,9 +105,9 @@ v3에서 구현·검증할 흐름
 | BIG2015 파생 이미지 · 독립 ZIP 10개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/big2015/` |
 | BIG2015 정적 샘플 · 9.59MB ZIP | [다운로드](https://drive.google.com/file/d/1PAN6ta6oiK6lW295MQ3HMBlDMeZhN50f/view?usp=drivesdk) | `datasets/big2015_sample/` |
 | 실험 캐시 · 독립 ZIP 18개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/uasahi_cache/` |
-| BIG2015 원본 · 37.9GB | [조각 폴더](https://drive.google.com/drive/folders/1nCRh-gM8ImsdKOgi6fH4YC2-IXCWXShP) · [조각 001](https://drive.google.com/file/d/10CP6ubfdBUb0HYdy80RXc_a3Aqu3Pq9M/view?usp=drivesdk) | 96MiB 이하 377조각. [결합 방법](docs/artifacts/README.md#원본-zip-결합) 참고 |
+| BIG2015 원본 · 37.9GB | [원본 ZIP 다운로드](https://drive.google.com/file/d/1MgoxMX2OHh3Y6L8Mi4VP40xNL5p496Cy/view?usp=drivesdk) | `datasets/malware-classification.zip`. 내부에 `train.7z` 포함 |
 
-> Drive 링크는 기존의 제한된 접근 권한을 유지합니다. MaleVis ZIP 두 개는 기존 보관본을 연결했으며, 새 ZIP은 SHA-256·CRC를 기록하고 업로드 후 크기를 확인했습니다. **독립 ZIP은 각각 풀고, `.zip.partNNN`은 결합해야 합니다.** 가중치는 과거 실험·합성 검증용이며 v3 검증 모델이 아닙니다.
+> Drive 링크는 기존의 제한된 접근 권한을 유지합니다. MaleVis ZIP 두 개는 기존 보관본을 연결했으며, 새 ZIP은 SHA-256·CRC를 기록하고 업로드 후 크기를 확인했습니다. **파생 데이터의 독립 ZIP은 모두 저장소 루트에 풀면 되고, BIG2015 원본은 단일 ZIP으로 받습니다.** 가중치는 과거 실험·합성 검증용이며 v3 검증 모델이 아닙니다.
 <!-- ASSET_DOWNLOADS_END -->
 
 <a id="reproduction"></a>

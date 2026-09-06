@@ -36,4 +36,4 @@ ZIP 31/31개 업로드 및 Drive 파일 크기 검증 완료.
 | `ua-sahi-mal-uasahi-cache-20260905-part18-of18.zip` | [Drive](https://drive.google.com/file/d/1FhygCA6UM7ezagWkVZWN1PDqkUsFLPd0/view?usp=drivesdk) | 23,624,229 B | `datasets/uasahi_cache` |
 | `ua-sahi-mal-verification-weights-20260905.zip` | [Drive](https://drive.google.com/file/d/1ep4K6FUbcZ_r9pHrsEMB6stOajngd5dU/view?usp=drivesdk) | 19,748,605 B | `.codex-review/full-pipeline-safe-20260828-r2/train/ua-sahi-mal-yolo11/weights`, `.codex-review/full-pipeline-safe-20260828-r3/train/ua-sahi-mal-yolo11/weights` |
 
-원본 ZIP 조각별 링크·SHA-256은 [manifest.json](manifest.json)의 `original_archive.parts`에 있습니다.
+BIG2015 원본은 [단일 ZIP](https://drive.google.com/file/d/1MgoxMX2OHh3Y6L8Mi4VP40xNL5p496Cy/view?usp=drivesdk)으로 받습니다(37,885,110,014 B). 원본 SHA-256은 [manifest.json](manifest.json)의 `original_archive.sha256`에 있습니다.
