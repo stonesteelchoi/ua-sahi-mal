@@ -1,17 +1,204 @@
 # UA-SAHI-MAL
 
-정적 Windows PE에서 파일 단위 라벨로 학습한 모델이 분석가가 검증할 수 있는 함수·basic block·바이트 구간을 제한된 비용으로 우선순위화할 수 있는지 연구하는 저장소입니다. 정답과 출력의 기준 좌표는 2차원 bounding box가 아니라 원본 PE의 half-open byte-interval union입니다.
+**정적 악성코드 분석을 위한 예산 제한 지역화 연구**
 
-> **[2026-09-04] 현재 연구 방향 — v3**
+파일 단위 라벨에서 출발해, 분석가가 검토할 함수·basic block·바이트 구간의 우선순위를 찾습니다.
+
+[![검증](https://github.com/stonesteelchoi/ua-sahi-mal/actions/workflows/verify.yml/badge.svg)](https://github.com/stonesteelchoi/ua-sahi-mal/actions/workflows/verify.yml)
+[![Python 3.10–3.12](https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Project license: MIT](https://img.shields.io/badge/Project_license-MIT-green)](LICENSE)
+[![Research: v3 pre-results](https://img.shields.io/badge/Research-v3_pre--results-orange)](paper/README.md)
+
+[빠른 시작](#quickstart) · [현재 연구 상태](#research-status) · [가중치·데이터셋](#artifacts) · [실험 재현](#reproduction) · [결과와 검증](#results) · [문서 지도](#documentation)
+
+> **현재 논문은 v3 설계·구현 준비 단계(pre-results)입니다.**
 >
-> 논문의 직접 비교군에서 **DECODE를 제외하고 DeepReflect를 주 정적 지역화 baseline으로 채택**했습니다. DECODE는 동적 API-call 영상·multi-label 행동 분류·Bayesian Grad-CAM pseudo-box를 사용하는 다른 입력/과제이므로 관련 연구로만 다룹니다. DeepReflect 또한 단독 baseline으로 두지 않고 random/entropy, attribution, MIL, capa/YARA, supervised-gold 및 exhaustive 기준선과 같은 비용·같은 표본 단위에서 비교합니다.
->
-> - 현재 논문 작업 허브: [`paper/README.md`](paper/README.md)
-> - 통합 연구·실험 계획 v3: [`paper/plan/RESEARCH_PLAN_v3.md`](paper/plan/RESEARCH_PLAN_v3.md)
-> - baseline 결정 기록: [`paper/decisions/ADR-001-deepreflect-baseline.md`](paper/decisions/ADR-001-deepreflect-baseline.md)
-> - 초안 재검토 결과: [`paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md`](paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md)
->
-> 아래의 DECODE/YOLO 및 BIG2015 v1/v2 구현·결과는 새 논문의 결과로 재해석하지 않습니다. 재현성과 실패 분석을 위해 보존한 과거 연구선입니다.
+> DeepReflect를 주 정적 지역화 비교군으로 채택했습니다. PE 좌표 매핑, gold corpus, baseline adapter와 분석가 평가를 완성하기 전이므로 성능 향상이나 분석 시간 절감은 아직 주장하지 않습니다. 기존 DECODE/YOLO, MaleVis, BIG2015 결과는 별도 과거 연구선으로 보존합니다.
+
+<a id="quickstart"></a>
+
+## 빠른 시작
+
+**Python 3.10–3.12와 Git**이 필요합니다. 합성 smoke test는 실제 데이터셋·가중치·GPU 없이 실행할 수 있으며, 최초 의존성 설치에는 네트워크가 필요합니다. 아래는 Windows PowerShell 기준입니다.
+
+```powershell
+git clone https://github.com/stonesteelchoi/ua-sahi-mal.git ua-sahi-mal-yolo
+Set-Location ua-sahi-mal-yolo
+powershell -ExecutionPolicy Bypass -File scripts/setup_cpu.ps1
+
+# 기존 탐지 파이프라인의 데이터 준비 → 라우팅 → 병합을 합성 데이터로 검사
+.\.venv\Scripts\python.exe -m ua_sahi_mal smoke
+
+# v2 근거 구간 프로토콜을 알려진 판정 규칙의 합성 모델로 검사
+.\.venv\Scripts\python.exe -m ua_sahi_mal.evidence smoke --out runs/smoke-evidence
+```
+
+첫 번째 smoke test 결과는 `runs/smoke/<timestamp>/`에 저장됩니다. smoke 통과는 구현 경로가 연결된다는 뜻이며, 실제 악성코드의 지역화 성능을 검증한 결과는 아닙니다. 출력 경로가 이미 있으면 새 이름을 사용하십시오.
+
+<details>
+<summary><strong>GPU 설치, 환경 진단, 실험 설정 검증</strong></summary>
+
+CUDA 환경에서는 CPU 설치 대신 다음을 실행합니다. 설치 스크립트는 PyTorch `2.8.0`, torchvision `0.23.0`, Ultralytics `8.4.67`과 개발 도구를 설치합니다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1 -TorchIndex cu128
+.\.venv\Scripts\python.exe -m ua_sahi_mal doctor --strict
+.\.venv\Scripts\python.exe -m ua_sahi_mal --help
+
+# 이 설정은 보존된 v1 DECODE/YOLO 실험 계약입니다.
+.\.venv\Scripts\python.exe -m ua_sahi_mal validate-config `
+  --config configs/experiments/decode_primary.example.yaml
+```
+
+호환 PyTorch/CUDA와 장치별 동작을 확인한 뒤 학습하십시오. Linux·Docker의 설치 및 검증 경로는 [Docker 재현 안내](docker/README.md)를 참고합니다. `external/sahi`와 `external/upsample-anything`은 현재 Git에 포함된 일반 소스 디렉터리입니다.
+
+</details>
+
+<a id="research-status"></a>
+
+## 현재 연구 상태
+
+| 연구선 | 질문과 평가 단위 | 현재 상태 | 시작 문서 |
+|---|---|---|---|
+| **v3 · 현재 논문** | 고정된 검토·연산 예산에서 검증된 PE 악성 구성요소를 얼마나 회수하는가 | **Pre-results**. 좌표 매핑·gold 데이터·비교군 평가 준비 | [논문 허브](paper/README.md) · [연구 계획](paper/plan/RESEARCH_PLAN_v3.md) |
+| v2 · BIG2015 근거 구간 | 어떤 바이트 구간이 파일의 계열 판정을 지지하는가 | 1차 결과는 **잠정**. 감사에서 확인된 문제를 반영해 재학습·재실행 필요 | [프로토콜](docs/EVIDENCE_PROTOCOL.md) · [감사](docs/RESEARCH_AUDIT_2026-09-04.md) |
+| v1 · DECODE/YOLO | coarse map으로 SAHI tile 예산을 줄일 수 있는가 | 인코더·학습·추론·합성 검증 경로 구현. 전체 전략의 실제 성능 검증은 별도 | [실행 안내](docs/DECODE_PIPELINE.md) |
+| MaleVis · 전이 분류 | 정적 이미지에서 해상도와 MC dropout이 분류·보정에 미치는 영향 | 224/300 해상도, 3개 seed의 집계·timing 근거 보존 | [결과 근거](docs/results/README.md) |
+
+### v3에서 고정한 원칙
+
+- **기준 좌표:** 원본 파일의 half-open byte interval union, 즉 `[start, end)` 구간들의 합집합. 함수·basic block·mask·bbox는 이 좌표에 연결되는 표현입니다.
+- **주 비교군:** DeepReflect. random/uniform/entropy, attribution, MIL, capa/YARA, exhaustive 및 gold 학습 데이터가 있을 때 supervised 기준선을 같은 예산·표본 단위로 비교합니다.
+- **주 지표:** top-K 함수에서의 악성 구성요소 recall, 검토 바이트 비율별 gold byte recall, 첫 구성요소를 찾는 데 드는 시간·함수 수, 전체 지연시간과 분석 가능 비율.
+- **라벨 구분:** 합성 위치 정답, 규칙 기반 silver, 독립 검토 gold, 실제 분석가 평가를 분리합니다. 파일 분류 정확도나 Grad-CAM pseudo-box를 구성요소 정답으로 취급하지 않습니다.
+
+DECODE는 동적 API-call 이미지와 pseudo-box를 다루므로 v3의 직접 수치 비교에서 제외하고 관련 연구로 유지합니다. 선택 이유와 재현 조건은 [DeepReflect baseline 결정 기록](paper/decisions/ADR-001-deepreflect-baseline.md)에 있습니다.
+
+```text
+v3에서 구현·검증할 흐름
+
+승인된 정적 PE + 파일 라벨
+    → 파일 offset ↔ RVA ↔ 함수/basic block 매핑
+    → coarse scoring + 예산 제한 후보 선택·정밀화
+    → 순위가 있는 byte-interval union
+    → 독립 gold / DeepReflect 및 비교군 / 동일 비용 평가
+```
+
+<a id="artifacts"></a>
+
+## 가중치와 데이터셋
+
+가중치와 데이터셋은 `.gitignore` 대상입니다. Git에는 코드·설정·문서와 공개 가능한 집계 근거를 보존하고, 대용량 파일은 별도 Google Drive 보관본으로 연결합니다.
+
+<!-- ASSET_DOWNLOADS_START -->
+**ZIP 8/31개 · 원본 ZIP 조각 26/377개 업로드·크기 검증 완료.**
+
+[전체 보관 폴더](https://drive.google.com/drive/folders/1nQWy27-OQmfamBgIvc2822QDXn2_iL4C) · [파일별 다운로드](docs/artifacts/FILES.md) · [복원 안내](docs/artifacts/README.md) · [SHA-256 목록](docs/artifacts/manifest.json)
+
+| 자산 | Drive | 용도·복원 위치 |
+|---|---|---|
+| MaleVis 224 × 224 · 1.74GB | [기존 ZIP](https://drive.google.com/file/d/1K-AfcaQjoV808AtPZiV7ELPlVpTfmKZo/view?usp=drivesdk) | `datasets/malevis_train_val_224x224/` |
+| MaleVis 300 × 300 · 3.14GB | [기존 ZIP](https://drive.google.com/file/d/1oz0I2X-jCPUc78m0d8sgzMEPEiOW8Nc2/view?usp=drivesdk) | `datasets/malevis_train_val_300x300/` |
+| 실험 결과·MaleVis 가중치 · 25.1MB ZIP | [다운로드](https://drive.google.com/file/d/1M-LRKgEcpZl3124dcjR4yVNQloNrDLko/view?usp=drivesdk) | `runs/` 전체. MaleVis checkpoint 7개 포함 |
+| YOLO11n 초기 가중치 · 5.61MB | [다운로드](https://drive.google.com/file/d/1DWwiQQ23g4cP0s-wb7f-DQhWFZ9MKWm-/view?usp=drivesdk) | 저장소 루트. 일반 사전학습 가중치 |
+| 합성 검증용 YOLO 가중치 · 19.7MB ZIP | 업로드 중 | `.codex-review/`의 원래 경로. checkpoint 4개 |
+| BIG2015 파생 이미지 · 독립 ZIP 10개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/big2015/` |
+| BIG2015 정적 샘플 · 9.59MB ZIP | [다운로드](https://drive.google.com/file/d/1PAN6ta6oiK6lW295MQ3HMBlDMeZhN50f/view?usp=drivesdk) | `datasets/big2015_sample/` |
+| 실험 캐시 · 독립 ZIP 18개 | [파일 목록](docs/artifacts/FILES.md) | `datasets/uasahi_cache/` |
+| BIG2015 원본 · 37.9GB | [조각 폴더](https://drive.google.com/drive/folders/1nCRh-gM8ImsdKOgi6fH4YC2-IXCWXShP) · [조각 001](https://drive.google.com/file/d/10CP6ubfdBUb0HYdy80RXc_a3Aqu3Pq9M/view?usp=drivesdk) | 96MiB 이하 377조각. [결합 방법](docs/artifacts/README.md#원본-zip-결합) 참고 |
+
+> Drive 링크는 기존의 제한된 접근 권한을 유지합니다. MaleVis ZIP 두 개는 기존 보관본을 연결했으며, 새 ZIP은 SHA-256·CRC를 기록하고 업로드 후 크기를 확인했습니다. **독립 ZIP은 각각 풀고, `.zip.partNNN`은 결합해야 합니다.** 가중치는 과거 실험·합성 검증용이며 v3 검증 모델이 아닙니다.
+<!-- ASSET_DOWNLOADS_END -->
+
+<a id="reproduction"></a>
+
+## 실험 재현
+
+원하는 연구선을 선택한 뒤 해당 실행 안내를 따르십시오. v1/v2 실행 명령과 산출물을 v3 실험 결과로 합치지 않습니다.
+
+| 목적 | 진입점 | 입력·출력 및 주의할 해석 |
+|---|---|---|
+| 빠른 구현 확인 | 위의 두 [smoke test](#quickstart) | 합성 데이터와 stub/fake detector. 실제 가중치 불필요 |
+| v3 논문 설계·구현 | [연구 계획 v3](paper/plan/RESEARCH_PLAN_v3.md) | PEAtlas, DeepReflect adapter, gold corpus 등의 실행 조건·gate 확인 |
+| MaleVis 전이 분류 | [아래 상세 명령](#malevis-reproduction) · [설정](configs/experiments/malevis_decode_transfer.yaml) | 해상도 공통 split, seed 42·43·44, deterministic/MC dropout 분류 |
+| BIG2015 v2 근거 구간 | [EVIDENCE_PROTOCOL](docs/EVIDENCE_PROTOCOL.md) | `python -m ua_sahi_mal.evidence`의 prepare/synth/train/run 경로 |
+| v1 DECODE형 이미지 탐지 | [DECODE_PIPELINE](docs/DECODE_PIPELINE.md) · [아래 상세 명령](#detector-reproduction) | 승인된 PNG/JPEG·ROI JSON·split map·검증된 checkpoint 필요 |
+| 기존 논문 보고 수치 검증 | `python scripts/audit_paper_numbers.py` | Git의 [집계 근거 사본](docs/results/README.md)으로 표와 파생 수치 대조 |
+
+<details>
+<summary><strong>전체 환경 검증과 Docker</strong></summary>
+
+```powershell
+.\.venv\Scripts\python.exe scripts/check_repository_safety.py
+.\.venv\Scripts\python.exe -m ruff check src tests scripts
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m ua_sahi_mal doctor --strict
+.\.venv\Scripts\python.exe scripts/audit_paper_numbers.py
+.\.venv\Scripts\python.exe -m build
+```
+
+Docker에서는 다음을 사용합니다.
+
+```bash
+make build      # 컨테이너 이미지 빌드
+make verify     # lint, tests, 합성 smoke, 논문 수치 감사
+make offline    # 네트워크를 끊고 재검증
+```
+
+Windows orchestration은 `scripts/setup_docker.ps1`, 컨테이너 없는 공통 검증은 `bash scripts/verify_env.sh` 또는 `make check`입니다. 레지스트리·PyTorch·APT 미러 설정과 검증 한계는 [Docker README](docker/README.md), 보존된 실행 근거는 [환경 검증 기록](docs/verification/README.md)을 참고하십시오.
+
+현재 [verify 워크플로](.github/workflows/verify.yml)는 Ubuntu의 Python 3.10·3.12 네이티브 검증, Docker 빌드·실행·오프라인 검증, 저장소 안전 검사를 정의합니다. 실제 실행 상태는 [GitHub Actions](https://github.com/stonesteelchoi/ua-sahi-mal/actions/workflows/verify.yml)에서 확인합니다.
+
+</details>
+
+<a id="results"></a>
+
+## 결과와 검증 범위
+
+| 근거 | 확인할 수 있는 것 | 해석의 한계 |
+|---|---|---|
+| [v3 논문 초안](paper/draft/README.md) | 현재 설계와 남은 실험, `[TBD]` 결과 슬롯 | 제출 가능한 완성 논문이나 측정 성과가 아님 |
+| [MaleVis·BIG2015 집계 근거](docs/results/README.md) | 보존된 분류·보정·forward timing 및 경계 복원 실험의 보고 수치 | 집계 감사는 재학습이나 개별 예측에서의 지표 계산 검증과 구분 |
+| [v2 첫 실행 결과](docs/results/evidence/README.md) | 사전등록 기준 5개 중 4개 미달인 당시 관측 | validity mask·class weighting·random control 감사 후 재실행 전까지 잠정 결과 |
+| [환경 검증 기록](docs/verification/README.md) | 해당 시점의 환경·lint·테스트·합성 smoke 실행 근거 | 최신 코드의 전체 실험 성공이나 과학적 성능을 보증하지 않음 |
+
+MaleVis의 timing은 batch의 모델 forward 시간을 batch size로 나눈 값입니다. 데이터 로딩·디코딩을 포함한 단일 요청의 end-to-end latency와 구분해 읽어야 합니다.
+
+<a id="documentation"></a>
+
+## 문서 지도와 저장소 구조
+
+| 읽고 싶은 내용 | 문서 |
+|---|---|
+| 현재 논문 전체 맥락 | [논문 허브](paper/README.md) · [v3 계획](paper/plan/RESEARCH_PLAN_v3.md) · [초안 재검토](paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md) |
+| 비교군 선정·선행연구 | [ADR-001](paper/decisions/ADR-001-deepreflect-baseline.md) · [참고문헌](paper/references/README.md) |
+| 데이터 계약·실행 경로 | [데이터 계약](docs/DATA_CONTRACT.md) · [v1 탐지](docs/DECODE_PIPELINE.md) · [v2 근거 구간](docs/EVIDENCE_PROTOCOL.md) |
+| 결과·재현·감사 | [근거 데이터](docs/results/README.md) · [연구 감사](docs/RESEARCH_AUDIT_2026-09-04.md) · [환경 검증](docs/verification/README.md) |
+| 전체 문서·연구 이력 | [문서 인덱스](docs/README.md) · [원격탐사 원형](docs/legacy_remote_sensing/README.md) |
+| 보안·외부 코드 | [SECURITY](SECURITY.md) · [THIRD_PARTY](THIRD_PARTY.md) · [LICENSE](LICENSE) |
+
+```text
+ua-sahi-mal-yolo/
+├─ paper/                  현재 v3 계획 · 결정 기록 · 초안 · 참고문헌
+├─ src/ua_sahi_mal/         인코딩 · 데이터 계약 · YOLO/SAHI · CLI
+│  └─ evidence/            v2 바이트 근거 구간 프로토콜
+├─ scripts/                설치 · 데이터 감사 · 학습 · 집계 · 검증
+├─ configs/experiments/    버전이 고정된 실험 설정
+├─ tests/                  단위·통합·합성 검증
+├─ docs/                   실행 안내 · 역사적 연구 계획 · 결과 근거
+├─ external/               SAHI·UPA 소스와 DeepReflect 연결 안내
+├─ docker/                 CPU 컨테이너 재현 환경
+├─ output/paper/           보존된 이전 논문 초고와 생성 스크립트
+├─ datasets/               로컬 데이터셋 (Git 제외)
+└─ runs/                   실행 결과·가중치 (Git 제외)
+```
+
+## 보존된 연구선의 상세 실행 안내
+
+아래는 기존 연구선의 재현 경로입니다. 상세 명령의 `C:\secure-research\...`와 Python 실행 파일 경로는 자신의 승인된 저장 위치·가상환경 경로로 바꾸십시오.
+
+<details>
+<summary><strong>v1/v2 연구 배경 · 입력과 라벨 · 기존 구현 상태</strong></summary>
 
 ## 보존된 v1/v2 연구선
 
@@ -29,7 +216,7 @@
 > - 당시 DECODE 검토 기록: [`docs/DECODE_BASELINE_PLAN.md`](docs/DECODE_BASELINE_PLAN.md) — v3 baseline 결정으로 대체됨
 > - 구현: `src/ua_sahi_mal/evidence/` · 진입점 `python -m ua_sahi_mal.evidence`
 >
-> **아래 v1 문서는 그대로 둡니다.** 완성된 논문 초고(부정 결과 2건)와 285건 수치 감사가 그 코드에 걸려 있어, 지우면 재현 경로가 사라집니다. v1 자산과 v2 파이프라인은 같은 저장소에서 독립적으로 돌아갑니다.
+> **아래 v1 문서는 재현용으로 보존합니다.** 완성된 논문 초고(부정 결과 2건)와 285건 수치 감사가 그 코드에 걸려 있어, 지우면 재현 경로가 사라집니다. v1 자산과 v2 파이프라인은 같은 저장소에서 독립적으로 돌아갑니다.
 
 이 저장소는 기존 위성영상용 `UA-SAHI-YOLO` 프로토타입을 새 논문 주제에 맞게 전환한 연구 구현입니다. 현재는 승인된 정적 DECODE PNG/JPEG와 ROI JSON을 가져와 YOLO11을 학습하고, 같은 full-image forward pass의 P3/P4/P5 pre-NMS score로 coarse map을 만든 뒤 JBU/UPA와 예산 제한 SAHI를 실행하는 경로까지 연결되어 있습니다.
 
@@ -140,26 +327,12 @@ Grad-CAM 박스는 실제 악성 코드의 정답 경계가 아니라 “분류 
        AP_S · AP50 · Tile Recall · calls · p95 latency · VRAM
 ```
 
-## 요구 사항과 설치
+</details>
 
-- Python 3.10~3.12
-- Git
-- CPU smoke/data 준비: CUDA 불필요
-- 실제 YOLO/UPA 실험: 호환 PyTorch와 NVIDIA CUDA GPU 권장
+<a id="malevis-reproduction"></a>
 
-```powershell
-git clone --recurse-submodules <repository-url>
-Set-Location ua-sahi-mal-yolo
-powershell -ExecutionPolicy Bypass -File scripts/setup_cpu.ps1
-```
-
-GPU 환경은 다음처럼 준비합니다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup.ps1 -TorchIndex cu128
-```
-
-설치 스크립트는 PyTorch `2.8.0`, torchvision `0.23.0`, SAHI 서브모듈, Ultralytics `8.4.67`, 프로젝트 개발 도구를 설치합니다. GPU/CUDA 조합은 사용하는 장비에서 다시 검증해야 합니다.
+<details>
+<summary><strong>MaleVis: 데이터 감사 → 공통 split → 3-seed 학습 → timing → 결과 집계</strong></summary>
 
 ## MaleVis에서 재현하는 DECODE 전이 분류 실험
 
@@ -247,32 +420,12 @@ foreach ($ImageSize in 224, 300) {
 
 각 실행의 `summary.json`은 설정·환경·데이터 fingerprint·split count·최적 epoch·최종 test 지표를, `predictions.*.csv`는 샘플별 확률과 불확실성을 보존합니다. `best_model.pt`, 학습 이력, confusion matrix CSV/PNG, class별 CSV/JSON도 함께 생성됩니다. timing의 p50/p95는 batch를 로드한 뒤의 **모델 forward 시간을 batch size로 나눈 값**이며, 단일 요청의 데이터 디코딩까지 포함한 end-to-end latency로 해석하면 안 됩니다.
 
-## 가장 먼저 실행할 smoke test
+</details>
 
-먼저 사전 등록된 예제 실험 계약이 바뀌지 않았는지 확인할 수 있습니다.
+<a id="detector-reproduction"></a>
 
-```powershell
-.\.venv\Scripts\python.exe -m ua_sahi_mal validate-config `
-  --config configs/experiments/decode_primary.example.yaml
-```
-
-```powershell
-.\.venv\Scripts\python.exe -m ua_sahi_mal smoke
-```
-
-이 명령은 임시 synthetic opcode 두 개를 생성하고 다음 전체 경로를 CPU에서 검사합니다.
-
-```text
-manifest → opcode RGB → source-range bbox → COCO/YOLO
-         → fake detector → Full Image/Full SAHI/Budgeted SAHI
-         → GreedyNMM → call reduction/Tile Recall summary
-```
-
-출력은 `runs/smoke/<timestamp>/`에 생기며 Git에서 제외됩니다. PowerShell wrapper도 사용할 수 있습니다.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run_smoke.ps1
-```
+<details>
+<summary><strong>v1 DECODE/YOLO: fixture → manifest → 학습·평가 → 예산 제한 추론</strong></summary>
 
 DECODE형 2×2 행동 영상, ROI JSON, group-aware split map과 직접 YOLO fixture를 모두 만드는 더 큰 무해 fixture도 제공합니다. 모든 내용은 `SYNTH_*`와 정상 API 이름으로 된 ASCII 문자열입니다.
 
@@ -448,29 +601,10 @@ prepared/decode-v1/
   --output-csv runs\paper\table.compiled.csv
 ```
 
-## Docker 재현 환경
+</details>
 
-장비 간 의존성 차이를 없애기 위한 컨테이너 정의가 `docker/` 에 있다.
-
-```bash
-make build      # 또는 docker compose -f docker/docker-compose.yml build
-make verify     # ruff + pytest 107건 + 합성 스모크 + 논문 수치 감사 255건
-make offline    # 네트워크를 끊고 같은 검증
-```
-
-Windows 는 `.\scripts\setup_docker.ps1` 하나로 빌드·검증·오프라인 재검증까지 끝내고,
-결과를 `docs/verification/` 에 커밋 가능한 형태로 복사한다.
-
-사내 프록시가 막힌 환경을 전제로 세 개의 손잡이를 뒀다 — `BASE_IMAGE`(레지스트리 미러),
-`TORCH_INDEX_URL`(`pypi` 또는 CUDA 인덱스), `APT_MIRROR`. 자세한 사용법과 **현재 무엇이
-검증되었고 무엇이 검증되지 않았는지**는 [docker/README.md](docker/README.md) 에 있다.
-
-컨테이너 없이 같은 검증을 돌리려면 `bash scripts/verify_env.sh` 또는 `make check` 를 쓴다.
-
-`.github/workflows/verify.yml` 은 push 마다 (1) Python 3.10·3.12 네이티브 검증,
-(2) 컨테이너 이미지 빌드 후 컨테이너 안 검증과 `--network none` 오프라인 재검증,
-(3) 저장소 안전 검사를 수행한다. 로컬에서 이미지 빌드가 막히는 환경이라도 이 워크플로가
-빌드 가능성을 대신 증명한다.
+<details>
+<summary><strong>기존 논문 초고와 수치 감사 경로</strong></summary>
 
 ## 논문 초고
 
@@ -485,46 +619,14 @@ Windows 는 `.\scripts\setup_docker.ps1` 하나로 빌드·검증·오프라인 
 | `figures/fig3_boundary.png` | BIG2015 경계 복원 오차와 가이드 판별력 |
 
 실험 1의 수치는 `runs/malevis/aggregate-20260829/` 와 `runs/malevis/isolated-timing-20260829.json`
-에서 가져온 것으로 새로 실행하지 않았다. 실험 2(BIG2015 경계 복원)는 이번에 실행한 것이며
+에서 가져온 것으로 새로 실행하지 않았다. 실험 2(BIG2015 경계 복원)는 당시 실행한 것이며
 `scripts/big2015_p0a.py` 와 `scripts/big2015_boundary_experiment.py` 로 재현된다. 그 수치가 근거 데이터로부터 올바르게 도출됐는지는
 `python scripts/audit_paper_numbers.py` 가 285건의 검사로 대조한다(근거 사본은 [docs/results/](docs/results/)).
 논문을 고치면 감사 스크립트의 기대값 상수도 같이 고쳐야 하며, 그러지 않으면 검증이 실패한다. 저자·소속·투고 번호는 자리표시자이므로 투고 전에
 채워야 한다. 기존 `output/documents/malevis-decode-transfer-paper-ko.docx` 는 별도 문서이며
 이 초고가 대체하지 않는다.
 
-## 대용량 산출물
-
-다음은 `.gitignore` 대상이라 저장소에 포함되지 않는다.
-
-| 대상 | 크기 | 배포 방법 |
-|---|---|---|
-| `datasets/malevis_train_val_224x224`, `..._300x300` | 약 4.6 GB | 원 저작자 공개 배포본을 내려받는다(아래) |
-| `runs/malevis/full-20260829/**/best_model.pt` 등 체크포인트 | 약 76 MB | Google Drive |
-
-MaleVis 는 공개 데이터셋이므로 원본을 직접 내려받는 것이 가장 확실한 재현 경로다. 무결성은
-`runs/malevis/audit-20260829/*.audit-v2.json` 의 `dataset_fingerprint_sha256` 로 확인할 수 있다
-(224×224: `17fef896940818d9d5a09dedb1345107d9080c35bd1035603a6f3ce54291be43`).
-
-체크포인트 Google Drive 링크: `<업로드 후 URL 을 여기에 붙여넣으십시오>`
-
-체크포인트 SHA-256 (seed 42):
-
-| 해상도 | SHA-256 |
-|---|---|
-| 224×224 | `930a8c73fe270226c98dd5d5753ec80eeb02c2ad7bd72a7dd6cf290286a6b6e3` |
-| 300×300 | `f8a6ce4665be895ca4fd95da93509aefd332830ec05fac2413c1b0d623a710da` |
-
-## 품질 확인
-
-```powershell
-.\.venv\Scripts\python.exe scripts/check_repository_safety.py
-.\.venv\Scripts\python.exe -m ruff check src tests scripts
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ua_sahi_mal doctor --strict
-.\.venv\Scripts\python.exe -m build
-```
-
-CI는 Ubuntu/Python 3.10·3.11과 Windows/Python 3.12에서 repository safety, lint, tests, synthetic smoke, strict doctor, package build 및 wheel 설치 검증을 수행합니다.
+</details>
 
 ## 데이터·연구 안전
 
@@ -539,13 +641,17 @@ CI는 Ubuntu/Python 3.10·3.11과 Windows/Python 3.12에서 repository safety, l
 
 자세한 신고·처리 원칙은 [SECURITY.md](SECURITY.md)를 확인하십시오.
 
-## 제3자 출처와 라이선스
+## 라이선스와 외부 프로젝트
 
-- SAHI `0.12.2`: MIT, `external/sahi` 서브모듈
-- Upsample Anything: 고정 서브모듈. 확인 당시 명시적 라이선스가 없어 원 코드를 복사·수정하지 않음
-- Ultralytics `8.4.67`: AGPL-3.0 또는 별도 enterprise license
-- NotebookLM의 문헌과 링크는 요구사항 확인에만 사용했으며 코드를 복사하지 않음
+프로젝트 코드의 라이선스는 [MIT](LICENSE)입니다. 외부 코드의 라이선스·사용 조건은 각 프로젝트에 따릅니다.
 
-세부 내용과 참고 URL은 [THIRD_PARTY.md](THIRD_PARTY.md), [연구 출처](docs/SOURCES.md)에 기록합니다. 기존 원격탐사 프로젝트 문맥은 이력 보존을 위해 [legacy 문서](docs/legacy_remote_sensing/)로 옮겼으며 새 실험의 사실 기준으로 사용하지 않습니다.
+| 구성요소 | 고정 버전·참조 | 저장소 내 형태·조건 |
+|---|---|---|
+| SAHI | `0.12.2` | `external/sahi`에 포함된 소스 · MIT |
+| Upsample Anything | `39251463a8bb352785c063c3c3f941f1dcdf4c51` | `external/upsample-anything` 소스. 이 저장소 반입 허가 기록은 [THIRD_PARTY](THIRD_PARTY.md) 참고 |
+| Ultralytics | `8.4.67` | Python 의존성 · AGPL-3.0 또는 별도 enterprise license |
+| DeepReflect | `4358a7e8ef7fc5951360094867dca852ed23712e` | 소스 미포함. [격리 baseline 안내](external/deepreflect/README.md)만 보존 · upstream GPL-3.0 |
 
-빌드된 wheel에는 라이선스가 불명확한 UPA 소스를 포함하지 않습니다. Wheel 설치는 데이터 준비·학습·평가와 bilinear fallback을 지원하며, `--upsampler upa`는 `--recurse-submodules`로 받은 소스 checkout에서만 사용할 수 있습니다.
+UPA의 직접 허가는 이 저장소의 소스 반입에 대한 것이며, 일반적인 downstream 재배포·수정 라이선스로 해석하지 않습니다. 빌드된 wheel에는 UPA 소스가 포함되지 않으므로 `--upsampler upa`는 해당 소스가 있는 checkout에서 사용합니다. 로컬 JBU와 공식 UPA는 다른 알고리즘이며 결과를 합쳐 보고하지 않습니다.
+
+자세한 출처·허가·버전 기록은 [THIRD_PARTY.md](THIRD_PARTY.md), 현재 논문의 출처는 [paper/references](paper/references/README.md)에 있습니다.

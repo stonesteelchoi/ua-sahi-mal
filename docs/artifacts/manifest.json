@@ -1,0 +1,426 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-06T07:16:09.965255+00:00",
+  "source_commit": "9186f555c056fd512a925df8b745d0eeaf5e0b6e",
+  "drive_folder": "https://drive.google.com/drive/folders/1nQWy27-OQmfamBgIvc2822QDXn2_iL4C",
+  "sharing": "Existing restricted permissions preserved",
+  "packages_expected": 31,
+  "packages_verified": 8,
+  "packages": [
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part01-of10.zip",
+      "size_bytes": 96655129,
+      "sha256": "af2d17429af1597264799bacafd0e8f3ed6f50cdbec50a4e9b28a6184f4ed19b",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 167,
+      "source_bytes": 97736993,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1wQKyDxHquwIPT0fk9WlydozrRknTk7MZ",
+      "url": "https://drive.google.com/file/d/1wQKyDxHquwIPT0fk9WlydozrRknTk7MZ/view?usp=drivesdk",
+      "remote_size": 96655129,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part02-of10.zip",
+      "size_bytes": 98896838,
+      "sha256": "535f1c8f435d5c01fb8f719e0777bd82a8a192cfb82f7a3bdd9c15538103a3cc",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 163,
+      "source_bytes": 99236534,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1ir7b2dEUQD-DaZzFGHtqlvJXAIrt2WrD",
+      "url": "https://drive.google.com/file/d/1ir7b2dEUQD-DaZzFGHtqlvJXAIrt2WrD/view?usp=drivesdk",
+      "remote_size": 98896838,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part03-of10.zip",
+      "size_bytes": 98167044,
+      "sha256": "abb3f7da33a070cddda7a13e22632922e8af5b9f908d844ba22975d1cf7e6df6",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 174,
+      "source_bytes": 98539228,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1wcyGO3anqr4MDQqTuGQDYSseTc61H06d",
+      "url": "https://drive.google.com/file/d/1wcyGO3anqr4MDQqTuGQDYSseTc61H06d/view?usp=drivesdk",
+      "remote_size": 98167044,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part04-of10.zip",
+      "size_bytes": 99233651,
+      "sha256": "0a75ffaa59e12e871fcf37ef583f6e2c13712192955a2e418dd430544e4f6031",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 186,
+      "source_bytes": 99563742,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1v3fnkA2YdXoBmkQg7zSBx4xIj73QOxYW",
+      "url": "https://drive.google.com/file/d/1v3fnkA2YdXoBmkQg7zSBx4xIj73QOxYW/view?usp=drivesdk",
+      "remote_size": 99233651,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part05-of10.zip",
+      "size_bytes": 98423516,
+      "sha256": "20ada7cce60246c77d07f6df0a53f0591eaee66f758598eacb7bbde3726046ff",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 183,
+      "source_bytes": 98788005,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1qyWBzM8yvxzGdM3sV2aUhMlWWV8MiLmH",
+      "url": "https://drive.google.com/file/d/1qyWBzM8yvxzGdM3sV2aUhMlWWV8MiLmH/view?usp=drivesdk",
+      "remote_size": 98423516,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-20260905-part06-of10.zip",
+      "size_bytes": 98421551,
+      "sha256": "1e4d32d22d5befb396853b29227b61ac7aae1da3b859df079c49e3bbb98e2bbc",
+      "source_folders": [
+        "datasets/big2015"
+      ],
+      "file_count": 176,
+      "source_bytes": 98785134,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "17eVny88gjpy59hNVrhaBFd-ASpRgptxR",
+      "url": "https://drive.google.com/file/d/17eVny88gjpy59hNVrhaBFd-ASpRgptxR/view?usp=drivesdk",
+      "remote_size": 98421551,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-big2015-sample-20260905.zip",
+      "size_bytes": 9588388,
+      "sha256": "aeb90253eef8dfc2861e248d074cc22a05235b9cc0bade06b84d73bd6c10c027",
+      "source_folders": [
+        "datasets/big2015_sample"
+      ],
+      "file_count": 4,
+      "source_bytes": 60736584,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1PAN6ta6oiK6lW295MQ3HMBlDMeZhN50f",
+      "url": "https://drive.google.com/file/d/1PAN6ta6oiK6lW295MQ3HMBlDMeZhN50f/view?usp=drivesdk",
+      "remote_size": 9588388,
+      "shared": false,
+      "verified": true
+    },
+    {
+      "filename": "ua-sahi-mal-runs-20260905.zip",
+      "size_bytes": 25132810,
+      "sha256": "0ca9c29464a9ed6642eca6469982c447f1f091ac358c589d93ffeb37d8649e78",
+      "source_folders": [
+        "runs"
+      ],
+      "file_count": 156,
+      "source_bytes": 79430272,
+      "archive_type": "independent ZIP (extract every part; do not concatenate)",
+      "crc_verified": true,
+      "drive_id": "1M-LRKgEcpZl3124dcjR4yVNQloNrDLko",
+      "url": "https://drive.google.com/file/d/1M-LRKgEcpZl3124dcjR4yVNQloNrDLko/view?usp=drivesdk",
+      "remote_size": 25132810,
+      "shared": false,
+      "verified": true
+    }
+  ],
+  "yolo11n": {
+    "filename": "yolo11n.pt",
+    "size_bytes": 5613764,
+    "sha256": "0ebbc80d4a7680d14987a577cd21342b65ecfd94632bd9a8da63ae6417644ee1",
+    "url": "https://drive.google.com/file/d/1DWwiQQ23g4cP0s-wb7f-DQhWFZ9MKWm-/view?usp=drivesdk",
+    "verified_size_bytes": 5613764
+  },
+  "existing_malevis": [
+    {
+      "filename": "malevis_train_val_224x224.zip",
+      "size_bytes": 1742031074,
+      "url": "https://drive.google.com/file/d/1K-AfcaQjoV808AtPZiV7ELPlVpTfmKZo/view?usp=drivesdk",
+      "verification": "Existing Drive file metadata; local extraction equivalence not verified"
+    },
+    {
+      "filename": "malevis_train_val_300x300.zip",
+      "size_bytes": 3136969512,
+      "url": "https://drive.google.com/file/d/1oz0I2X-jCPUc78m0d8sgzMEPEiOW8Nc2/view?usp=drivesdk",
+      "verification": "Existing Drive file metadata; local extraction equivalence not verified"
+    }
+  ],
+  "original_archive": {
+    "status": "uploading",
+    "filename": "malware-classification.zip",
+    "size_bytes": 37885110014,
+    "sha256": "6d50150c45e25f4ef998e9df7f2107081845843af9dbe8ebe3bfb2f3696f85a4",
+    "parts_expected": 377,
+    "parts_verified": 26,
+    "parts_folder": "https://drive.google.com/drive/folders/1nCRh-gM8ImsdKOgi6fH4YC2-IXCWXShP",
+    "source": {
+      "filename": "malware-classification.zip",
+      "size_bytes": 37885110014,
+      "sha256": "6d50150c45e25f4ef998e9df7f2107081845843af9dbe8ebe3bfb2f3696f85a4",
+      "entries": [
+        {
+          "filename": "dataSample.7z",
+          "size_bytes": 4261914,
+          "crc32": "1a3aef89"
+        },
+        {
+          "filename": "sampleSubmission.csv",
+          "size_bytes": 2109493,
+          "crc32": "677cda13"
+        },
+        {
+          "filename": "test.7z",
+          "size_bytes": 19076975041,
+          "crc32": "ae24a2da"
+        },
+        {
+          "filename": "train.7z",
+          "size_bytes": 18810691091,
+          "crc32": "f0a4014d"
+        },
+        {
+          "filename": "trainLabels.csv",
+          "size_bytes": 271713,
+          "crc32": "258cf4b4"
+        }
+      ],
+      "local_train": {
+        "filename": "datasets/train.7z",
+        "size_bytes": 18810691091,
+        "sha256": "103ebbb07a4865537c87c116f480989742f1e5fc4ca663183a3f46494eeeeb38",
+        "crc32": "f0a4014d",
+        "matches_archive_entry_size_and_crc32": true
+      }
+    },
+    "parts": [
+      {
+        "number": 1,
+        "filename": "malware-classification.zip.part001",
+        "size_bytes": 100663296,
+        "sha256": "a9b128bdf1b95eee9009adac7e142c18300cfa091d7fe4cbe324dde7b047a3bd",
+        "url": "https://drive.google.com/file/d/10CP6ubfdBUb0HYdy80RXc_a3Aqu3Pq9M/view?usp=drivesdk",
+        "drive_id": "10CP6ubfdBUb0HYdy80RXc_a3Aqu3Pq9M"
+      },
+      {
+        "number": 2,
+        "filename": "malware-classification.zip.part002",
+        "size_bytes": 100663296,
+        "sha256": "a28e890ac5e1d526f7b4eb3c67babce38e5f7f1b6083f04da8fe6d3ac2c99dbc",
+        "url": "https://drive.google.com/file/d/17JsUIUO54ptl55ei415Wv1EP9k6nqy3x/view?usp=drivesdk",
+        "drive_id": "17JsUIUO54ptl55ei415Wv1EP9k6nqy3x"
+      },
+      {
+        "number": 3,
+        "filename": "malware-classification.zip.part003",
+        "size_bytes": 100663296,
+        "sha256": "fe5402e4de622302f7bf1ea3be405db5d9c2c35445848c5ec83ea1ab336a5b42",
+        "url": "https://drive.google.com/file/d/1e9BnsxJLnmtJDppQ2vehxj4qmYjbqhXt/view?usp=drivesdk",
+        "drive_id": "1e9BnsxJLnmtJDppQ2vehxj4qmYjbqhXt"
+      },
+      {
+        "number": 4,
+        "filename": "malware-classification.zip.part004",
+        "size_bytes": 100663296,
+        "sha256": "5a5719c29e74246186abb33927b887ec8c8dd8690802f79ee324cd471d2f9321",
+        "url": "https://drive.google.com/file/d/1iFbFuacsJOvNJHFmri2OHCjzc0yd4JqR/view?usp=drivesdk",
+        "drive_id": "1iFbFuacsJOvNJHFmri2OHCjzc0yd4JqR"
+      },
+      {
+        "number": 5,
+        "filename": "malware-classification.zip.part005",
+        "size_bytes": 100663296,
+        "sha256": "c7cebd99aa5edd784fa9ae5679196f3ec0dd8f25658f170cbab61b5b4206010c",
+        "url": "https://drive.google.com/file/d/1-01CJa_ub8uKx19l3JwwcXp-FBBv72HF/view?usp=drivesdk",
+        "drive_id": "1-01CJa_ub8uKx19l3JwwcXp-FBBv72HF"
+      },
+      {
+        "number": 6,
+        "filename": "malware-classification.zip.part006",
+        "size_bytes": 100663296,
+        "sha256": "b58b03910450fc4ceda10ac0baf86e788ac89dcfd8fbe73f4ba6bf485cea8623",
+        "url": "https://drive.google.com/file/d/1PyHNKwCfa5xSRZxKLxPR0b-0IYx61mfS/view?usp=drivesdk",
+        "drive_id": "1PyHNKwCfa5xSRZxKLxPR0b-0IYx61mfS"
+      },
+      {
+        "number": 7,
+        "filename": "malware-classification.zip.part007",
+        "size_bytes": 100663296,
+        "sha256": "8914f964d9965bffae1547f23951f9ae0e3ec0a45bce8bd5fe874fa3db8eb14e",
+        "url": "https://drive.google.com/file/d/12UiV7IcbQqqtU5aPibicIaUN6txwhzzZ/view?usp=drivesdk",
+        "drive_id": "12UiV7IcbQqqtU5aPibicIaUN6txwhzzZ"
+      },
+      {
+        "number": 8,
+        "filename": "malware-classification.zip.part008",
+        "size_bytes": 100663296,
+        "sha256": "fa9b88ec8660dc00b393c6c26ed3bde057a6f278167acbd4f08fe25ce5e0baa2",
+        "url": "https://drive.google.com/file/d/1pmyShgbNkmx2Lkd0seRA8Rv-Eu-HVc2t/view?usp=drivesdk",
+        "drive_id": "1pmyShgbNkmx2Lkd0seRA8Rv-Eu-HVc2t"
+      },
+      {
+        "number": 9,
+        "filename": "malware-classification.zip.part009",
+        "size_bytes": 100663296,
+        "sha256": "e3037919bd498e938961fc42c15b128266158e8fc54d0acfc08a777ca278704b",
+        "url": "https://drive.google.com/file/d/14h6FMbZrAY4eNaSNpldLA53Igb1226E3/view?usp=drivesdk",
+        "drive_id": "14h6FMbZrAY4eNaSNpldLA53Igb1226E3"
+      },
+      {
+        "number": 10,
+        "filename": "malware-classification.zip.part010",
+        "size_bytes": 100663296,
+        "sha256": "8bae108da73b6be9335ea55e5c02f8820ccfeb9cbc692b617ab47e3896f86708",
+        "url": "https://drive.google.com/file/d/1JwfP6RmUzOqXVaIB53aetdwNNDYlAIRo/view?usp=drivesdk",
+        "drive_id": "1JwfP6RmUzOqXVaIB53aetdwNNDYlAIRo"
+      },
+      {
+        "number": 11,
+        "filename": "malware-classification.zip.part011",
+        "size_bytes": 100663296,
+        "sha256": "a06d865958bcefcff8a9d55c38ee5e2dba89e5620c58f8f558dd33ffa6a663b0",
+        "url": "https://drive.google.com/file/d/1deM7YUm6CvmvcLArWAilzqqAb8D1CHqT/view?usp=drivesdk",
+        "drive_id": "1deM7YUm6CvmvcLArWAilzqqAb8D1CHqT"
+      },
+      {
+        "number": 12,
+        "filename": "malware-classification.zip.part012",
+        "size_bytes": 100663296,
+        "sha256": "e32a8a388ad8845656025e163c356bbceeaf7aebed047fbc43a3b6332a395743",
+        "url": "https://drive.google.com/file/d/1Jc8pU8hm1NSyUOESdijXxs1LFZpISkUL/view?usp=drivesdk",
+        "drive_id": "1Jc8pU8hm1NSyUOESdijXxs1LFZpISkUL"
+      },
+      {
+        "number": 13,
+        "filename": "malware-classification.zip.part013",
+        "size_bytes": 100663296,
+        "sha256": "8005cbe44f6febdac767045f874dae4a7ee21ee445b4a5312cf1a7720709f76b",
+        "url": "https://drive.google.com/file/d/1E6Ws1UPn9n240O2t8U9nUcOI9v8tXq4c/view?usp=drivesdk",
+        "drive_id": "1E6Ws1UPn9n240O2t8U9nUcOI9v8tXq4c"
+      },
+      {
+        "number": 14,
+        "filename": "malware-classification.zip.part014",
+        "size_bytes": 100663296,
+        "sha256": "43eaef24f7145e5b6b241d205e01ce350c3de2bc1962e09c0dbfd4f0fb46e444",
+        "url": "https://drive.google.com/file/d/1SP_IRK1oQblNyz2pJgpu4DnZmmrklaf4/view?usp=drivesdk",
+        "drive_id": "1SP_IRK1oQblNyz2pJgpu4DnZmmrklaf4"
+      },
+      {
+        "number": 15,
+        "filename": "malware-classification.zip.part015",
+        "size_bytes": 100663296,
+        "sha256": "840e7614fcf30153e0a692c2be3f3eaa8735f2cb9e18af3203ae8bcd3237b239",
+        "url": "https://drive.google.com/file/d/1rrXx6j72f0TlsdnkCMso11nz7DH0RcDZ/view?usp=drivesdk",
+        "drive_id": "1rrXx6j72f0TlsdnkCMso11nz7DH0RcDZ"
+      },
+      {
+        "number": 16,
+        "filename": "malware-classification.zip.part016",
+        "size_bytes": 100663296,
+        "sha256": "f0594c8bc1b62ce89b52f9b8ee716c8149f10cbd5802ac55bd93e098daaeb001",
+        "url": "https://drive.google.com/file/d/1fkqEY59-2CiKgYRSeqQ90T2YQbI_WgNd/view?usp=drivesdk",
+        "drive_id": "1fkqEY59-2CiKgYRSeqQ90T2YQbI_WgNd"
+      },
+      {
+        "number": 17,
+        "filename": "malware-classification.zip.part017",
+        "size_bytes": 100663296,
+        "sha256": "ecbb9993d7a90de8521e2a3c6ca3b155637bf799eaef379e266d085ee3a98b7a",
+        "url": "https://drive.google.com/file/d/1HsbhK72ehIyYaWqNFoOi1-fOy6IQ6ce5/view?usp=drivesdk",
+        "drive_id": "1HsbhK72ehIyYaWqNFoOi1-fOy6IQ6ce5"
+      },
+      {
+        "number": 18,
+        "filename": "malware-classification.zip.part018",
+        "size_bytes": 100663296,
+        "sha256": "d4a4a3d6e2a5042fc05c7e809cdd946f455f8c853b7058915a58de3a15182451",
+        "url": "https://drive.google.com/file/d/1DiUjwL8MQiTOgQBx9ngVhXExTK5Cj5oq/view?usp=drivesdk",
+        "drive_id": "1DiUjwL8MQiTOgQBx9ngVhXExTK5Cj5oq"
+      },
+      {
+        "number": 19,
+        "filename": "malware-classification.zip.part019",
+        "size_bytes": 100663296,
+        "sha256": "9fa3566dcc4805e1bfac856b5098ebea1db8744adc2450c3cbbaf1541169c752",
+        "url": "https://drive.google.com/file/d/1NqFsulGydHueuMlmL_CFYz112R0wIlco/view?usp=drivesdk",
+        "drive_id": "1NqFsulGydHueuMlmL_CFYz112R0wIlco"
+      },
+      {
+        "number": 20,
+        "filename": "malware-classification.zip.part020",
+        "size_bytes": 100663296,
+        "sha256": "2de1e36b913f8b63f4373762e6007fd7293d1f64da4c56c71beb0f6d391d8878",
+        "url": "https://drive.google.com/file/d/1aS96eLQMQXSqKJ5lE3rBJ32is-gtp_hk/view?usp=drivesdk",
+        "drive_id": "1aS96eLQMQXSqKJ5lE3rBJ32is-gtp_hk"
+      },
+      {
+        "number": 21,
+        "filename": "malware-classification.zip.part021",
+        "size_bytes": 100663296,
+        "sha256": "4db022692f4f73f6dcf10d5d4cfa7cf91ced9eb9a35283ea402f0b95a6e65804",
+        "url": "https://drive.google.com/file/d/1SY2XQqeOU3kba7k6SktiFMJuPqxZ9s_L/view?usp=drivesdk",
+        "drive_id": "1SY2XQqeOU3kba7k6SktiFMJuPqxZ9s_L"
+      },
+      {
+        "number": 22,
+        "filename": "malware-classification.zip.part022",
+        "size_bytes": 100663296,
+        "sha256": "cb27e1ebf8c49534f93608da9333c09d0dbdf85fc65e5f0d83a6661e61c9d08d",
+        "url": "https://drive.google.com/file/d/1l2oHP-X0vZrjJfJG6k4CtGdNjj5WHufp/view?usp=drivesdk",
+        "drive_id": "1l2oHP-X0vZrjJfJG6k4CtGdNjj5WHufp"
+      },
+      {
+        "number": 23,
+        "filename": "malware-classification.zip.part023",
+        "size_bytes": 100663296,
+        "sha256": "52c77a0aa8bba4411bcd42defc6ece7c18a0a8a51291bff02d02d229563964ca",
+        "url": "https://drive.google.com/file/d/1XWWdLUaulpSypWkWnH8BF12N9_5Rx5UN/view?usp=drivesdk",
+        "drive_id": "1XWWdLUaulpSypWkWnH8BF12N9_5Rx5UN"
+      },
+      {
+        "number": 24,
+        "filename": "malware-classification.zip.part024",
+        "size_bytes": 100663296,
+        "sha256": "be07ab2225e95462e47aa44535a873e127021d65d27051f4cdf47dbcd141b034",
+        "url": "https://drive.google.com/file/d/1gnK7baPD7eRGX9WKJks3gCRTpoHH0yJp/view?usp=drivesdk",
+        "drive_id": "1gnK7baPD7eRGX9WKJks3gCRTpoHH0yJp"
+      },
+      {
+        "number": 25,
+        "filename": "malware-classification.zip.part025",
+        "size_bytes": 100663296,
+        "sha256": "9c504093fc04146411564698fded449e797f9c8465c1246f0165615a75247270",
+        "url": "https://drive.google.com/file/d/14Uw4FMAm7vtTxyzm8zGae6OVz9ejg9q_/view?usp=drivesdk",
+        "drive_id": "14Uw4FMAm7vtTxyzm8zGae6OVz9ejg9q_"
+      },
+      {
+        "number": 26,
+        "filename": "malware-classification.zip.part026",
+        "size_bytes": 100663296,
+        "sha256": "84eb54553e208be614d9707ab321e750fa48447b143c5bb62be32355c1bf367a",
+        "url": "https://drive.google.com/file/d/1gIZdIVBhMcWTVGCGrpfN59A4UXfmXxsL/view?usp=drivesdk",
+        "drive_id": "1gIZdIVBhMcWTVGCGrpfN59A4UXfmXxsL"
+      }
+    ]
+  }
+}

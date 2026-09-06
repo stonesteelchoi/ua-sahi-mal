@@ -17,6 +17,11 @@ datasets/
 samples/
 quarantine/
 artifacts/
+# Keep the download catalog in Git; the data archives remain ignored.
+!docs/artifacts/
+docs/artifacts/*
+!docs/artifacts/*.md
+!docs/artifacts/manifest.json
 .env
 .env.*
 !.env.example
@@ -40,6 +45,8 @@ artifacts/
 *.bytes
 *.hex
 *.zip
+# Google Drive archive parts; see docs/artifacts/README.md.
+*.zip.part[0-9]*
 *.7z
 *.rar
 *.log
