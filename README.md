@@ -19,6 +19,8 @@
 
 ## 빠른 시작
 
+**다른 컴퓨터로 이전한다면:** [새 GPU 컴퓨터 설치·최소 다운로드·LLM 인수인계](docs/NEW_MACHINE_HANDOFF.md)를 먼저 확인하십시오. 기존 BIG2015 v2 A/B 학습·추론은 CPU 전용이며, 현재 v3는 추가 구현이 필요한 단계입니다.
+
 **Python 3.10–3.12와 Git**이 필요합니다. 합성 smoke test는 실제 데이터셋·가중치·GPU 없이 실행할 수 있으며, 최초 의존성 설치에는 네트워크가 필요합니다. 아래는 Windows PowerShell 기준입니다.
 
 ```powershell

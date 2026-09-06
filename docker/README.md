@@ -30,7 +30,7 @@ docker compose -f docker/docker-compose.yml run --rm shell     # 대화형 셸
 | ARG / 환경변수 | 기본값 | 언제 쓰나 |
 |---|---|---|
 | `BASE_IMAGE` | `python:3.12-slim` | Docker Hub 가 막힐 때 사내 레지스트리 미러로 교체 |
-| `TORCH_INDEX_URL` | `https://download.pytorch.org/whl/cpu` | 이 호스트가 막히면 `pypi`. GPU 면 `.../whl/cu124` |
+| `TORCH_INDEX_URL` | `https://download.pytorch.org/whl/cpu` | 이 호스트가 막히면 `pypi`. 고정된 torch 2.8.0의 GPU 경로는 `https://download.pytorch.org/whl/cu128` |
 | `APT_MIRROR` | (없음) | `deb.debian.org` 가 막힐 때 사내 Debian 미러 |
 
 `.env` 파일에 넣거나 명령줄로 넘긴다.
@@ -47,6 +47,8 @@ APT_MIRROR=http://mirror.corp/debian
 ```
 
 GPU 로 쓰려면 `TORCH_INDEX_URL` 을 CUDA 인덱스로 바꾸고 실행 시 `--gpus all` 을 준다.
+
+호스트의 NVIDIA 드라이버와 컨테이너 GPU 런타임도 필요하다. 컨테이너 안에서 CUDA tensor 계산까지 검증하고, 개별 연구 코드가 GPU를 사용하는지 별도로 확인한다. v2 A/B는 현재 CPU 전용이다. 자세한 확인 절차는 [새 장비 이전 안내](../docs/NEW_MACHINE_HANDOFF.md)를 따른다.
 
 ## 설계 메모
 

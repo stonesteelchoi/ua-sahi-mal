@@ -2,6 +2,8 @@
 
 설계는 `docs/RESEARCH_PLAN_v2.md`에 있다. 이 문서는 **그것을 어떻게 돌리는가**만 다룬다.
 
+> **새 장비 주의:** 현재 A/B 학습·추론은 CPU 전용이며 `train/run --device` 옵션이 없다. CUDA 설치만으로 GPU로 전환되지 않는다. validity-mask 등 미완료 감사 항목을 해결하고 새 버전으로 재실행하기 전까지 과거 결과는 잠정이다. [감사](RESEARCH_AUDIT_2026-09-04.md)와 [이전 안내](NEW_MACHINE_HANDOFF.md)를 먼저 읽는다.
+
 ---
 
 ## 0. 무엇을 측정하는가
@@ -59,8 +61,8 @@ folder가 남아 있는 동안 같은 명령을 반복하면 된다.
 
 ```bash
 python -m ua_sahi_mal.evidence train \
-  --manifest data/big2015/manifest.json \
-  --rasters  data/big2015/rasters \
+  --manifest datasets/big2015/manifest.json \
+  --rasters  datasets/big2015/rasters \
   --out      runs/evidence/models \
   --classes 9 --epochs 10
 ```
@@ -83,8 +85,8 @@ A가 타일 기반인 이유는 두 가지다. 4 KB 오클루전이 타일 하�
 
 ```bash
 python -m ua_sahi_mal.evidence synth \
-  --manifest data/big2015/manifest.json \
-  --rasters  data/big2015/rasters \
+  --manifest datasets/big2015/manifest.json \
+  --rasters  datasets/big2015/rasters \
   --out      runs/evidence/synthetic \
   --pairs 24 --blocks 4
 ```
@@ -106,8 +108,8 @@ python -m ua_sahi_mal.evidence synth \
 
 ```bash
 python -m ua_sahi_mal.evidence run \
-  --manifest  data/big2015/manifest.json \
-  --rasters   data/big2015/rasters \
+  --manifest  datasets/big2015/manifest.json \
+  --rasters   datasets/big2015/rasters \
   --models    runs/evidence/models \
   --synthetic runs/evidence/synthetic \
   --out       runs/evidence/results \

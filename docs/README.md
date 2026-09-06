@@ -12,6 +12,8 @@ The repository now separates the current paper workspace from implementation doc
 
 ## Reusable implementation contracts and runbooks
 
+- [`NEW_MACHINE_HANDOFF.md`](NEW_MACHINE_HANDOFF.md): new GPU machine setup, selective asset restoration, and copy-ready LLM handoff
+
 - [`DATA_CONTRACT.md`](DATA_CONTRACT.md): safe source-range/bbox dataset contract for the historical detector lane
 - [`EVIDENCE_PROTOCOL.md`](EVIDENCE_PROTOCOL.md): BIG2015 v2 evidence protocol execution
 - [`DECODE_PIPELINE.md`](DECODE_PIPELINE.md): historical static DECODE-shaped import/detection runbook
