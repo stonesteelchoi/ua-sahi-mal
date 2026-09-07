@@ -137,9 +137,10 @@ layer, per the plan's Tier separation.
 
 ## Not implemented here (next tasks)
 
-- **pixel ↔ byte projection.** Delegates to `ua_sahi_mal.encoding`
-  (`source_range_to_pixel_interval`, `pixel_interval_to_boxes`); PEAtlas will wrap
-  it rather than duplicate it. Not wired in this change.
+- **pixel ↔ byte projection.** Implemented in a follow-up on
+  `peatlas.projection` (raw-rgb / word16-rgb) — see
+  `docs/PEATLAS_PROJECTION_CONTRACT.md`. It reads `ua_sahi_mal.encoding` metadata
+  rather than duplicating the encoder. (Added after this Tier 0 change.)
 - **real analyzer runs** (Binary Ninja / capa / DeepReflect): only the interface
   exists; no disassembly is performed.
 - **Tier 1 synthetic data generator** (planted-component corpus + matched

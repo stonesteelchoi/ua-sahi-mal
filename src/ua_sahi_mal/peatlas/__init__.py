@@ -20,10 +20,18 @@ from .atlas import (
     parse_pe,
 )
 from .intervals import Interval, IntervalSet
+from .projection import (
+    PixelProjection,
+    UnsupportedProjectionError,
+    project_pixels_to_atlas,
+)
 
 __all__ = [
     "Interval",
     "IntervalSet",
+    "PixelProjection",
+    "UnsupportedProjectionError",
+    "project_pixels_to_atlas",
     "PeAtlas",
     "PeLayout",
     "Section",
