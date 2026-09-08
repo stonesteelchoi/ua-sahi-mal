@@ -9,7 +9,7 @@ projection of one authoritative interval union.
 Design choices:
 
 - Intervals are half-open ``[start, end)`` with integer bounds and ``end > start``;
-  empty intervals are not representable (they are dropped on construction).
+  empty intervals are not representable (construction raises ValueError).
 - An :class:`IntervalSet` is always kept **normalized**: sorted, pairwise
   disjoint, and with touching intervals merged (``[0, 4)`` and ``[4, 9)`` become
   ``[0, 9)``). This makes equality meaningful and set ops O(n log n) / O(n).
@@ -35,7 +35,7 @@ class Interval:
     end: int
 
     def __post_init__(self) -> None:
-        if not isinstance(self.start, int) or not isinstance(self.end, int):
+        if type(self.start) is not int or type(self.end) is not int:
             raise TypeError("interval bounds must be int")
         if self.end <= self.start:
             raise ValueError(f"interval must be non-empty half-open [start, end): got [{self.start}, {self.end})")
@@ -45,6 +45,7 @@ class Interval:
         return self.end - self.start
 
     def contains(self, point: int) -> bool:
+        _require_integer(point, "point")
         return self.start <= point < self.end
 
     def overlaps(self, other: Interval) -> bool:
@@ -62,7 +63,7 @@ def _coerce(item: object) -> Interval:
     if isinstance(item, Interval):
         return item
     if isinstance(item, (tuple, list)) and len(item) == 2:
-        return Interval(int(item[0]), int(item[1]))
+        return Interval(item[0], item[1])
     raise TypeError(f"cannot interpret {item!r} as an interval")
 
 
@@ -108,6 +109,7 @@ class IntervalSet:
         return not self._intervals
 
     def contains_point(self, point: int) -> bool:
+        _require_integer(point, "point")
         # Sets are small in practice; linear scan is fine and dependency-free.
         for iv in self._intervals:
             if iv.contains(point):
@@ -154,24 +156,29 @@ class IntervalSet:
 
     def difference(self, other: IntervalSet) -> IntervalSet:
         result: list[Interval] = []
+        j = 0
         for iv in self._intervals:
             cursor = iv.start
-            for sub in other._intervals:
-                if sub.end <= cursor:
-                    continue
-                if sub.start >= iv.end:
-                    break
+            while j < len(other._intervals) and other._intervals[j].end <= cursor:
+                j += 1
+            k = j
+            while k < len(other._intervals) and other._intervals[k].start < iv.end:
+                sub = other._intervals[k]
                 if sub.start > cursor:
                     result.append(Interval(cursor, min(sub.start, iv.end)))
                 cursor = max(cursor, sub.end)
                 if cursor >= iv.end:
                     break
+                k += 1
+            j = k
             if cursor < iv.end:
                 result.append(Interval(cursor, iv.end))
         return IntervalSet(result)
 
     def clamp(self, start: int, end: int) -> IntervalSet:
         """Intersect with a single window ``[start, end)``."""
+        _require_integer(start, "clamp bound")
+        _require_integer(end, "clamp bound")
         if end <= start:
             return IntervalSet.empty()
         return self.intersection(IntervalSet.single(start, end))
@@ -187,6 +194,7 @@ class IntervalSet:
         here (callers that must flag out-of-range coordinates use the PE atlas
         failure states, not this projection).
         """
+        _require_integer(length, "mask length")
         if length < 0:
             raise ValueError("length must be non-negative")
         mask = bytearray(length)
@@ -215,7 +223,7 @@ class IntervalSet:
         return cls(intervals)
 
     def jaccard(self, other: IntervalSet) -> float:
-        """1-D IoU (Jaccard) between two interval unions; 0.0 if both empty is 1.0."""
+        """1-D IoU (Jaccard) between two interval unions; 1.0 if both are empty."""
         inter = self.intersection(other).total_length
         union = self.union(other).total_length
         if union == 0:
@@ -236,3 +244,8 @@ def _normalize(intervals: list[Interval]) -> tuple[Interval, ...]:
         else:
             merged.append(iv)
     return tuple(merged)
+
+
+def _require_integer(value: int, name: str) -> None:
+    if type(value) is not int:
+        raise TypeError(f"{name} must be int")

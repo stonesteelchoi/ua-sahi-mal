@@ -18,6 +18,26 @@ def test_interval_must_be_nonempty_half_open():
     assert not iv.contains(7)  # half-open: end excluded
 
 
+@pytest.mark.parametrize("point", [True, 1.0, "1"])
+def test_point_queries_require_exact_integers(point):
+    with pytest.raises(TypeError):
+        Interval(0, 2).contains(point)
+    with pytest.raises(TypeError):
+        IntervalSet.single(0, 2).contains_point(point)
+
+
+@pytest.mark.parametrize("start,end", [(True, 2), (0.5, 2), (2.5, 1.5)])
+def test_clamp_bounds_require_exact_integers(start, end):
+    with pytest.raises(TypeError):
+        IntervalSet.single(0, 3).clamp(start, end)
+
+
+@pytest.mark.parametrize("length", [True, 2.0, "2"])
+def test_mask_length_requires_exact_integer(length):
+    with pytest.raises(TypeError):
+        IntervalSet.single(0, 1).to_mask(length)
+
+
 def test_normalization_merges_touching_and_overlapping():
     # touching [0,4)+[4,9) -> [0,9); overlapping [10,15)+[12,20) -> [10,20)
     s = IntervalSet([(4, 9), (0, 4), (12, 20), (10, 15)])
@@ -87,12 +107,14 @@ def test_exhaustive_small_union_difference_against_bruteforce():
             out.update(range(iv.start, iv.end))
         return out
 
-    for i in range(len(valid)):
-        for j in range(len(valid)):
-            a = IntervalSet([valid[i]])
-            b = IntervalSet([valid[j]])
+    subsets = [IntervalSet([iv for i, iv in enumerate(valid) if bits & (1 << i)])
+               for bits in range(1 << len(valid))]
+    for a in subsets:
+        for b in subsets:
             sa, sb = to_set(a), to_set(b)
             assert to_set(a.union(b)) == (sa | sb)
             assert to_set(a.intersection(b)) == (sa & sb)
             assert to_set(a.difference(b)) == (sa - sb)
             assert to_set(a.clamp(0, universe)) == {x for x in sa if x < universe}
+            assert IntervalSet.from_mask(a.to_mask(universe)) == a
+            assert a.jaccard(b) == pytest.approx(len(sa & sb) / len(sa | sb) if sa | sb else 1.0)

@@ -50,7 +50,7 @@ class PeFormatError(ValueError):
 
 
 class MapStatus(str, Enum):
-    """Outcome of a coordinate mapping. Only ``OK`` carries a valid value."""
+    """Outcome of a mapping. ``OK`` and ``HEADERS`` carry valid values."""
 
     OK = "ok"
     HEADERS = "headers"          # inside the header region (mapped 1:1)
@@ -99,7 +99,7 @@ class Section:
     @property
     def mapped_raw_size(self) -> int:
         """Bytes that exist both on disk and in the virtual image."""
-        return max(0, min(self.raw_size, self.virtual_size))
+        return max(0, min(self.raw_size, self.virtual_size)) if self.has_raw else 0
 
 
 @dataclass(frozen=True)
@@ -180,6 +180,7 @@ class PeLayout:
 # --------------------------------------------------------------------------
 _PE32_MAGIC = 0x10B
 _PE32PLUS_MAGIC = 0x20B
+_WINDOWS_SECTION_LIMIT = 96
 
 
 def parse_pe(data: bytes) -> PeLayout:
@@ -202,26 +203,32 @@ def parse_pe(data: bytes) -> PeLayout:
 
     coff = e_lfanew + 4
     num_sections = _u16(data, coff + 2)
+    if num_sections > _WINDOWS_SECTION_LIMIT:
+        raise PeFormatError(
+            f"section count {num_sections} exceeds the Windows loader limit {_WINDOWS_SECTION_LIMIT}"
+        )
     size_opt = _u16(data, coff + 16)
     opt = coff + 20
+    opt_end = opt + size_opt
+    if size_opt < 2 or opt_end > n:
+        raise PeFormatError("declared optional header missing or truncated")
     if opt + 2 > n:
         raise PeFormatError("optional header magic missing")
     magic = _u16(data, opt)
     if magic == _PE32_MAGIC:
         is_plus = False
-        image_base = _u32(data, opt + 28)
         num_dirs_off = opt + 92
         dirs_off = opt + 96
     elif magic == _PE32PLUS_MAGIC:
         is_plus = True
-        image_base = _u64(data, opt + 24)
         num_dirs_off = opt + 108
         dirs_off = opt + 112
     else:
         raise PeFormatError(f"unknown optional header magic 0x{magic:x}")
 
-    if opt + 64 > n:
-        raise PeFormatError("optional header truncated before SizeOfHeaders")
+    if dirs_off > opt_end:
+        raise PeFormatError("optional header too small for fixed fields")
+    image_base = _u64(data, opt + 24) if is_plus else _u32(data, opt + 28)
     section_alignment = _u32(data, opt + 32)
     file_alignment = _u32(data, opt + 36)
     size_of_headers = _u32(data, opt + 60)
@@ -229,24 +236,24 @@ def parse_pe(data: bytes) -> PeLayout:
     warnings: list[str] = []
 
     certificate: Interval | None = None
-    if num_dirs_off + 4 <= n:
-        num_dirs = _u32(data, num_dirs_off)
+    num_dirs = _u32(data, num_dirs_off)
+    if dirs_off + num_dirs * 8 > opt_end:
+        raise PeFormatError("data directories exceed declared optional header")
+    if num_dirs > 4:
         # Attribute certificate table is data directory index 4; its
         # "VirtualAddress" field is a FILE OFFSET, not an RVA.
-        if num_dirs > 4 and dirs_off + 5 * 8 <= n:
-            cert_off = _u32(data, dirs_off + 4 * 8)
-            cert_size = _u32(data, dirs_off + 4 * 8 + 4)
-            if cert_off > 0 and cert_size > 0:
-                certificate = Interval(cert_off, cert_off + cert_size)
+        cert_off = _u32(data, dirs_off + 4 * 8)
+        cert_size = _u32(data, dirs_off + 4 * 8 + 4)
+        if cert_off > 0 and cert_size > 0:
+            certificate = Interval(cert_off, cert_off + cert_size)
 
     # Section table
     sec_table = opt + size_opt
+    if sec_table + num_sections * 40 > n:
+        raise PeFormatError("section table truncated")
     sections: list[Section] = []
     for i in range(num_sections):
         base = sec_table + i * 40
-        if base + 40 > n:
-            warnings.append(f"section {i} header truncated; stopping section parse")
-            break
         raw_name = data[base:base + 8]
         name = raw_name.split(b"\x00", 1)[0].decode("latin-1", "replace")
         virtual_size = _u32(data, base + 8)
@@ -315,18 +322,29 @@ class PeAtlas:
 
     # -- point: offset -> rva/va -----------------------------------------
     def offset_to_rva(self, offset: int) -> MapResult:
+        _require_integer(offset)
+        result = self._offset_candidate(offset)
+        if result.ok:
+            back = self._rva_candidate(result.value)
+            if not back.ok or back.value != offset:
+                return MapResult(MapStatus.OVERLAPPING, detail="target RVA has conflicting ownership")
+        return result
+
+    def _offset_candidate(self, offset: int) -> MapResult:
         lay = self.layout
         if offset < 0:
             raise ValueError("offset must be non-negative")
 
-        if offset < lay.size_of_headers:
+        owners = [s for s in lay.sections if s.has_raw and s.raw_offset <= offset < s.raw_offset + s.raw_size]
+        header = offset < lay.size_of_headers
+        certificate = lay.certificate is not None and lay.certificate.contains(offset)
+        if len(owners) + int(header) + int(certificate) > 1:
+            return MapResult(MapStatus.OVERLAPPING, detail="multiple regions claim this offset")
+        if header:
             if offset >= lay.file_size:
                 return MapResult(MapStatus.TRUNCATED, detail="header offset past end-of-file")
             return MapResult(MapStatus.HEADERS, offset, "header region maps 1:1 to rva")
 
-        owners = [s for s in lay.sections if s.has_raw and s.raw_offset <= offset < s.raw_offset + s.raw_size]
-        if len(owners) > 1:
-            return MapResult(MapStatus.OVERLAPPING, detail="multiple sections claim this offset")
         if owners:
             sec = owners[0]
             delta = offset - sec.raw_offset
@@ -337,7 +355,9 @@ class PeAtlas:
             # raw_size > virtual_size: this tail is file-alignment padding, not loaded.
             return MapResult(MapStatus.PADDING, detail=f"section {sec.index} raw padding beyond virtual size")
 
-        if lay.certificate is not None and lay.certificate.contains(offset):
+        if certificate:
+            if offset >= lay.file_size:
+                return MapResult(MapStatus.TRUNCATED, detail="certificate offset past end-of-file")
             return MapResult(MapStatus.CERTIFICATE, detail="attribute certificate table")
         if offset >= lay.overlay_offset:
             if offset >= lay.file_size:
@@ -349,18 +369,27 @@ class PeAtlas:
     def offset_to_va(self, offset: int) -> MapResult:
         r = self.offset_to_rva(offset)
         if r.ok:
-            return MapResult(MapStatus.OK, self.layout.image_base + r.value, r.detail)
+            return MapResult(r.status, self.layout.image_base + r.value, r.detail)
         return r
 
     # -- point: rva/va -> offset -----------------------------------------
     def rva_to_offset(self, rva: int) -> MapResult:
+        _require_integer(rva)
+        result = self._rva_candidate(rva)
+        if result.ok:
+            back = self._offset_candidate(result.value)
+            if not back.ok or back.value != rva:
+                return MapResult(MapStatus.OVERLAPPING, detail="target offset has conflicting ownership")
+        return result
+
+    def _rva_candidate(self, rva: int) -> MapResult:
         lay = self.layout
         if rva < 0:
             raise ValueError("rva must be non-negative")
 
         owners = [s for s in lay.sections if s.virtual_size and s.rva <= rva < s.rva + s.virtual_size]
-        if len(owners) > 1:
-            return MapResult(MapStatus.OVERLAPPING, detail="multiple sections claim this rva")
+        if len(owners) + int(rva < lay.size_of_headers) > 1:
+            return MapResult(MapStatus.OVERLAPPING, detail="multiple regions claim this rva")
         if owners:
             sec = owners[0]
             delta = rva - sec.rva
@@ -378,6 +407,7 @@ class PeAtlas:
         return MapResult(MapStatus.UNMAPPED, detail="rva outside every section")
 
     def va_to_offset(self, va: int) -> MapResult:
+        _require_integer(va)
         if va < self.layout.image_base:
             return MapResult(MapStatus.UNMAPPED, detail="va below image base")
         return self.rva_to_offset(va - self.layout.image_base)
@@ -400,6 +430,8 @@ class PeAtlas:
         return self._map_interval(start, end, self.offset_to_rva, self._offset_boundaries)
 
     def _map_interval(self, start, end, point_map, boundary_fn):  # type: ignore[no-untyped-def]
+        _require_integer(start)
+        _require_integer(end)
         if end <= start:
             raise ValueError("interval must be non-empty half-open [start, end)")
         cuts = sorted({start, end, *(b for b in boundary_fn() if start < b < end)})
@@ -416,17 +448,20 @@ class PeAtlas:
                 segments.append(Segment(src, res.status, None))
         return IntervalSet(ok_offsets), tuple(segments)
 
-    def _rva_boundaries(self) -> Iterable[int]:
+    def _rva_region_boundaries(self) -> Iterable[int]:
         lay = self.layout
+        yield 0
         yield lay.size_of_headers
+        yield lay.file_size  # headers may claim bytes past EOF
         for s in lay.sections:
             if s.virtual_size:
                 yield s.rva
                 yield s.rva + s.mapped_raw_size   # raw/virtual transition
                 yield s.rva + s.virtual_size
 
-    def _offset_boundaries(self) -> Iterable[int]:
+    def _offset_region_boundaries(self) -> Iterable[int]:
         lay = self.layout
+        yield 0
         yield lay.size_of_headers
         yield lay.overlay_offset
         yield lay.file_size
@@ -438,6 +473,27 @@ class PeAtlas:
                 yield s.raw_offset
                 yield s.raw_offset + s.mapped_raw_size
                 yield s.raw_offset + s.raw_size
+
+    def _rva_boundaries(self) -> Iterable[int]:
+        yield from self._rva_region_boundaries()
+        # A target-space conflict or EOF can start inside a source section.
+        for boundary in self._offset_region_boundaries():
+            if 0 <= boundary <= self.layout.size_of_headers:
+                yield boundary
+            for section in self.layout.sections:
+                delta = boundary - section.raw_offset
+                if 0 <= delta <= section.mapped_raw_size:
+                    yield section.rva + delta
+
+    def _offset_boundaries(self) -> Iterable[int]:
+        yield from self._offset_region_boundaries()
+        for boundary in self._rva_region_boundaries():
+            if 0 <= boundary <= self.layout.size_of_headers:
+                yield boundary
+            for section in self.layout.sections:
+                delta = boundary - section.rva
+                if 0 <= delta <= section.mapped_raw_size:
+                    yield section.raw_offset + delta
 
     # -- analyzer component interface ------------------------------------
     def map_component(self, component: CoordinateComponent) -> MappedComponent:
@@ -466,6 +522,11 @@ class PeAtlas:
 # --------------------------------------------------------------------------
 # little-endian readers
 # --------------------------------------------------------------------------
+def _require_integer(value: int) -> None:
+    if type(value) is not int:
+        raise TypeError("coordinate must be int")
+
+
 def _u16(data: bytes, off: int) -> int:
     return struct.unpack_from("<H", data, off)[0]
 

@@ -27,6 +27,9 @@ tests establishes **coordinate correctness only**, never localization quality.
 
 All ranges are half-open `[start, end)` with `end > start`. A component is a union
 of disjoint intervals; adjacency (`[a,b)`+`[b,c)`) merges to `[a,c)`.
+Bounds and point coordinates must be Python integers; floats, strings and booleans
+raise `TypeError` rather than being silently converted. Empty intervals raise
+`ValueError`; use `IntervalSet.empty()` for an empty union.
 
 ## Interval algebra (`peatlas.intervals`)
 
@@ -53,17 +56,24 @@ unmappable input. `MapStatus`:
 | `CERTIFICATE` | attribute certificate table (data dir 4); a file offset with no RVA | no |
 | `TRUNCATED` | claimed by the layout but past the actual end-of-file | no |
 | `UNMAPPED` | outside every known region | no |
-| `OVERLAPPING` | more than one section claims the coordinate; ambiguous | no |
+| `OVERLAPPING` | conflicting section/header/certificate claims in either coordinate space | no |
 
 `parse_pe` raises `PeFormatError` **only** when the header region itself cannot be
 read. Body-level anomalies (raw data past EOF, overlapping sections) are recorded
 in `PeLayout.warnings` and surface as the per-coordinate statuses above, so a
 corrupted real sample is describable rather than fatal.
+The declared optional-header size must cover its fixed fields and declared data
+directories, and the entire declared section table must be readable. Missing or
+inconsistent header bounds raise `PeFormatError`; no partial section layout is
+returned. Section counts above the Windows loader limit of 96 are rejected before
+section overlap analysis. This is structural validation, not an independent-parser
+cross-check.
 
 ## Per-section mapping rules
 
 For a section with `rva`, `virtual_size`, `raw_offset`, `raw_size`
-(`mapped_raw_size = min(raw_size, virtual_size)`):
+(`mapped_raw_size = min(raw_size, virtual_size)` when `raw_offset > 0` and
+`raw_size > 0`, otherwise zero):
 
 - `offset → rva`: if `raw_offset ≤ offset < raw_offset + mapped_raw_size` then
   `rva = section.rva + (offset − raw_offset)`. Between `mapped_raw_size` and
@@ -73,6 +83,12 @@ For a section with `rva`, `virtual_size`, `raw_offset`, `raw_size`
   `virtual_size` the bytes are `VIRTUAL_ONLY`.
 - header region maps 1:1 (`offset == rva`) for `[0, size_of_headers)`.
 - `VA = image_base + RVA`; `va_to_offset` fails `UNMAPPED` below image base.
+- A successful mapping must be unique in both source and destination spaces and
+  round-trip to the original coordinate. Conflicting claims return `OVERLAPPING`
+  without a value, including section/header and section/certificate conflicts.
+- A mapped file byte must exist before EOF. Claimed section/header/certificate
+  bytes beyond EOF return `TRUNCATED`; a zero raw pointer supplies no disk bytes.
+- `offset_to_va` preserves `HEADERS` for a successful header mapping.
 
 ## Interval mapping across section boundaries
 
@@ -83,6 +99,13 @@ classify each sub-segment independently. They return:
 - an `IntervalSet` of the **OK** mapped sub-intervals (the canonical projection), and
 - an ordered tuple of `Segment(source, status, mapped)` covering the whole input,
   including failure segments, so nothing is silently dropped.
+
+Splits also include actual EOF and boundaries projected from the destination
+space, so a conflict beginning inside a source section cannot be included in a
+successful segment. Regression tests compare every segment against point
+mapping across small malformed layouts and verify every successful point's
+round trip. Interval algebra tests cover all 32 × 32 subset pairs of five small
+intervals against integer-set union, intersection, difference and Jaccard.
 
 ## Analyzer component interface
 

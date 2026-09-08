@@ -35,7 +35,7 @@ G1 passes when (a) every valid tested raw byte round-trips through PEAtlas,
 
 | Clause | Status | Evidence |
 |---|---|---|
-| (a) valid bytes round-trip | **MET (synthetic suite)** | `tests/test_peatlas_atlas.py` round-trips offset↔rva↔va over mapped regions; `tests/test_peatlas_intervals.py` verifies interval algebra incl. exhaustive small-fixture check. |
+| (a) valid bytes round-trip | **MET (synthetic suite)** | `tests/test_peatlas_atlas.py` round-trips offset↔rva↔va over mapped regions; `tests/test_peatlas_regressions.py` checks every successful point and interval segment across small malformed layouts; `tests/test_peatlas_intervals.py` verifies all subset pairs in the small integer-set oracle. |
 | (b) explicit failure states | **MET** | All non-mappable coordinates return a typed `MapStatus` (virtual-only, padding, overlay, certificate, truncated, unmapped, overlapping); no fabricated offsets. |
 | (c) independent parser/analyzer agreement, preregistered | **OPEN** | Current fixtures are self-authored synthetic PEs. Not yet cross-checked against an independent parser (pefile/LIEF) or a second analyzer, and the suite is not preregistered. |
 
@@ -54,9 +54,11 @@ Requires ≥3 unrelated source projects, ≥2 build modes each, ≥200 adjudicat
   (`src/ua_sahi_mal/peatlas/`): file-offset/RVA/VA per-section mapping, explicit
   failure states, half-open interval-union algebra, section-boundary interval
   splitting, analyzer component + provenance interface.
-- Tier 0 tests green (26 tests): round-trip, boundary splitting, exhaustive
-  interval algebra, malformed layouts (overlap/truncation/padding/overlay/
-  virtual-only/certificate/PE32+).
+- Tier 0 tests green (66 tests, local Python 3.10): round-trip, boundary
+  splitting, exhaustive interval algebra, strict coordinate types, complete
+  header bounds, and malformed layouts (overlap/truncation/padding/overlay/
+  virtual-only/certificate/PE32+). The PR's GitHub CI provides the authoritative
+  Python 3.10/3.12 and Docker results for each pushed revision.
 
 ## Next actions
 
