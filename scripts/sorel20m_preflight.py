@@ -1,0 +1,74 @@
+"""HEAD-only preflight of a selected SHA list against s3://sorel-20m.
+
+Downloads NOTHING. For each 64-hex SHA it issues an anonymous S3 head-object and
+reports ContentLength + ETag, then prints the total byte budget so the operator
+can confirm the download size before fetching.
+
+Runs on the operator's isolated machine (needs the AWS CLI). Not run in the cloud
+session.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from ua_sahi_mal.sorel.acquire import AwsCliClient, budget_total, preflight  # noqa: E402
+from ua_sahi_mal.sorel.paths import assert_isolated_output  # noqa: E402
+
+
+def _read_shalist(path: str) -> list[str]:
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines if ln.strip()]
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--sha-list", required=True, help="selected_sha256.txt (one SHA per line)")
+    p.add_argument("--out-csv", help="optional isolated CSV to write preflight results")
+    p.add_argument("--bucket", default="sorel-20m")
+    p.add_argument("--budget-mb", type=float, default=None,
+                   help="if set, warn when the total exceeds this many MB")
+    return p.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    ns = _parse_args(argv)
+    shas = _read_shalist(ns.sha_list)
+    client = AwsCliClient(bucket=ns.bucket)
+    results = preflight(shas, client)
+
+    ok = [r for r in results if r.ok]
+    bad = [r for r in results if not r.ok]
+    total = budget_total(results)
+    total_mb = total / (1024 * 1024)
+
+    for r in results:
+        if r.ok:
+            print(f"OK   {r.sha256}  {r.content_length:>10d}  {r.etag}")
+        else:
+            print(f"FAIL {r.sha256}  {r.error}")
+
+    print(f"\nresolved {len(ok)}/{len(results)} objects; failed {len(bad)}")
+    print(f"total budget: {total} bytes ({total_mb:.1f} MB)")
+    if ns.budget_mb is not None and total_mb > ns.budget_mb:
+        print(f"WARNING: total {total_mb:.1f} MB exceeds requested budget {ns.budget_mb:.1f} MB",
+              file=sys.stderr)
+
+    if ns.out_csv:
+        out = assert_isolated_output(ns.out_csv, kind="preflight CSV")
+        with open(out, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(["sha256", "ok", "content_length", "etag", "error"])
+            for r in results:
+                w.writerow([r.sha256, int(r.ok), r.content_length, r.etag, r.error])
+        print(f"preflight csv: {out}")
+    return 0 if not bad else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
