@@ -176,3 +176,13 @@ def test_isolated_output_accepts_plain_path(iso_dir):
     d.mkdir()
     resolved = assert_isolated_output(d / "manifest.csv")
     assert resolved.name == "manifest.csv"
+
+
+def test_read_candidates_path_with_space(iso_dir):
+    """meta.db under a directory containing a space must open via a proper file URI."""
+    d = iso_dir / "data dir"
+    d.mkdir()
+    p = d / "meta.db"
+    _make_meta_db(str(p), n_per_split=3, benign=1)
+    cands = read_candidates(str(p))
+    assert len(cands) == 9

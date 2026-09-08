@@ -158,3 +158,54 @@ def test_fetch_records_error_status(iso_dir):
     by = {r.sha256: r for r in res}
     assert by[SHA_A].download_status == "ok"
     assert by[SHA_B].download_status.startswith("error:")
+
+
+# --------------------------------------------------------------------------- #
+# Real AWS CLI output shape (no network): head-object JSON parsing
+# --------------------------------------------------------------------------- #
+def test_parse_head_object_json_realistic():
+    from ua_sahi_mal.sorel.acquire import parse_head_object_json
+
+    # Shape of `aws s3api head-object --output json` (ETag is a quoted string).
+    stdout = (
+        '{\n  "AcceptRanges": "bytes",\n  "LastModified": "2020-12-09T00:00:00+00:00",\n'
+        '  "ContentLength": 123456,\n  "ETag": "\\"9a0364b9e99bb480dd25e1f0284c8555\\"",\n'
+        '  "ContentType": "binary/octet-stream",\n  "Metadata": {}\n}\n'
+    )
+    length, etag = parse_head_object_json(stdout)
+    assert length == 123456
+    assert etag == "9a0364b9e99bb480dd25e1f0284c8555"  # quotes stripped
+
+
+def test_parse_head_object_json_missing_length():
+    from ua_sahi_mal.sorel.acquire import parse_head_object_json
+
+    with pytest.raises(ValueError, match="ContentLength"):
+        parse_head_object_json('{"ETag": "\\"x\\""}')
+
+
+def test_awscli_head_object_uses_json_and_parses(monkeypatch):
+    """AwsCliClient.head_object must request JSON (not a JMESPath tab join) and parse it."""
+    import subprocess
+
+    from ua_sahi_mal.sorel.acquire import AwsCliClient
+
+    seen: dict[str, list[str]] = {}
+
+    class _Proc:
+        stdout = '{"ContentLength": 777, "ETag": "\\"deadbeef\\""}'
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = list(argv)
+        return _Proc()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    client = AwsCliClient(bucket="sorel-20m", aws="aws")
+    length, etag = client.head_object("09-DEC-2020/binaries/" + SHA_A)
+    assert (length, etag) == (777, "deadbeef")
+    argv = seen["argv"]
+    assert argv[:3] == ["aws", "s3api", "head-object"]
+    assert "--no-sign-request" in argv
+    assert "--output" in argv and argv[argv.index("--output") + 1] == "json"
+    assert "--query" not in argv  # the buggy JMESPath tab-join is gone

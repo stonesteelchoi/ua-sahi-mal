@@ -22,6 +22,7 @@ isolated machine (cau), never in the ephemeral cloud session.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 from collections.abc import Iterable
@@ -196,6 +197,21 @@ def fetch(shas: Iterable[str], client: S3Client, dest_dir: str | Path, *,
 # --------------------------------------------------------------------------- #
 # Default client: AWS CLI, --no-sign-request. Only runs on the operator machine.
 # --------------------------------------------------------------------------- #
+def parse_head_object_json(stdout: str) -> tuple[int, str]:
+    """Parse ``aws s3api head-object --output json`` into (content_length, etag).
+
+    Kept as a pure function so the real CLI output shape is unit-testable without
+    any network or subprocess. ETag is returned without its surrounding quotes.
+    """
+    doc = json.loads(stdout)
+    try:
+        length = int(doc["ContentLength"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"head-object JSON missing/invalid ContentLength: {exc}") from exc
+    etag = str(doc.get("ETag", "")).strip().strip('"')
+    return length, etag
+
+
 class AwsCliClient:
     """S3 access via the AWS CLI with anonymous (``--no-sign-request``) reads.
 
@@ -208,14 +224,15 @@ class AwsCliClient:
         self.aws = aws
 
     def head_object(self, key: str) -> tuple[int, str]:
+        # Ask for JSON and parse it here rather than shaping output with a JMESPath
+        # --query: a backtick tab literal (`\t`) is not valid JMESPath JSON and
+        # silently drops the separator, which broke ContentLength parsing.
         proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
             [self.aws, "s3api", "head-object", "--bucket", self.bucket, "--key", key,
-             "--no-sign-request", "--output", "text",
-             "--query", "join(`\t`, [to_string(ContentLength), ETag])"],
+             "--no-sign-request", "--output", "json"],
             capture_output=True, text=True, check=True,
         )
-        length_str, _, etag = proc.stdout.strip().partition("\t")
-        return int(length_str), etag.strip().strip('"')
+        return parse_head_object_json(proc.stdout)
 
     def download(self, key: str, dest: Path) -> None:
         subprocess.run(  # noqa: S603 - fixed argv, no shell

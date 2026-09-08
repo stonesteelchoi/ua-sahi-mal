@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # Official temporal split boundaries (SOREL config.py). Do not change: altering
 # them makes results incomparable to official SOREL.
@@ -64,7 +65,9 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
 def read_candidates(db_path: str, *, table: str = "meta",
                     tags: tuple[str, ...] = TAGS) -> list[Candidate]:
     """Read malware candidates from meta.db (read-only). No network, no binaries."""
-    uri = f"file:{db_path}?mode=ro"
+    # Build a proper file:// URI (as_uri handles Windows drive letters / backslashes
+    # and percent-encoding) so read-only mode works identically on cau and Linux.
+    uri = Path(db_path).expanduser().resolve().as_uri() + "?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     try:
         cols = _table_columns(conn, table)
