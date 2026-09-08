@@ -157,22 +157,22 @@ def test_manifest_roundtrip(tmp_path, meta_db):
     assert back[0].stored_artifact_sha256 == ""
 
 
-def test_isolated_output_refuses_repo(tmp_path):
+def test_isolated_output_refuses_repo(iso_dir):
     # simulate a repo root
-    (tmp_path / ".git").mkdir()
+    (iso_dir / ".git").mkdir()
     with pytest.raises(UnsafeOutputPathError, match="repository tree"):
-        assert_isolated_output(tmp_path / "sub" / "selected_sha256.txt")
+        assert_isolated_output(iso_dir / "sub" / "selected_sha256.txt")
 
 
-def test_isolated_output_refuses_sync_folder(tmp_path):
-    d = tmp_path / "OneDrive" / "data"
+def test_isolated_output_refuses_sync_folder(iso_dir):
+    d = iso_dir / "OneDrive" / "data"
     d.mkdir(parents=True)
     with pytest.raises(UnsafeOutputPathError, match="cloud-sync"):
         assert_isolated_output(d / "manifest.csv")
 
 
-def test_isolated_output_accepts_plain_path(tmp_path):
-    d = tmp_path / "sorel20m-private"
+def test_isolated_output_accepts_plain_path(iso_dir):
+    d = iso_dir / "sorel20m-private"
     d.mkdir()
     resolved = assert_isolated_output(d / "manifest.csv")
     assert resolved.name == "manifest.csv"

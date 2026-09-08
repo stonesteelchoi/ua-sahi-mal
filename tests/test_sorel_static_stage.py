@@ -88,8 +88,8 @@ def test_decompress_error():
     assert r.decompressed_size == 0
 
 
-def test_analyze_file_no_disk_write(tmp_path):
-    d = tmp_path / "sorel-private" / "compressed"
+def test_analyze_file_no_disk_write(iso_dir):
+    d = iso_dir / "sorel-private" / "compressed"
     d.mkdir(parents=True)
     sha = "e" * 64
     (d / f"{sha}.zlib").write_bytes(zlib.compress(DISARMED))
@@ -102,17 +102,17 @@ def test_analyze_file_no_disk_write(tmp_path):
     assert r.disarm_ok is True
 
 
-def test_analyze_file_refuses_repo_dir(tmp_path):
-    (tmp_path / ".git").mkdir()
-    d = tmp_path / "compressed"
+def test_analyze_file_refuses_repo_dir(iso_dir):
+    (iso_dir / ".git").mkdir()
+    d = iso_dir / "compressed"
     d.mkdir()
     (d / ("f" * 64 + ".zlib")).write_bytes(zlib.compress(DISARMED))
     with pytest.raises(UnsafeOutputPathError, match="repository tree"):
         analyze_file(d / ("f" * 64 + ".zlib"), static_only=True)
 
 
-def test_analyze_dir_missing_and_ok(tmp_path):
-    d = tmp_path / "sorel-private" / "compressed"
+def test_analyze_dir_missing_and_ok(iso_dir):
+    d = iso_dir / "sorel-private" / "compressed"
     d.mkdir(parents=True)
     present = "a" * 64
     absent = "b" * 64

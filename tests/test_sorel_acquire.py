@@ -90,32 +90,32 @@ def test_budget_helpers():
         assert_within_budget(heads, max_bytes=349)
 
 
-def test_fetch_requires_terms(tmp_path):
+def test_fetch_requires_terms(iso_dir):
     c = _client()
     with pytest.raises(TermsNotAcceptedError):
-        fetch([SHA_A], c, tmp_path / "iso", terms_accepted=False, max_bytes=10**9)
+        fetch([SHA_A], c, iso_dir / "iso", terms_accepted=False, max_bytes=10**9)
     assert c.download_calls == []
 
 
-def test_fetch_refuses_repo_dest(tmp_path):
-    (tmp_path / ".git").mkdir()
+def test_fetch_refuses_repo_dest(iso_dir):
+    (iso_dir / ".git").mkdir()
     c = _client()
     with pytest.raises(UnsafeOutputPathError, match="repository tree"):
-        fetch([SHA_A], c, tmp_path / "compressed", terms_accepted=True, max_bytes=10**9)
+        fetch([SHA_A], c, iso_dir / "compressed", terms_accepted=True, max_bytes=10**9)
     assert c.download_calls == []
 
 
-def test_fetch_refuses_sync_dest(tmp_path):
+def test_fetch_refuses_sync_dest(iso_dir):
     c = _client()
-    dest = tmp_path / "Dropbox" / "compressed"
+    dest = iso_dir / "Dropbox" / "compressed"
     with pytest.raises(UnsafeOutputPathError, match="cloud-sync"):
         fetch([SHA_A], c, dest, terms_accepted=True, max_bytes=10**9)
     assert c.download_calls == []
 
 
-def test_fetch_enforces_budget_before_download(tmp_path):
+def test_fetch_enforces_budget_before_download(iso_dir):
     c = _client()
-    dest = tmp_path / "sorel-private" / "compressed"
+    dest = iso_dir / "sorel-private" / "compressed"
     with pytest.raises(BudgetExceededError):
         fetch([SHA_A, SHA_B], c, dest, terms_accepted=True, max_bytes=1)
     # budget checked before any byte is fetched
@@ -123,9 +123,9 @@ def test_fetch_enforces_budget_before_download(tmp_path):
     assert not dest.exists() or not any(dest.iterdir())
 
 
-def test_fetch_stores_compressed_verbatim(tmp_path):
+def test_fetch_stores_compressed_verbatim(iso_dir):
     c = _client()
-    dest = tmp_path / "sorel-private" / "compressed"
+    dest = iso_dir / "sorel-private" / "compressed"
     res = fetch([SHA_A, SHA_B], c, dest, terms_accepted=True, max_bytes=10**9)
     assert {r.download_status for r in res} == {"ok"}
     for r in res:
@@ -139,9 +139,9 @@ def test_fetch_stores_compressed_verbatim(tmp_path):
         assert r.stored_artifact_sha256 == hashlib.sha256(original).hexdigest()
 
 
-def test_fetch_skips_existing(tmp_path):
+def test_fetch_skips_existing(iso_dir):
     c = _client()
-    dest = tmp_path / "sorel-private" / "compressed"
+    dest = iso_dir / "sorel-private" / "compressed"
     fetch([SHA_A], c, dest, terms_accepted=True, max_bytes=10**9)
     calls_after_first = list(c.download_calls)
     res = fetch([SHA_A], c, dest, terms_accepted=True, max_bytes=10**9)
@@ -150,9 +150,9 @@ def test_fetch_skips_existing(tmp_path):
     assert c.download_calls == calls_after_first
 
 
-def test_fetch_records_error_status(tmp_path):
+def test_fetch_records_error_status(iso_dir):
     c = FakeS3({s3_key(SHA_A): b"ok-bytes"})  # SHA_B absent
-    dest = tmp_path / "sorel-private" / "compressed"
+    dest = iso_dir / "sorel-private" / "compressed"
     # preflight will mark B not-ok, so budget uses only A; fetch of B errors on download
     res = fetch([SHA_A, SHA_B], c, dest, terms_accepted=True, max_bytes=10**9)
     by = {r.sha256: r for r in res}
