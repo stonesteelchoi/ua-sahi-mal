@@ -20,10 +20,18 @@ from .atlas import (
     parse_pe,
 )
 from .intervals import Interval, IntervalSet
+from .pebuild import SectionSpec, build_pe
 from .projection import (
     PixelProjection,
     UnsupportedProjectionError,
     project_pixels_to_atlas,
+)
+from .synthetic import (
+    PlantSpec,
+    SyntheticSample,
+    default_specs,
+    generate_pair,
+    write_dataset,
 )
 
 __all__ = [
@@ -32,6 +40,13 @@ __all__ = [
     "PixelProjection",
     "UnsupportedProjectionError",
     "project_pixels_to_atlas",
+    "SectionSpec",
+    "build_pe",
+    "PlantSpec",
+    "SyntheticSample",
+    "generate_pair",
+    "write_dataset",
+    "default_specs",
     "PeAtlas",
     "PeLayout",
     "Section",
