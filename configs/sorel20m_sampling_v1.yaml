@@ -1,0 +1,56 @@
+schema_version: 1
+config_id: sorel20m-sampling-v1
+
+# Deterministic, frozen selection parameters for the SOREL-20M Tier-2 silver /
+# real-malware stress cohort (research plan v3 SOREL amendment, §5/§6).
+#
+# COMPLIANCE (G0-S determination, 2026-09-08 — PARTIAL / publication pending):
+#   * Internal security-research use: permitted subject to the SOREL Terms.
+#   * Public SHA manifest: NOT permitted without written authorization.
+#   * Public sample-linked derived intervals: NOT permitted without written authorization.
+#   * Aggregate publication: written clarification required (Terms §2(c)).
+# Consequence: every artefact below is PRIVATE. Nothing here is committed to Git or
+# placed in a sync folder; the tooling refuses such paths.
+
+selection:
+  seed: "sorel-v3-frozen-2026"      # frozen; changing it changes the sample
+  # malware-only (is_malware = 1); official temporal splits are used verbatim.
+  targets:                          # per official split
+    train: 180
+    validation: 60
+    test: 60
+  reserve_fraction: 0.2             # deterministic extra pool per split (informational; code uses ceil)
+  stratify_tags:                    # round-robin coverage strata (+ implicit no-tag stratum)
+    - adware
+    - flooder
+    - ransomware
+    - dropper
+    - spyware
+    - packed
+    - crypto_miner
+    - file_infector
+    - installer
+    - worm
+    - downloader
+
+# Official SOREL temporal boundaries (do NOT change; comparability to official SOREL).
+splits:
+  train_validation_split: 1543542570.0
+  validation_test_split: 1547279640.0
+
+source:
+  meta_db: "D:/datasets/sorel20m-private/metadata/meta.db"   # read-only; ~3.5 GB
+  bucket: "sorel-20m"
+  key_prefix: "09-DEC-2020/binaries"
+  anonymous: true                    # aws --no-sign-request
+
+# Isolated (non-repo, non-sync) private outputs only.
+outputs:
+  out_prefix: "D:/datasets/sorel20m-private/selection_v1"   # _manifest.csv + _selected_sha256.txt
+  compressed_dir: "D:/datasets/sorel20m-private/compressed" # <sha>.zlib, kept compressed
+
+acquisition:
+  budget_mb: 4096                    # hard cap enforced against preflight ContentLength sum
+  accept_terms: false                # MUST be set true explicitly at fetch time
+  keep_compressed: true              # never decompress in the acquisition step
+  never_rearm: true                  # Machine/Subsystem stay zeroed; disarming is preserved
