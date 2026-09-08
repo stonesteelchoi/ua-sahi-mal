@@ -38,8 +38,17 @@ def build_pe(
     certificate: tuple[int, int] | None = None,  # (file_offset, size)
     overlay: bytes = b"",
     truncate_to: int | None = None,
+    machine: int | None = None,     # COFF Machine; None -> default for the magic
+    subsystem: int = 2,             # OptionalHeader.Subsystem (2 = GUI); armed default
+    disarm: bool = False,           # SOREL-style: zero Machine and Subsystem
 ) -> bytes:
-    """Assemble a synthetic PE image and return its bytes."""
+    """Assemble a synthetic PE image and return its bytes.
+
+    ``disarm=True`` reproduces SOREL-20M's accidental-execution guard by zeroing
+    ``FileHeader.Machine`` and ``OptionalHeader.Subsystem`` (see the SOREL FAQ).
+    These fields do not participate in PEAtlas coordinate mapping, so a disarmed
+    image must map identically to its armed twin while hashing differently.
+    """
     num_dirs = 16
     opt_size = (112 if pe32_plus else 96) + num_dirs * 8
 
@@ -63,13 +72,18 @@ def build_pe(
     struct.pack_into("<I", buf, 0x3C, pe_off)
 
     buf[pe_off:pe_off + 4] = b"PE\x00\x00"
-    machine = 0x8664 if pe32_plus else 0x014C
+    if machine is None:
+        machine = 0x8664 if pe32_plus else 0x014C
+    if disarm:
+        machine = 0
+        subsystem = 0
     struct.pack_into("<H", buf, coff_off + 0, machine)
     struct.pack_into("<H", buf, coff_off + 2, len(sections))
     struct.pack_into("<H", buf, coff_off + 16, opt_size)
 
     magic = 0x20B if pe32_plus else 0x10B
     struct.pack_into("<H", buf, opt_off + 0, magic)
+    struct.pack_into("<H", buf, opt_off + 68, subsystem)  # OptionalHeader.Subsystem
     if pe32_plus:
         struct.pack_into("<Q", buf, opt_off + 24, image_base)
         num_dirs_off, dirs_off = opt_off + 108, opt_off + 112
