@@ -48,6 +48,10 @@ class StaticResult:
     independent_parser_status: str = ""
     coverage_ok_fraction: float | None = None
     status_histogram: dict[str, int] = field(default_factory=dict)
+    # post-download strata (amendment §6.3): filled when peatlas parses the file
+    is_pe32_plus: bool | None = None
+    n_sections: int | None = None
+    overlay_bytes: int | None = None
     exclusion_reason: str = ""
 
 
@@ -89,19 +93,27 @@ def verify_disarmed(data: bytes) -> bool:
 # --------------------------------------------------------------------------- #
 # Optional analyzers
 # --------------------------------------------------------------------------- #
-def _peatlas_coverage(data: bytes) -> tuple[str, float | None, dict[str, int]]:
-    """Return (status, ok_fraction, histogram). status 'skipped:...' if unavailable."""
+def _peatlas_coverage(data: bytes) -> tuple[str, float | None, dict[str, int], dict[str, object]]:
+    """Return (status, ok_fraction, histogram, layout_facts). status 'skipped:...' if unavailable.
+
+    ``layout_facts`` carries post-download strata (PE32/PE32+, section count, overlay size)
+    when parsing succeeds; empty otherwise.
+    """
     try:
         from ua_sahi_mal.peatlas.atlas import PeAtlas, parse_pe
     except ImportError:
-        return "skipped:peatlas_unavailable", None, {}
+        return "skipped:peatlas_unavailable", None, {}, {}
     try:
         layout = parse_pe(data)
         atlas = PeAtlas.from_bytes(data)
     except Exception as exc:  # noqa: BLE001 - recorded as a status
         name = type(exc).__name__
-        return f"error:{name}: {exc}", None, {}
-    _ = layout  # parse succeeded; layout kept for clarity
+        return f"error:{name}: {exc}", None, {}, {}
+    facts: dict[str, object] = {
+        "is_pe32_plus": bool(layout.is_pe32_plus),
+        "n_sections": len(layout.sections),
+        "overlay_bytes": max(0, len(data) - int(layout.overlay_offset)),
+    }
     _mapped, segments = atlas.map_offset_interval(0, len(data))
     hist: dict[str, int] = {}
     ok_len = 0
@@ -113,7 +125,7 @@ def _peatlas_coverage(data: bytes) -> tuple[str, float | None, dict[str, int]]:
         if seg.status.is_ok:
             ok_len += length
     frac = (ok_len / total) if total else None
-    return "ok", frac, hist
+    return "ok", frac, hist, facts
 
 
 def _pefile_crosscheck(data: bytes) -> str:
@@ -180,10 +192,14 @@ def analyze_bytes(compressed: bytes, *, sha256: str, static_only: bool,
         return res
 
     if run_peatlas:
-        status, frac, hist = _peatlas_coverage(data)
+        status, frac, hist, facts = _peatlas_coverage(data)
         res.peatlas_status = status
         res.coverage_ok_fraction = frac
         res.status_histogram = hist
+        if facts:
+            res.is_pe32_plus = facts["is_pe32_plus"]  # type: ignore[assignment]
+            res.n_sections = facts["n_sections"]  # type: ignore[assignment]
+            res.overlay_bytes = facts["overlay_bytes"]  # type: ignore[assignment]
     if run_pefile:
         res.independent_parser_status = _pefile_crosscheck(data)
     # explicit scrub of the decompressed buffer reference

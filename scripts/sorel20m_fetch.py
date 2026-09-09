@@ -27,6 +27,7 @@ from ua_sahi_mal.sorel.acquire import (  # noqa: E402
     fetch,
     preflight,
 )
+from ua_sahi_mal.sorel.record import build_run_record, write_run_record  # noqa: E402
 
 
 def _read_shalist(path: str) -> list[str]:
@@ -43,6 +44,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="hard cap on total download size in MB")
     p.add_argument("--accept-terms", action="store_true",
                    help="acknowledge the SOREL Terms; required to download")
+    p.add_argument("--terms-revision", default="",
+                   help="identifier/date of the SOREL Terms revision you accepted (recorded)")
+    p.add_argument("--record-prefix", default=None,
+                   help="isolated prefix for the acquisition record JSON (default: <dest-dir>/../acquisition)")
     p.add_argument("--bucket", default="sorel-20m")
     p.add_argument("--overwrite", action="store_true")
     return p.parse_args(argv)
@@ -72,9 +77,27 @@ def main(argv: list[str] | None = None) -> int:
                     preflighted=heads, overwrite=ns.overwrite)
 
     ok = sum(1 for r in results if r.download_status in ("ok", "skipped:exists"))
+
+    # Acquisition provenance record (amendment §9): access time, Terms revision, code
+    # commit, budget, per-status counts. Hashes/paths/counts only; no binary content.
+    status_counts: dict[str, int] = {}
+    for r in results:
+        key = r.download_status.split(":", 1)[0]
+        status_counts[key] = status_counts.get(key, 0) + 1
+    rec_prefix = ns.record_prefix or str(Path(ns.dest_dir).resolve().parent / "acquisition")
+    record = build_run_record(
+        "sorel_acquisition", repo_root=Path(__file__).resolve().parents[1],
+        terms_accepted=True, terms_revision=ns.terms_revision,
+        bucket=ns.bucket, sha_list=str(Path(ns.sha_list).resolve()), n_requested=len(shas),
+        budget_mb=ns.budget_mb, preflight_total_bytes=total,
+        dest_dir=str(Path(ns.dest_dir).resolve()), status_counts=status_counts,
+        kept_compressed=True, never_rearmed=True,
+    )
+    record_path = write_run_record(f"{rec_prefix}_record.json", record)
     for r in results:
         print(f"{r.download_status:16s} {r.sha256}  {r.dest}")
     print(f"\nstored {ok}/{len(results)} artefacts (kept zlib-compressed) in {ns.dest_dir}")
+    print(f"record: {record_path}")
     print("REMINDER: do not decompress or re-arm here; that is a later static-only step.")
     return 0 if ok == len(results) else 1
 

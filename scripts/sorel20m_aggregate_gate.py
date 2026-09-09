@@ -35,6 +35,9 @@ def _load_results(path: str) -> list[StaticResult]:
             independent_parser_status=d.get("independent_parser_status", ""),
             coverage_ok_fraction=d.get("coverage_ok_fraction"),
             status_histogram=d.get("status_histogram") or {},
+            is_pe32_plus=d.get("is_pe32_plus"),
+            n_sections=d.get("n_sections"),
+            overlay_bytes=d.get("overlay_bytes"),
             exclusion_reason=d.get("exclusion_reason", ""),
         ))
     return out

@@ -76,6 +76,11 @@ def summarize(results: Iterable[StaticResult]) -> dict[str, object]:
             key = r.exclusion_reason.split(":", 1)[0]
             excl[key] = excl.get(key, 0) + 1
 
+    parsed = [r for r in rs if r.is_pe32_plus is not None]
+    pe32_plus = sum(1 for r in parsed if r.is_pe32_plus)
+    n_sections = sorted(r.n_sections for r in parsed if r.n_sections is not None)
+    overlay_present = sum(1 for r in parsed if (r.overlay_bytes or 0) > 0)
+
     return {
         "n": n,
         "disarm_ok_rate": round(_rate(len(disarm_ok), n), 6),
@@ -87,6 +92,12 @@ def summarize(results: Iterable[StaticResult]) -> dict[str, object]:
         "coverage_median": cov_median,
         "status_histogram_bytes": hist,
         "exclusion_reasons": excl,
+        # post-download strata (amendment §6.3) — counts/distributions only
+        "parsed_n": len(parsed),
+        "pe32_plus_count": pe32_plus,
+        "pe32_count": len(parsed) - pe32_plus,
+        "n_sections_median": (statistics.median(n_sections) if n_sections else None),
+        "overlay_present_count": overlay_present,
     }
 
 
