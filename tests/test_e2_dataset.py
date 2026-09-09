@@ -77,3 +77,22 @@ def test_store_cache_and_guards(iso_dir):
         store.get("2" * 64)                                            # armed sample refused
     with pytest.raises(StaticOnlyNotAcknowledgedError):
         SorelTileStore(iso_dir, static_only=False)
+
+
+def test_excluded_primary_is_not_effective(iso_dir):
+    """A primary that 404'd at preflight (exclusion_reason set, replaced from reserve) has no
+    artefact on disk and must be dropped by both the label set and the split SHA list."""
+    from ua_sahi_mal.sorel.e2_dataset import shas_for_split
+    from ua_sahi_mal.sorel.manifest import write_manifest
+
+    good = _row("a" * 64, "train", "adware=3")
+    gone = _row("b" * 64, "train", "adware=3")
+    gone.exclusion_reason = "preflight:not_found"
+    repl = _row("c" * 64, "train", "adware=3", role="replacement")
+    reserve = _row("d" * 64, "train", "adware=3", role="reserve")
+    ls = build_label_set([good, gone, repl, reserve], min_class_support=1)
+    assert {s.sorel_original_sha256 for s in ls.samples} == {"a" * 64, "c" * 64}
+
+    manifest = iso_dir / "m.csv"
+    write_manifest(manifest, [good, gone, repl, reserve])
+    assert shas_for_split(manifest, "train") == ["a" * 64, "c" * 64]

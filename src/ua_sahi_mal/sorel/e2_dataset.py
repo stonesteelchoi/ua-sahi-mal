@@ -26,7 +26,7 @@ import numpy as np
 from ua_sahi_mal.sorel.e2_tiles import DEFAULT_GEOMETRY, Geometry
 from ua_sahi_mal.sorel.manifest import ManifestRow, read_manifest
 from ua_sahi_mal.sorel.paths import assert_isolated_binary_dir
-from ua_sahi_mal.sorel.replace import EFFECTIVE_ROLES
+from ua_sahi_mal.sorel.replace import effective_rows
 from ua_sahi_mal.sorel.select import TAGS
 from ua_sahi_mal.sorel.static_stage import NotDisarmedError, StaticOnlyNotAcknowledgedError, verify_disarmed
 
@@ -99,8 +99,15 @@ class LabelSet:
 
 def build_label_set(rows: Iterable[ManifestRow], *, min_class_support: int = 150,
                     effective_only: bool = True) -> LabelSet:
-    """Dominant-tag classes with a support floor, computed on the TRAIN split only."""
-    picked = [r for r in rows if (not effective_only) or r.selection_role in EFFECTIVE_ROLES]
+    """Dominant-tag classes with a support floor, computed on the TRAIN split only.
+
+    ``effective_only`` keeps exactly the rows that constitute the sample — primary
+    or replacement AND not excluded (the canonical ``replace.effective_rows``
+    definition). A primary that 404'd at preflight carries ``exclusion_reason`` and
+    has no ``.zlib`` on disk, so it must not become a training sample.
+    """
+    rows = list(rows)
+    picked = effective_rows(rows) if effective_only else rows
     dominants = {r.sorel_original_sha256: dominant_tag(parse_tag_counts(r.tag_counts)) for r in picked}
 
     train_support: dict[str, int] = {t: 0 for t in TAGS}
@@ -133,12 +140,11 @@ def load_label_set(manifest_path: str | Path, **kwargs) -> LabelSet:
 
 
 def shas_for_split(manifest_path: str | Path, split: str, *, effective_only: bool = True) -> list[str]:
-    """Effective SHAs of one official split, in manifest order (private; isolated use)."""
-    out = []
-    for r in read_manifest(manifest_path):
-        if r.official_split == split and ((not effective_only) or r.selection_role in EFFECTIVE_ROLES):
-            out.append(r.sorel_original_sha256)
-    return out
+    """Effective SHAs of one official split, in manifest order (private; isolated use).
+    Excluded (e.g. 404-replaced) primaries are dropped, matching ``replace.effective_rows``."""
+    rows = read_manifest(manifest_path)
+    picked = effective_rows(rows) if effective_only else rows
+    return [r.sorel_original_sha256 for r in picked if r.official_split == split]
 
 
 # --------------------------------------------------------------------------

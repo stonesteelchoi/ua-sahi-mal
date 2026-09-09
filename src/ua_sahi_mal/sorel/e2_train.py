@@ -98,13 +98,18 @@ def train_model(samples: Sequence[LabeledSample], store: SorelTileStore, *, clas
     rng = np.random.default_rng(config.seed)
 
     report = TrainReport(pooling=config.pooling, class_count=class_count, config=config.to_dict(), device=str(device))
+    missing: set[str] = set()
     model.train()
     for epoch in range(config.epochs):
         total, seen = 0.0, 0
         optimizer.zero_grad()
         for step, index in enumerate(rng.permutation(len(samples)), start=1):
             sample = samples[int(index)]
-            bag = store.get(sample.sorel_original_sha256)
+            try:
+                bag = store.get(sample.sorel_original_sha256)
+            except FileNotFoundError:
+                missing.add(sample.sorel_original_sha256)   # never crash a run on one absent artefact
+                continue
             tiles = _subsample_tiles(bag.tiles, config.max_train_tiles, rng)
             logits = model(tiles_to_tensor(tiles, device)).unsqueeze(0)
             target = torch.tensor([sample.label], dtype=torch.long, device=device)
@@ -120,10 +125,13 @@ def train_model(samples: Sequence[LabeledSample], store: SorelTileStore, *, clas
         optimizer.step()
         optimizer.zero_grad()
         mean_loss = total / max(seen, 1)
-        report.epochs.append({"epoch": epoch, "loss": mean_loss})
-        log(f"  [{config.pooling}] epoch {epoch} loss {mean_loss:.4f}")
+        report.epochs.append({"epoch": epoch, "loss": mean_loss, "samples": seen})
+        log(f"  [{config.pooling}] epoch {epoch} loss {mean_loss:.4f} ({seen} samples)")
     model.eval()
     report.seconds = time.time() - started
+    if missing:
+        report.config["skipped_missing_artefacts"] = len(missing)   # count only, SHA-free
+        log(f"  WARNING: {len(missing)} training artefact(s) missing on disk were skipped")
 
     if validation:
         report.validation = evaluate(model, validation, store, device=device, class_count=class_count,
@@ -145,16 +153,25 @@ def log_probabilities(model, tiles: np.ndarray, device, *, chunk: int = 256) -> 
 
 def evaluate(model, samples: Sequence[LabeledSample], store: SorelTileStore, *, device, class_count: int,
              chunk: int = 256) -> dict[str, float]:
-    labelled = [s for s in samples if s.label is not None]
-    rows = [log_probabilities(model, store.get(s.sorel_original_sha256).tiles, device, chunk=chunk) for s in labelled]
-    truth = [int(s.label) for s in labelled]  # type: ignore[arg-type]
+    rows, truth, missing = [], [], 0
+    for s in samples:
+        if s.label is None:
+            continue
+        try:
+            bag = store.get(s.sorel_original_sha256)
+        except FileNotFoundError:
+            missing += 1
+            continue
+        rows.append(log_probabilities(model, bag.tiles, device, chunk=chunk))
+        truth.append(int(s.label))
     if not rows:
-        return {"n": 0}
+        return {"n": 0, "skipped_missing": missing}
     return {
         "accuracy": accuracy(rows, truth),
         "macro_f1": macro_f1(rows, truth, class_count),
         "mean_nll": float(np.mean([-row[label] for row, label in zip(rows, truth, strict=True)])),
         "n": len(truth),
+        "skipped_missing": missing,
     }
 
 
