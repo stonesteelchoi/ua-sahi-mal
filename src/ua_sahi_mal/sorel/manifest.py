@@ -23,10 +23,13 @@ class ManifestRow:
     tags: str                 # ";"-joined tag names with non-zero count ("" if none)
     detection_count: int
     selection_seed: str
-    selection_role: str       # "primary" | "reserve"
+    selection_role: str       # "primary" | "reserve" | "replacement"
     # raw per-tag count values preserved alongside the binarised ``tags`` view
     # (amendment §6.3), e.g. "adware=3;packed=1" (non-zero tags only; "" if none)
     tag_counts: str = ""
+    # replacement bookkeeping (replace.py): for selection_role == "replacement", the sha of
+    # the excluded effective row this reserve candidate was promoted to replace
+    replaces_sha256: str = ""
     # acquisition (filled by acquire.py; empty until then)
     stored_artifact_sha256: str = ""   # sha256 of the on-disk .zlib as stored (compressed)
     disarmed_local_sha256: str = ""    # sha256 of the DECOMPRESSED disarmed binary; only
@@ -100,6 +103,7 @@ def read_manifest(path: str | Path) -> list[ManifestRow]:
                 tags=d.get("tags", ""),
                 detection_count=int(d.get("detection_count") or 0),
                 tag_counts=d.get("tag_counts", ""),
+                replaces_sha256=d.get("replaces_sha256", ""),
                 selection_seed=d.get("selection_seed", ""),
                 selection_role=d.get("selection_role", ""),
                 stored_artifact_sha256=d.get("stored_artifact_sha256", ""),

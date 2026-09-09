@@ -42,6 +42,46 @@ class AwsCliNotFoundError(RuntimeError):
     """Raised when the AWS CLI executable cannot be resolved on PATH (or via --aws-bin)."""
 
 
+class S3CommandError(RuntimeError):
+    """An AWS CLI invocation failed; carries the exit code and the CLI's own reason text."""
+
+    def __init__(self, returncode: int, reason: str) -> None:
+        self.returncode = returncode
+        self.reason = reason
+        super().__init__(f"aws exit {returncode}: {reason}")
+
+
+_SHA_IN_TEXT_RE = re.compile(r"[0-9a-f]{64}")
+
+
+_EXC_PREFIX_RE = re.compile(r"^[A-Za-z_]\w*(?:Error|Exception): ")
+
+
+def error_bucket(error: str, *, width: int = 160) -> str:
+    """SHA-free, class-prefix-free summary key for grouping failures in console output.
+
+    ``'S3CommandError: aws exit 254: An error occurred (404) ... Not Found'`` ->
+    ``'aws exit 254: An error occurred (404) ... Not Found'``.
+    """
+    text = _SHA_IN_TEXT_RE.sub("<sha>", error or "unknown")
+    text = _EXC_PREFIX_RE.sub("", text, count=1)
+    return text[:width]
+
+
+def _aws_stderr_reason(stderr: str) -> str:
+    """First meaningful stderr line from the AWS CLI, with any 64-hex SHA masked.
+
+    AWS CLI errors look like ``An error occurred (404) when calling the HeadObject
+    operation: Not Found`` — SHA-free already, but mask defensively so error text can
+    be printed/aggregated without leaking the private manifest.
+    """
+    for line in (stderr or "").splitlines():
+        line = line.strip()
+        if line:
+            return _SHA_IN_TEXT_RE.sub("<sha>", line)
+    return "no stderr"
+
+
 class TermsNotAcceptedError(RuntimeError):
     """Raised when acquisition is attempted without an explicit Terms acknowledgement."""
 
@@ -111,6 +151,33 @@ def preflight(shas: Iterable[str], client: S3Client, *,
         except Exception as exc:  # noqa: BLE001 - surfaced to caller as a status
             results.append(HeadResult(sha, 0, "", ok=False, error=f"{type(exc).__name__}: {exc}"))
     return results
+
+
+PREFLIGHT_FIELDS = ("sha256", "ok", "content_length", "etag", "error")
+
+
+def write_preflight_csv(path: str | Path, results: Iterable[HeadResult]) -> None:
+    """Persist HEAD results (private; isolated path) so later stages can reuse them."""
+    import csv
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(PREFLIGHT_FIELDS)
+        for r in results:
+            w.writerow([r.sha256, int(r.ok), r.content_length, r.etag, r.error])
+
+
+def read_preflight_csv(path: str | Path) -> list[HeadResult]:
+    """Load HEAD results written by write_preflight_csv (or the preflight CLI)."""
+    import csv
+    out: list[HeadResult] = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        for d in csv.DictReader(fh):
+            out.append(HeadResult(
+                sha256=d["sha256"], content_length=int(d.get("content_length") or 0),
+                etag=d.get("etag", ""), ok=str(d.get("ok", "0")).strip() in ("1", "True", "true"),
+                error=d.get("error", ""),
+            ))
+    return out
 
 
 def budget_total(results: Iterable[HeadResult]) -> int:
@@ -252,13 +319,20 @@ class AwsCliClient:
         proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
             [self.aws, "s3api", "head-object", "--bucket", self.bucket, "--key", key,
              "--no-sign-request", "--output", "json"],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=False,
         )
+        if proc.returncode != 0:
+            # Surface the AWS CLI's own reason (e.g. "An error occurred (404) when calling
+            # the HeadObject operation: Not Found") instead of CalledProcessError's argv dump,
+            # which is uninformative and would embed the private SHA in the error text.
+            raise S3CommandError(proc.returncode, _aws_stderr_reason(proc.stderr))
         return parse_head_object_json(proc.stdout)
 
     def download(self, key: str, dest: Path) -> None:
-        subprocess.run(  # noqa: S603 - fixed argv, no shell
+        proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
             [self.aws, "s3", "cp", f"s3://{self.bucket}/{key}", str(dest),
              "--no-sign-request", "--only-show-errors"],
-            check=True,
+            capture_output=True, text=True, check=False,
         )
+        if proc.returncode != 0:
+            raise S3CommandError(proc.returncode, _aws_stderr_reason(proc.stderr))

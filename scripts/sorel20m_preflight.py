@@ -11,7 +11,6 @@ session.
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 from pathlib import Path
 
@@ -21,7 +20,9 @@ from ua_sahi_mal.sorel.acquire import (  # noqa: E402
     AwsCliClient,
     AwsCliNotFoundError,
     budget_total,
+    error_bucket,
     preflight,
+    write_preflight_csv,
 )
 from ua_sahi_mal.sorel.paths import assert_isolated_output  # noqa: E402
 
@@ -70,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         # SHA-free summary of failure causes (G0-S): reason -> count
         reasons: dict[str, int] = {}
         for r in bad:
-            key = r.error.split(":", 1)[0] if r.error else "unknown"
+            key = error_bucket(r.error)
             reasons[key] = reasons.get(key, 0) + 1
         for reason, n in sorted(reasons.items(), key=lambda kv: -kv[1]):
             print(f"FAIL x{n}: {reason}")
@@ -83,11 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if ns.out_csv:
         out = assert_isolated_output(ns.out_csv, kind="preflight CSV")
-        with open(out, "w", newline="", encoding="utf-8") as fh:
-            w = csv.writer(fh)
-            w.writerow(["sha256", "ok", "content_length", "etag", "error"])
-            for r in results:
-                w.writerow([r.sha256, int(r.ok), r.content_length, r.etag, r.error])
+        write_preflight_csv(out, results)
         print(f"preflight csv: {out}")
     return 0 if not bad else 1
 

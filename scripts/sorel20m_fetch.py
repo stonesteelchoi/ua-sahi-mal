@@ -27,7 +27,9 @@ from ua_sahi_mal.sorel.acquire import (  # noqa: E402
     assert_within_budget,
     fetch,
     preflight,
+    read_preflight_csv,
 )
+from ua_sahi_mal.sorel.manifest import read_manifest, write_manifest  # noqa: E402
 from ua_sahi_mal.sorel.record import build_run_record, write_run_record  # noqa: E402
 
 
@@ -52,6 +54,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--bucket", default="sorel-20m")
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--aws-bin", default="aws", help="AWS CLI executable (name on PATH or full path)")
+    p.add_argument("--manifest", default=None,
+                   help="private (effective) manifest CSV to update in place with s3_etag/content_length/"
+                        "download_status/stored_artifact_sha256/zlib_status")
+    p.add_argument("--preflight-csv", default=None,
+                   help="reuse HEAD results from sorel20m_preflight --out-csv instead of re-HEADing "
+                        "(only shas present and ok in the CSV are fetched; others are skipped as not-preflighted)")
     p.add_argument("--verbose", action="store_true",
                    help="print one line per SHA (default: SHA-free summary; details in the manifest/record)")
     return p.parse_args(argv)
@@ -71,7 +79,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    heads = preflight(shas, client)
+    if ns.preflight_csv:
+        by_sha = {h.sha256: h for h in read_preflight_csv(ns.preflight_csv)}
+        missing = [s_ for s_ in shas if s_ not in by_sha]
+        if missing:
+            print(f"error: {len(missing)} sha(s) in --sha-list are absent from --preflight-csv; "
+                  "re-run preflight on this list first", file=sys.stderr)
+            return 3
+        heads = [by_sha[s_] for s_ in shas]
+    else:
+        heads = preflight(shas, client)
     max_bytes = int(ns.budget_mb * 1024 * 1024)
     try:
         total = assert_within_budget([h for h in heads if h.ok], max_bytes=max_bytes)
@@ -85,6 +102,22 @@ def main(argv: list[str] | None = None) -> int:
                     preflighted=heads, overwrite=ns.overwrite)
 
     ok = sum(1 for r in results if r.download_status in ("ok", "skipped:exists"))
+
+    if ns.manifest:
+        head_by = {h.sha256: h for h in heads}
+        res_by = {r.sha256: r for r in results}
+        rows = read_manifest(ns.manifest)
+        for row in rows:
+            r = res_by.get(row.sorel_original_sha256)
+            if r is None:
+                continue
+            h = head_by.get(row.sorel_original_sha256)
+            row.s3_etag = h.etag if h and h.ok else row.s3_etag
+            row.content_length = r.content_length or row.content_length
+            row.download_status = r.download_status
+            row.stored_artifact_sha256 = r.stored_artifact_sha256 or row.stored_artifact_sha256
+            row.zlib_status = r.zlib_status
+        write_manifest(ns.manifest, rows)
 
     # Acquisition provenance record (amendment §9): access time, Terms revision, code
     # commit, budget, per-status counts. Hashes/paths/counts only; no binary content.
