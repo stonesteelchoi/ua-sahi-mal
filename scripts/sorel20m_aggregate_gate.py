@@ -38,6 +38,11 @@ def _load_results(path: str) -> list[StaticResult]:
             is_pe32_plus=d.get("is_pe32_plus"),
             n_sections=d.get("n_sections"),
             overlay_bytes=d.get("overlay_bytes"),
+            roundtrip_points=int(d.get("roundtrip_points") or 0),
+            roundtrip_errors=int(d.get("roundtrip_errors") or 0),
+            pixel_roundtrip_points=int(d.get("pixel_roundtrip_points") or 0),
+            pixel_roundtrip_errors=int(d.get("pixel_roundtrip_errors") or 0),
+            independent_raw_agreement=d.get("independent_raw_agreement"),
             exclusion_reason=d.get("exclusion_reason", ""),
         ))
     return out
