@@ -74,3 +74,32 @@ def test_empty_results():
     assert s["n"] == 0
     assert s["coverage_mean"] is None
     assert s["disarm_ok_rate"] == 0.0
+
+
+def test_aggregate_e1_gate_and_distributions():
+    rs = [
+        StaticResult(sorel_original_sha256="a" * 64, decompressed_size=1000, disarm_ok=True,
+                     peatlas_status="ok", coverage_ok_fraction=0.9, status_histogram={"ok": 900, "overlay": 100},
+                     overlay_bytes=100, roundtrip_points=30, roundtrip_errors=0,
+                     pixel_roundtrip_points=60, pixel_roundtrip_errors=0,
+                     independent_parser_status="ok", independent_raw_agreement=True),
+        StaticResult(sorel_original_sha256="b" * 64, decompressed_size=4000, disarm_ok=True,
+                     peatlas_status="ok", coverage_ok_fraction=0.2, status_histogram={"ok": 800, "overlay": 3200},
+                     overlay_bytes=3200, roundtrip_points=12, roundtrip_errors=0,
+                     pixel_roundtrip_points=24, pixel_roundtrip_errors=0,
+                     independent_parser_status="mismatch:section_count ours=2 pefile=0",
+                     independent_raw_agreement=True),
+    ]
+    s = summarize(rs)
+    assert s["roundtrip_points"] == 42 and s["roundtrip_errors"] == 0
+    assert s["pixel_roundtrip_points"] == 84 and s["pixel_roundtrip_errors"] == 0
+    # strict agreement 1/2, mapping-relevant agreement 2/2
+    assert s["independent_agree_rate"] == pytest.approx(0.5)
+    assert s["independent_raw_agreement_rate"] == pytest.approx(1.0)
+    # byte-weighted coverage = (900+800)/5000
+    assert s["total_decompressed_bytes"] == 5000
+    assert s["coverage_byte_weighted"] == pytest.approx(0.34)
+    assert s["coverage_quantiles"]["p50"] in (0.2, 0.9)
+    assert s["overlay_dominant_count"] == 1
+    assert s["overlay_share_quantiles"]["p90"] == pytest.approx(0.8)
+    assert_no_sample_link(s)

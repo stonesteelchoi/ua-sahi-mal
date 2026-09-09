@@ -137,6 +137,37 @@ the *original* SHA-256; because disarming zeroes `Machine` and `Subsystem`, the
 disarmed binary's own hash differs from the S3 key. Decompression and any parsing
 happen only later, in an approved static-only isolated environment.
 
+## Step 4 — Static-only analysis (E1) and the disagreement ledger
+
+`scripts/sorel20m_static_stage.py --static-only` is the only place an artefact is
+decompressed — in memory, never to disk. Per file it records: disarming intact
+(Machine/Subsystem == 0, otherwise refused), PEAtlas parse status, the MapStatus byte
+histogram over [0, file_size), **round-trip errors** (offset->RVA->offset and
+offset->VA->offset at sampled points of every OK/HEADERS segment — the E1 primary gate,
+must be 0), offset<->pixel round trips for raw-rgb / word16-rgb, PE32/PE32+, section
+count, overlay bytes, and two cross-parser results against pefile: the strict section
+list comparison (`independent_parser_status`) and the mapping-relevant comparison of
+(raw_offset, raw_size) for sections with raw data (`independent_raw_agreement`).
+
+Every strict disagreement is explained, not dropped:
+
+```
+python scripts/sorel20m_ledger.py --results <prefix>_static_results.json \
+  --compressed-dir <isolated>\compressed --out-prefix <prefix> --static-only
+```
+
+rebuilds both parsers' structural views and classifies each case
+(`section_count:null_headers`, `section_count:pefile_truncated`, `section_fields`,
+`pefile_error`, `peatlas_error`). The ledger JSON (private, isolated) carries the SHA and
+header fields; the console prints SHA-free case lines and category counts.
+
+`scripts/sorel20m_aggregate_gate.py` then reports, SHA-free: rates for decompress /
+disarm / parse / strict and raw cross-parser agreement, round-trip totals, per-file
+coverage mean/median/quantiles, **byte-weighted coverage**, the MapStatus byte histogram,
+per-file overlay-share quantiles and the number of overlay-dominant files, and
+PE32/PE32+ / section / overlay strata. Reports stay `INTERNAL_ONLY` until the Terms
+§2(c) clarification arrives.
+
 ## Hashes recorded in the manifest
 
 - `sorel_original_sha256` — the S3 key / original hash (from `meta.db`).

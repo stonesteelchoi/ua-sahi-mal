@@ -74,3 +74,60 @@ def test_post_download_strata_recorded():
     assert r.is_pe32_plus is False
     assert r.n_sections == 1
     assert r.overlay_bytes == 64
+
+
+def test_roundtrip_gate_zero_errors_on_real_layout():
+    """E1 primary gate: sampled offsets in every OK/HEADERS segment round-trip exactly."""
+    pe = build_pe(sections=[_section()], disarm=True, overlay=b"\x11" * 300)
+    r = analyze_bytes(zlib.compress(pe), sha256="d" * 64, static_only=True)
+    assert r.peatlas_status == "ok"
+    assert r.roundtrip_points > 0
+    assert r.roundtrip_errors == 0
+    # pixel round trips for raw-rgb and word16-rgb on the same sample points
+    assert r.pixel_roundtrip_points > 0
+    assert r.pixel_roundtrip_errors == 0
+
+
+def test_raw_agreement_true_when_sections_match():
+    pytest.importorskip("pefile")
+    pe = build_pe(sections=[_section()], disarm=True)
+    r = analyze_bytes(zlib.compress(pe), sha256="e" * 64, static_only=True)
+    assert r.independent_parser_status == "ok"
+    assert r.independent_raw_agreement is True
+
+
+def test_null_section_headers_disagreement_is_classified():
+    """NumberOfSections declared but headers all zero: pefile reports 0 sections, PEAtlas
+    keeps raw-less sections. Strict status disagrees, mapping-relevant view agrees, and the
+    ledger classifies it as section_count:null_headers."""
+    pefile = pytest.importorskip("pefile")
+    import struct
+
+    from ua_sahi_mal.sorel.ledger import build_ledger_entry
+
+    pe = bytearray(build_pe(sections=[_section()], disarm=True))
+    e = struct.unpack_from("<I", pe, 0x3C)[0]
+    coff = e + 4
+    size_opt = struct.unpack_from("<H", pe, coff + 16)[0]
+    table = coff + 20 + size_opt
+    struct.pack_into("<H", pe, coff + 2, 2)             # declare 2 sections
+    pe[table:table + 80] = b"\x00" * 80                  # ...but zero both headers
+    data = bytes(pe)
+    # sanity: pefile really reports 0 sections for this shape
+    p = pefile.PE(data=data, fast_load=True)
+    try:
+        assert len(p.sections) == 0
+    finally:
+        p.close()
+
+    r = analyze_bytes(zlib.compress(data), sha256="f" * 64, static_only=True)
+    assert r.independent_parser_status.startswith("mismatch:section_count ours=2 pefile=0")
+    assert r.independent_raw_agreement is True          # no raw data either way
+
+    entry = build_ledger_entry(zlib.compress(data), sha256="f" * 64, case_id="case-01",
+                               strict_status=r.independent_parser_status, static_only=True)
+    assert entry.category == "section_count:null_headers"
+    assert entry.peatlas["n_sections"] == 2 and entry.pefile["n_sections"] == 0
+    assert entry.peatlas["section_table_all_null"] is True
+    assert entry.raw_agreement is True
+    assert "case-01" in entry.public_summary() and "f" * 64 not in entry.public_summary()

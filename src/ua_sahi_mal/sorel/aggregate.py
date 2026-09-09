@@ -50,6 +50,18 @@ def _rate(num: int, den: int) -> float:
     return (num / den) if den else 0.0
 
 
+def _quantiles(values: list[float]) -> dict[str, float] | None:
+    """p10/p25/p50/p75/p90 by nearest-rank on the sorted values (None if empty)."""
+    if not values:
+        return None
+    v = sorted(values)
+    n = len(v)
+    def q(p: float) -> float:
+        idx = min(n - 1, max(0, int(round(p * (n - 1)))))
+        return round(v[idx], 6)
+    return {"p10": q(0.10), "p25": q(0.25), "p50": q(0.50), "p75": q(0.75), "p90": q(0.90)}
+
+
 def summarize(results: Iterable[StaticResult]) -> dict[str, object]:
     """Compute aggregate-only metrics from static-stage results. No SHAs retained."""
     rs = list(results)
@@ -76,6 +88,24 @@ def summarize(results: Iterable[StaticResult]) -> dict[str, object]:
             key = r.exclusion_reason.split(":", 1)[0]
             excl[key] = excl.get(key, 0) + 1
 
+    # E1 primary gate + pixel round trips + mapping-relevant cross-parser agreement
+    rt_points = sum(r.roundtrip_points for r in rs)
+    rt_errors = sum(r.roundtrip_errors for r in rs)
+    px_points = sum(r.pixel_roundtrip_points for r in rs)
+    px_errors = sum(r.pixel_roundtrip_errors for r in rs)
+    raw_considered = [r for r in rs if r.independent_raw_agreement is not None]
+    raw_agree = sum(1 for r in raw_considered if r.independent_raw_agreement)
+
+    # coverage distribution (per-file) and byte-weighted coverage
+    cov_q = _quantiles(coverages)
+    total_bytes = sum(hist.values()) if hist else 0
+    ok_bytes = hist.get("ok", 0) + hist.get("headers", 0)
+    byte_weighted = round(ok_bytes / total_bytes, 6) if total_bytes else None
+    overlay_shares = [(r.overlay_bytes or 0) / r.decompressed_size
+                      for r in rs if r.decompressed_size > 0 and r.overlay_bytes is not None]
+    overlay_share_q = _quantiles(overlay_shares)
+    overlay_dominant = sum(1 for x in overlay_shares if x > 0.5)
+
     parsed = [r for r in rs if r.is_pe32_plus is not None]
     pe32_plus = sum(1 for r in parsed if r.is_pe32_plus)
     n_sections = sorted(r.n_sections for r in parsed if r.n_sections is not None)
@@ -90,6 +120,17 @@ def summarize(results: Iterable[StaticResult]) -> dict[str, object]:
         "independent_considered": len(indep_considered),
         "coverage_mean": cov_mean,
         "coverage_median": cov_median,
+        "coverage_quantiles": cov_q,
+        "coverage_byte_weighted": byte_weighted,
+        "total_decompressed_bytes": total_bytes,
+        "roundtrip_points": rt_points,
+        "roundtrip_errors": rt_errors,
+        "pixel_roundtrip_points": px_points,
+        "pixel_roundtrip_errors": px_errors,
+        "independent_raw_agreement_rate": round(_rate(raw_agree, len(raw_considered)), 6),
+        "independent_raw_considered": len(raw_considered),
+        "overlay_share_quantiles": overlay_share_q,
+        "overlay_dominant_count": overlay_dominant,   # files with overlay > 50% of bytes
         "status_histogram_bytes": hist,
         "exclusion_reasons": excl,
         # post-download strata (amendment §6.3) — counts/distributions only
