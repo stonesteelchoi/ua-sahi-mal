@@ -62,6 +62,10 @@ def main(argv: list[str] | None = None) -> int:
     results = _load_results(ns.results)
     report = build_report(results, authorization_ref=ns.publication_authorization)
     assert_no_sample_link(report)  # belt and braces
+    if report.get("independent_considered", 0) == 0:
+        print("WARNING: independent_considered == 0 — the pefile cross-check was skipped in the static "
+              "stage (pefile likely missing from that interpreter). Re-run static_stage in the venv.",
+              file=sys.stderr)
 
     out = assert_isolated_output(ns.out, kind="aggregate report")
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,0 +1,78 @@
+# SOREL-20M E2 사전등록 (E2_prereg_v1) — 결과 이전 동결.
+# 공개 범위: G0-S — 은니(silver) 증거 구간은 샘플연결 파생물이므로 INTERNAL_ONLY.
+# 설계 문서: claude/E2_사전등록_설계_2026-09-09.md
+version: E2_prereg_v1
+
+sample:
+  selection: selection_v1        # effective 300 (동결 primary 295 + reserve 대체 5)
+  n_effective: 300
+
+geometry:
+  # 타일 = 연속 tile_bytes 바이트 오프셋 구간. 픽셀 해석(raw-rgb·stride3·256px·64행)은
+  # 이미지 렌더 단계용 기록이며, 검색 평가는 바이트-구간 기반이라 tile_bytes만 사용.
+  projection: raw-rgb
+  stride_bytes: 3
+  width_px: 256
+  tile_rows: 64
+  tile_bytes: 49152              # = width_px * stride_bytes * tile_rows
+
+budgets: [0.02, 0.05, 0.10, 0.20, 0.50]
+primary_budget: 0.10
+
+selectors:
+  - random
+  - uniform
+  - front_first
+  - back_first
+  - entropy
+  - entropy_boundary
+  - oracle_silver                # 상한(공정한 방법 아님, 천장 보고용)
+
+random_seed: 20260909
+
+silver:
+  sources: [capa, embedded_artifact]   # YARA는 전체 E2로 이월
+  entropy_excluded_from_silver: true   # 순환성 회피: 엔트로피는 선택기 전용
+  capa:
+    enabled: true
+    backend: vivisect
+    scope: function
+    timeout_seconds: 300
+    version: PIN_AT_RUN                 # cau venv 실제 버전으로 기록
+  embedded_artifact:
+    kinds: [embedded_pe]
+    header_span_cap_bytes: 65536
+
+strata:
+  overlay_dominant:
+    field: overlay_share                # (file_size - overlay_offset) / file_size
+    threshold: 0.50
+
+metrics:
+  primary: coverage_at_budget           # (silver ∩ selected) / silver, at primary_budget
+  secondary: [byte_iou, interval_recall_50, evidence_hit_rate]
+  coverage_defined_on: files_with_silver
+  paired:
+    method: paired_bootstrap
+    iterations: 1000
+    seed: 20260909
+    effect_size: cohens_d_paired
+  multiple_comparison: holm_bonferroni
+
+gate:
+  # 파일럿 게이트: 최적 바이트-스코프 선택기(엔트로피 계열)가 양 층에서
+  # random·front_first를 쌍비교로 유의하게 상회. + overlay-dominant에서
+  # front_first를 이기면 E1 함의3(위치 prior 역전) 확증.
+  byte_scope_selectors: [entropy, entropy_boundary]
+  baselines: [random, front_first]
+  require_both_strata: true
+  overlay_dominant_beats_front_first: true
+  significance: difference_excludes_zero   # paired bootstrap 95% CI가 0 배제
+
+safety:
+  static_only: true
+  in_memory_decompress: true
+  no_persist_decompressed: true
+  isolated_output: true
+  console_sha_free: true
+  capa_note: "정적 디스어셈블 + vivisect 추상 에뮬레이션(OS 실행 아님, syscall/네트워크 없음)"

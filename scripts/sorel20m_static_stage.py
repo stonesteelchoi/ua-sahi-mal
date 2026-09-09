@@ -53,6 +53,15 @@ def main(argv: list[str] | None = None) -> int:
         print("error: refusing to decompress without --static-only", file=sys.stderr)
         return 2
 
+    if not ns.no_pefile:
+        print(f"python: {sys.executable}", file=sys.stderr)
+        try:
+            import pefile  # noqa: F401
+        except ImportError:
+            print("WARNING: pefile not importable in THIS interpreter -> the cross-check will be SKIPPED "
+                  "(independent_considered will be 0). Activate the venv that has pefile installed.",
+                  file=sys.stderr)
+
     shas = _read_shalist(ns.sha_list)
     results = analyze_dir(ns.compressed_dir, shas, static_only=True,
                           run_peatlas=not ns.no_peatlas, run_pefile=not ns.no_pefile)
