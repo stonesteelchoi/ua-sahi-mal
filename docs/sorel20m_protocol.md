@@ -21,6 +21,18 @@ the tooling only.
 | Public sample-linked derived intervals | **Not permitted** without written authorization. |
 | Aggregate publication results | Written clarification required — Terms §2(c) broadly restricts derivative works. |
 
+Decision log:
+
+- **2026-09-08** — G0-S determination recorded (table above).
+- **2026-09-09** — Written clarification of Terms §2(c) **requested; reply pending**.
+  Until it arrives, every aggregate report stays `INTERNAL_ONLY` and no SHA or
+  sample-linked interval is published. Internal research acquisition proceeds under
+  the Terms (permitted use).
+- **2026-09-09** — Binary Ninja **confirmed unobtainable**. DeepReflect faithful
+  reproduction is therefore an explicit exclusion (amendment §1.2/§10), not a gate;
+  the plan proceeds with the datasets that are available: SOREL-20M (Tier 2 silver)
+  and the Tier 1 synthetic generator.
+
 Consequences enforced by the tooling:
 
 - The selection SHA manifest (`*_manifest.csv`) and the SHA list
