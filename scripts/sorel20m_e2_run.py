@@ -42,7 +42,12 @@ def _read_shalist(path: str) -> list[str]:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--compressed-dir", required=True, help="isolated dir with <sha>.zlib files")
-    p.add_argument("--sha-list", required=True, help="effective_sha256.txt (selection_v1 effective 300)")
+    p.add_argument("--sha-list", default=None, help="effective_sha256.txt (one SHA per line)")
+    p.add_argument("--manifest", default=None, help="alternative to --sha-list: effective manifest CSV ...")
+    p.add_argument("--split", default=None, choices=["train", "validation", "test"],
+                   help="... with the official split to take from it (E2 v3)")
+    p.add_argument("--learned-scores", default=None,
+                   help="E2 v3: JSON from sorel20m_e2_score.py; adds learned selectors to the evaluation")
     p.add_argument("--out-prefix", required=True, help="isolated output prefix")
     p.add_argument("--static-only", action="store_true", help="affirm static-only isolated env (required)")
     p.add_argument("--config", default=str(_DEFAULT_CONFIG), help="frozen E2 config (default: E2_prereg_v2)")
@@ -77,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: config budgets {cfg['budgets']} != code {BUDGETS}", file=sys.stderr)
         return 2
     seed = int(cfg["random_seed"])
-    capa_timeout = int(cfg["silver"]["capa"]["timeout_seconds"])
+    capa_timeout = int(((cfg.get("silver") or {}).get("capa") or {}).get("timeout_seconds", 300))
 
     if ns.enable_capa:
         if not ns.capa_work_dir:
@@ -89,12 +94,30 @@ def main(argv: list[str] | None = None) -> int:
         print("WARNING: capa writes the (disarmed) sample to disk under the work dir to disassemble it. "
               "Run this ONLY in a dedicated isolated environment WITHOUT resident AV.", file=sys.stderr)
 
-    shas = _read_shalist(ns.sha_list)
+    if ns.sha_list:
+        shas = _read_shalist(ns.sha_list)
+    elif ns.manifest and ns.split:
+        from ua_sahi_mal.sorel.e2_dataset import shas_for_split
+
+        shas = shas_for_split(ns.manifest, ns.split)
+        print(f"{len(shas)} effective SHAs in split {ns.split!r}")
+    else:
+        print("error: pass --sha-list, or --manifest together with --split", file=sys.stderr)
+        return 2
+
+    extra_scores_by_sha = None
+    if ns.learned_scores:
+        payload = json.loads(Path(ns.learned_scores).read_text(encoding="utf-8"))
+        extra_scores_by_sha = payload.get("scores") or {}
+        print(f"learned selectors: {payload.get('selectors')} for {len(extra_scores_by_sha)} files "
+              f"(prereg {payload.get('prereg_version')})")
+
     results = process_dir(
         ns.compressed_dir, shas, static_only=True,
         enable_capa=ns.enable_capa, enable_yara=ns.enable_yara,
         capa_timeout=capa_timeout, capa_rules_path=ns.capa_rules, capa_work_dir=ns.capa_work_dir,
         capa_version=ns.capa_version, yara_rules_path=ns.yara_rules, seed=seed,
+        extra_scores_by_sha=extra_scores_by_sha,
     )
 
     results_path = assert_isolated_output(f"{ns.out_prefix}_e2_results.json", kind="e2 results")
@@ -113,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         "capa_version": ns.capa_version,
         "capa_rules": ns.capa_rules,
         "capa_work_dir": ns.capa_work_dir,
+        "split": ns.split,
+        "learned_scores": ns.learned_scores,
         "n_shas": len(shas),
         "tile_bytes": TILE_BYTES,
         "primary_budget": PRIMARY_BUDGET,
@@ -147,12 +172,17 @@ def _print_summary(results, *, verbose: bool) -> None:
         print(f"  {source.replace('_status', '')} status:", {k: v for k, v in sorted(counts.items())})
 
     budget_key = f"{PRIMARY_BUDGET:.2f}"
+    learned = sorted({n for r in ok for n in r.evaluation.get("selectors", {})
+                      if n not in ("random", "uniform", "front_first", "back_first", "entropy",
+                                   "entropy_boundary", "oracle_silver")})
+    preview_names = ("front_first", "entropy_boundary", "random", *learned)
     for stratum in ("overlay_dominant", "non_dominant"):
         files = [r for r in ok if r.stratum == stratum]
         with_silver = [r for r in files if r.evaluation.get("has_silver")]
         preview = {}
-        for name in ("entropy", "front_first", "random"):
-            vals = [r.evaluation["selectors"][name][budget_key]["coverage"] for r in with_silver]
+        for name in preview_names:
+            vals = [r.evaluation["selectors"][name][budget_key]["coverage"] for r in with_silver
+                    if budget_key in (r.evaluation["selectors"].get(name) or {})]
             preview[name] = round(sum(vals) / len(vals), 3) if vals else None
         print(f"  {stratum:16s} n={len(files):3d} with_silver={len(with_silver):3d}  "
               f"coverage@{budget_key} {preview}")

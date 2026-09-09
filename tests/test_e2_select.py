@@ -47,3 +47,16 @@ def test_selectors_pick_exactly_k():
         idx = select_tiles(name, n_tiles=n, k=k, entropy=entropy, silver_tile_bytes=silver_tile_bytes, seed=1)
         assert idx.size == k, name
         assert np.all(np.diff(idx) > 0)  # sorted, distinct
+
+
+def test_extra_scores_inject_learned_selector_and_record_mismatch():
+    byte_count = 10 * TILE_BYTES
+    silver = [(9 * TILE_BYTES, 9 * TILE_BYTES + 1000)]          # silver in the last tile
+    learned = np.zeros(10)
+    learned[9] = 5.0                                              # a "learned" scorer that found it
+    bad = np.ones(7)                                              # wrong length -> recorded, not fatal
+    res = evaluate_file(byte_count, silver, np.zeros(10), seed=1,
+                        extra_scores={"attr_x": learned, "broken": bad})
+    assert res["selectors"]["attr_x"]["0.10"]["coverage"] == 1.0
+    assert "error" in res["selectors"]["broken"]
+    assert res["selectors"]["front_first"]["0.10"]["coverage"] == 0.0   # baselines untouched

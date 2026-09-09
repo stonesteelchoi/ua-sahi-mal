@@ -59,11 +59,21 @@ def select_tiles(
     entropy: np.ndarray | None = None,
     silver_tile_bytes: np.ndarray | None = None,
     seed: int = 0,
+    extra_scores: dict[str, np.ndarray] | None = None,
 ) -> np.ndarray:
-    """Selected tile indices (sorted) for one selector at budget size ``k``."""
+    """Selected tile indices (sorted) for one selector at budget size ``k``.
+
+    ``extra_scores`` maps additional selector names (e.g. the E2 v3 learned
+    selectors) to precomputed per-tile score arrays; higher scores are selected first.
+    """
     if k <= 0 or n_tiles <= 0:
         return np.zeros(0, dtype=np.int64)
     k = min(k, n_tiles)
+    if extra_scores is not None and name in extra_scores:
+        scores = np.asarray(extra_scores[name], dtype=np.float64)
+        if scores.shape != (n_tiles,):
+            raise ValueError(f"scores for {name!r} have shape {scores.shape}, expected ({n_tiles},)")
+        return top_k_indices(scores, k)
     if name == "random":
         rng = np.random.default_rng([seed, n_tiles])
         return np.sort(rng.choice(n_tiles, size=k, replace=False))
@@ -153,28 +163,35 @@ def evaluate_file(
     geom: Geometry = DEFAULT_GEOMETRY,
     budgets: tuple[float, ...] = BUDGETS,
     seed: int = 0,
+    extra_scores: dict[str, np.ndarray] | None = None,
 ) -> dict[str, object]:
     """All selectors x budgets for one file. Coverage is defined only when the
     file has silver mass; ``has_silver=False`` files are reported but excluded
-    from coverage aggregation downstream."""
+    from coverage aggregation downstream. ``extra_scores`` adds learned selectors
+    (precomputed per-tile scores); a score vector of the wrong length is recorded
+    as ``{"error": ...}`` for that selector instead of aborting the file."""
     tile_ranges = geom.tile_ranges(byte_count)
     n_tiles = int(len(tile_ranges))
     tile_lengths = (tile_ranges[:, 1] - tile_ranges[:, 0]).astype(np.int64)
     per_tile_silver, per_interval = _silver_tile_layout(silver_intervals, geom, n_tiles)
     silver_bytes = int(per_tile_silver.sum())
 
-    results: dict[str, dict[str, dict[str, float | bool | int]]] = {}
-    for name in SELECTOR_NAMES:
-        by_budget: dict[str, dict[str, float | bool | int]] = {}
-        for budget in budgets:
-            k = budget_size(n_tiles, budget)
-            selected = select_tiles(
-                name, n_tiles=n_tiles, k=k, entropy=entropy,
-                silver_tile_bytes=per_tile_silver, seed=seed,
-            )
-            by_budget[f"{budget:.2f}"] = _selection_metrics(
-                selected, per_tile_silver, per_interval, tile_lengths, silver_bytes
-            )
+    names: tuple[str, ...] = SELECTOR_NAMES + tuple(n for n in (extra_scores or {}) if n not in SELECTOR_NAMES)
+    results: dict[str, dict[str, object]] = {}
+    for name in names:
+        by_budget: dict[str, object] = {}
+        try:
+            for budget in budgets:
+                k = budget_size(n_tiles, budget)
+                selected = select_tiles(
+                    name, n_tiles=n_tiles, k=k, entropy=entropy,
+                    silver_tile_bytes=per_tile_silver, seed=seed, extra_scores=extra_scores,
+                )
+                by_budget[f"{budget:.2f}"] = _selection_metrics(
+                    selected, per_tile_silver, per_interval, tile_lengths, silver_bytes
+                )
+        except ValueError as exc:  # e.g. learned score length mismatch
+            by_budget = {"error": str(exc)}
         results[name] = by_budget
     return {
         "n_tiles": n_tiles,

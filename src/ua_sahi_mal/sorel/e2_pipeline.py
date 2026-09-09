@@ -139,8 +139,10 @@ def process_compressed(
     seed: int = 0,
     overlay_threshold: float = OVERLAY_DOMINANT_THRESHOLD,
     capa_runner=None,
+    extra_scores: dict[str, np.ndarray] | None = None,
 ) -> E2FileResult:
-    """Static-only E2 analysis of one zlib artefact (in memory)."""
+    """Static-only E2 analysis of one zlib artefact (in memory). ``extra_scores``
+    (E2 v3) adds precomputed learned per-tile scores as additional selectors."""
     if not static_only:
         raise StaticOnlyNotAcknowledgedError(
             "refusing to decompress without static_only=True; run only in an isolated static context"
@@ -182,7 +184,8 @@ def process_compressed(
 
         entropy = per_tile_entropy(np.frombuffer(data, dtype=np.uint8), geom)
         result.evaluation = evaluate_file(
-            result.file_size, silver.union_intervals, entropy, geom=geom, budgets=budgets, seed=seed
+            result.file_size, silver.union_intervals, entropy, geom=geom, budgets=budgets, seed=seed,
+            extra_scores=extra_scores,
         )
         result.ok = True
         return result
@@ -195,10 +198,12 @@ def process_dir(
     shas: Iterable[str],
     *,
     static_only: bool,
-    enable_capa: bool,
+    enable_capa: bool = False,
+    extra_scores_by_sha: dict[str, dict[str, object]] | None = None,
     **kwargs,
 ) -> list[E2FileResult]:
-    """Process ``<sha>.zlib`` files under an isolated directory."""
+    """Process ``<sha>.zlib`` files under an isolated directory. ``extra_scores_by_sha``
+    (E2 v3) maps sha -> {selector_name: per-tile scores} produced by the scoring step."""
     root = assert_isolated_binary_dir(compressed_dir)
     out: list[E2FileResult] = []
     for sha in shas:
@@ -207,8 +212,12 @@ def process_dir(
             res = E2FileResult(sorel_original_sha256=sha, exclusion_reason="missing:zlib_not_found")
             out.append(res)
             continue
+        extra = None
+        if extra_scores_by_sha is not None and sha in extra_scores_by_sha:
+            extra = {name: np.asarray(v, dtype=np.float64) for name, v in extra_scores_by_sha[sha].items()}
         res = process_compressed(
-            path.read_bytes(), sha256=sha, static_only=static_only, enable_capa=enable_capa, **kwargs
+            path.read_bytes(), sha256=sha, static_only=static_only, enable_capa=enable_capa,
+            extra_scores=extra, **kwargs
         )
         out.append(res)
     return out
