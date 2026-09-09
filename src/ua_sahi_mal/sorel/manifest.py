@@ -11,7 +11,7 @@ import csv
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-from .select import SplitSelection
+from .select import TAGS, SplitSelection
 
 
 @dataclass
@@ -20,10 +20,13 @@ class ManifestRow:
     sorel_original_sha256: str
     official_split: str
     first_seen_timestamp: float
-    tags: str                 # ";"-joined tag names ("" if none)
+    tags: str                 # ";"-joined tag names with non-zero count ("" if none)
     detection_count: int
     selection_seed: str
     selection_role: str       # "primary" | "reserve"
+    # raw per-tag count values preserved alongside the binarised ``tags`` view
+    # (amendment §6.3), e.g. "adware=3;packed=1" (non-zero tags only; "" if none)
+    tag_counts: str = ""
     # acquisition (filled by acquire.py; empty until then)
     stored_artifact_sha256: str = ""   # sha256 of the on-disk .zlib as stored (compressed)
     disarmed_local_sha256: str = ""    # sha256 of the DECOMPRESSED disarmed binary; only
@@ -42,7 +45,22 @@ class ManifestRow:
 FIELDNAMES = [f.name for f in fields(ManifestRow)]
 
 
-def rows_from_selection(selection: dict[str, SplitSelection], *, seed: str) -> list[ManifestRow]:
+def format_tag_counts(tags: tuple[str, ...], counts: tuple[int, ...],
+                      tag_names: tuple[str, ...] = TAGS) -> str:
+    """Render raw per-tag counts as "name=count;..." for tags with a non-zero count.
+
+    ``counts`` is aligned with ``tag_names`` (the order passed to read_candidates); the
+    binarised ``tags`` tuple is used only to keep output limited to present tags.
+    """
+    if not counts:
+        return ""
+    present = set(tags)
+    parts = [f"{n}={v}" for n, v in zip(tag_names, counts, strict=False) if v and n in present]
+    return ";".join(parts)
+
+
+def rows_from_selection(selection: dict[str, SplitSelection], *, seed: str,
+                        tag_names: tuple[str, ...] = TAGS) -> list[ManifestRow]:
     rows: list[ManifestRow] = []
     for split in ("train", "validation", "test"):
         sel = selection.get(split)
@@ -56,6 +74,7 @@ def rows_from_selection(selection: dict[str, SplitSelection], *, seed: str) -> l
                     first_seen_timestamp=c.first_seen_t,
                     tags=";".join(c.tags),
                     detection_count=c.detection_count,
+                    tag_counts=format_tag_counts(c.tags, c.tag_counts, tag_names),
                     selection_seed=seed,
                     selection_role=role,
                 ))
@@ -80,6 +99,7 @@ def read_manifest(path: str | Path) -> list[ManifestRow]:
                 first_seen_timestamp=float(d["first_seen_timestamp"]),
                 tags=d.get("tags", ""),
                 detection_count=int(d.get("detection_count") or 0),
+                tag_counts=d.get("tag_counts", ""),
                 selection_seed=d.get("selection_seed", ""),
                 selection_role=d.get("selection_role", ""),
                 stored_artifact_sha256=d.get("stored_artifact_sha256", ""),

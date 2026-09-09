@@ -176,3 +176,85 @@ def test_isolated_output_accepts_plain_path(iso_dir):
     d.mkdir()
     resolved = assert_isolated_output(d / "manifest.csv")
     assert resolved.name == "manifest.csv"
+
+
+def test_read_candidates_path_with_space(iso_dir):
+    """meta.db under a directory containing a space must open via a proper file URI."""
+    d = iso_dir / "data dir"
+    d.mkdir()
+    p = d / "meta.db"
+    _make_meta_db(str(p), n_per_split=3, benign=1)
+    cands = read_candidates(str(p))
+    assert len(cands) == 9
+
+
+# --------------------------------------------------------------------------- #
+# Preregistration fidelity (amendment §6.3, §9)
+# --------------------------------------------------------------------------- #
+def test_count_tertiles_and_strata_coverage(meta_db):
+    from ua_sahi_mal.sorel.select import COUNT_STRATA, count_stratum, count_tertiles
+
+    sel = select(meta_db, seed="seed-A", targets={"train": 20})
+    tr = sel["train"]
+    t1, t2 = tr.count_tertiles
+    assert tr.pool_size == 40
+    assert t1 <= t2
+    # every count stratum is represented among the picks (round-robin covers it)
+    covered = {count_stratum(c, (t1, t2)) for c in tr.selected}
+    assert covered == set(COUNT_STRATA)
+    # boundaries derive from the pool only (seed-independent)
+    pool_tertiles = count_tertiles([c for c in read_candidates(meta_db) if c.split == "train"])
+    assert pool_tertiles == (t1, t2)
+    sel_b = select(meta_db, seed="seed-B", targets={"train": 20})
+    assert sel_b["train"].count_tertiles == (t1, t2)
+
+
+def test_raw_tag_counts_preserved(meta_db):
+    cands = read_candidates(meta_db)
+    assert all(len(c.tag_counts) == len(TAGS) for c in cands)
+    # binarised tags == names with non-zero raw count
+    for c in cands:
+        assert c.tags == tuple(t for t, v in zip(TAGS, c.tag_counts, strict=True) if v)
+
+
+def test_manifest_tag_counts_roundtrip(tmp_path, meta_db):
+    from ua_sahi_mal.sorel.manifest import format_tag_counts
+
+    sel = select(meta_db, seed="seed-A", targets={"train": 10})
+    rows = rows_from_selection(sel, seed="seed-A")
+    # tagged rows carry name=count pairs; untagged rows carry ""
+    for r in rows:
+        if r.tags:
+            assert r.tag_counts and all("=" in part for part in r.tag_counts.split(";"))
+            names = {part.split("=")[0] for part in r.tag_counts.split(";")}
+            assert names == set(r.tags.split(";"))
+        else:
+            assert r.tag_counts == ""
+    out = tmp_path / "m.csv"
+    write_manifest(str(out), rows)
+    back = read_manifest(str(out))
+    assert [b.tag_counts for b in back] == [r.tag_counts for r in rows]
+    assert format_tag_counts(("adware", "packed"), (3, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0)) == "adware=3;packed=1"
+
+
+def test_run_record_written_isolated(iso_dir, meta_db):
+    from ua_sahi_mal.sorel.record import build_run_record, file_identity, write_run_record
+
+    rec = build_run_record("sorel_selection", seed="s", targets={"train": 1},
+                           meta_db=file_identity(meta_db))
+    assert rec["record_kind"] == "sorel_selection"
+    assert rec["timestamp_utc"].endswith("+00:00")
+    assert isinstance(rec["code_commit"], str) and rec["code_commit"]
+    assert rec["meta_db"]["size_bytes"] > 0
+    out = write_run_record(iso_dir / "sel_record.json", rec)
+    assert out.exists()
+    import json
+    assert json.loads(out.read_text(encoding="utf-8"))["seed"] == "s"
+
+
+def test_run_record_refuses_repo(iso_dir):
+    from ua_sahi_mal.sorel.record import build_run_record, write_run_record
+
+    (iso_dir / ".git").mkdir()
+    with pytest.raises(UnsafeOutputPathError):
+        write_run_record(iso_dir / "r.json", build_run_record("x"))

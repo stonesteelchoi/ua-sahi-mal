@@ -27,7 +27,7 @@
 
 ## 초안 상태
 
-초안은 결과를 `[TBD]`로 남긴 점, provenance tier를 합치지 않는 점, byte interval을 authoritative coordinate로 둔 점이 좋다. 그러나 현재 저장소에 없는 PEAtlas, gold corpus, DeepReflect adapter, analyst study를 이미 완성된 시스템처럼 서술하므로 **submission-ready가 아니다**.
+초안은 결과를 `[TBD]`로 남긴 점, provenance tier를 합치지 않는 점, byte interval을 authoritative coordinate로 둔 점이 좋다. 그러나 gold corpus, DeepReflect adapter, analyst study는 저장소에 없고(Binary Ninja 확보 불가 확정으로 DeepReflect 재현은 명시적 제외), PEAtlas는 저장소에 있으나(P1) 실제 PE 결과가 아직 없는데, 초안이 이들을 이미 완성된 시스템처럼 서술하므로 **submission-ready가 아니다**.
 
 검토용 PDF는 전체 23쪽을 렌더링해 확인했다. 내용은 읽을 수 있지만 7쪽 resource table의 열 겹침, 14쪽 dataset table의 과도한 단어 분할, 17–18쪽 결과/ablation table의 행·단어 분할이 있어 최종 venue template 이식 전에 표를 다시 설계해야 한다. 상세 판정은 [`reviews/PAPER_DRAFT_REVIEW_2026-09-04.md`](reviews/PAPER_DRAFT_REVIEW_2026-09-04.md)에 기록했다.
 

@@ -64,3 +64,13 @@ def test_disarm_preserves_coordinate_mapping():
     _, seg_d = d.map_offset_interval(0, len(disarmed))
     assert [(s.status, s.source.start, s.source.end) for s in seg_a] == \
            [(s.status, s.source.start, s.source.end) for s in seg_d]
+
+
+def test_post_download_strata_recorded():
+    """PE32/PE32+, section count and overlay size are recorded for parsed files."""
+    pe = build_pe(sections=[_section()], disarm=True, overlay=b"\xEE" * 64)
+    r = analyze_bytes(zlib.compress(pe), sha256="c" * 64, static_only=True)
+    assert r.peatlas_status == "ok"
+    assert r.is_pe32_plus is False
+    assert r.n_sections == 1
+    assert r.overlay_bytes == 64

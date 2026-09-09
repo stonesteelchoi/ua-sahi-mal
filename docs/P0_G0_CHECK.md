@@ -37,11 +37,13 @@ G1 passes when (a) every valid tested raw byte round-trips through PEAtlas,
 |---|---|---|
 | (a) valid bytes round-trip | **MET (synthetic suite)** | `tests/test_peatlas_atlas.py` round-trips offset↔rva↔va over mapped regions; `tests/test_peatlas_regressions.py` checks every successful point and interval segment across small malformed layouts; `tests/test_peatlas_intervals.py` verifies all subset pairs in the small integer-set oracle. |
 | (b) explicit failure states | **MET** | All non-mappable coordinates return a typed `MapStatus` (virtual-only, padding, overlay, certificate, truncated, unmapped, overlapping); no fabricated offsets. |
-| (c) independent parser/analyzer agreement, preregistered | **OPEN** | Current fixtures are self-authored synthetic PEs. Not yet cross-checked against an independent parser (pefile/LIEF) or a second analyzer, and the suite is not preregistered. |
+| (c) independent parser/analyzer agreement, preregistered | **OPEN (partial evidence)** | An independent-parser cross-check now exists: `tests/test_peatlas_disarmed.py::test_disarmed_cross_parser_agreement_pefile` compares PEAtlas section fields and sampled conversions against **pefile** (armed and SOREL-style disarmed fixtures), and `ua_sahi_mal.sorel.static_stage` cross-checks every parsed SOREL file against pefile. `pefile` is a dev dependency so CI runs it (it was previously `importorskip`'d and skipped). Still OPEN because the fixtures are self-authored synthetic PEs, no second *analyzer* is compared, and the suite is not preregistered on real PEs. The SOREL pilot (E1) is the planned real-PE cross-parser evidence. |
 
 **G1 verdict:** **PARTIALLY MET.** The coordinate-correctness core (round-trip +
-explicit failures + interval algebra) is implemented and green; the independent
-cross-parser agreement and preregistration remain before G1 can be declared.
+explicit failures + interval algebra) is implemented and green, and a pefile
+cross-parser check runs in CI on synthetic (armed + disarmed) fixtures. A
+preregistered real-PE suite (SOREL E1) and analyzer-level agreement remain before
+G1 can be declared.
 
 ## G2 — Gold feasibility (not started)
 
@@ -62,12 +64,15 @@ Requires ≥3 unrelated source projects, ≥2 build modes each, ≥200 adjudicat
 
 ## Next actions
 
-1. **User/institution input (blocking G0):** authorized raw-PE dataset + data
-   agreement; analyst reviewer availability; Binary Ninja license; approved
-   isolated malware environment for DeepReflect (P2B). (Asked separately.)
-2. **Independent-parser agreement (to close G1c):** add a cross-check of PEAtlas
-   against an independent PE parser on a small preregistered fixture set, and add
-   the parser/analyzer disagreement ledger (WP1).
+1. **User/institution input (G0):** raw-PE dataset = SOREL-20M under its Terms
+   (G0-S PARTIAL: internal research permitted; publication pending §2(c)
+   clarification — see `docs/sorel20m_protocol.md`). Analyst reviewers: not
+   secured (Tier 3 gold out of current scope). **Binary Ninja: confirmed
+   unobtainable (2026-09-09)** — DeepReflect faithful reproduction is an explicit
+   exclusion, not a gate (amendment §1.2/§10).
+2. **Independent-parser agreement (to close G1c):** the pefile cross-check is in
+   place and CI-enforced; remaining: run it on the preregistered SOREL pilot
+   (real PEs, E1) and add the parser/analyzer disagreement ledger (WP1).
 3. **Pixel projection (next task):** wire `ua_sahi_mal.encoding` pixel↔offset into
    PEAtlas behind the contract interface (not in this change).
 4. **DeepReflect adapter (P2B, separate env):** realize the `Provenance`/component
