@@ -95,6 +95,27 @@ python scripts/sorel20m_preflight.py \
 Each SHA is validated as `^[0-9a-f]{64}$`; malformed lines are reported, not
 fetched. The S3 key is `09-DEC-2020/binaries/<sha>`.
 
+## Step 2b — Deterministic replacement of preflight failures
+
+Objects can be absent from S3 (HEAD returns 404). The frozen selection is never
+edited; instead `scripts/sorel20m_replace.py` derives an *effective* sample:
+
+```
+python scripts/sorel20m_replace.py \
+  --manifest D:\datasets\sorel20m-private\selection_v1_manifest.csv \
+  --preflight-csv D:\datasets\sorel20m-private\selection_v1_preflight.csv \
+  --out-prefix D:\datasets\sorel20m-private\selection_v1 --stage preflight
+```
+
+Each failed effective row keeps its place with `exclusion_reason = preflight:<aws reason>`;
+the next unused **reserve of the same split, in frozen det-key order**, is promoted to
+`selection_role = replacement` with `replaces_sha256` set. Outputs are
+`*_manifest_effective.csv`, `*_effective_sha256.txt` and a SHA-free
+`*_replacement_record.json`. Promoted rows are not yet preflighted: re-run preflight
+on the effective list and, if anything fails, re-run replace (it is iterative and
+idempotent). Fetch then consumes the effective list and can reuse the passing
+preflight via `--preflight-csv` and update the effective manifest via `--manifest`.
+
 ## Step 3 — Gated fetch (kept zlib-compressed)
 
 `scripts/sorel20m_fetch.py` downloads into the isolated directory. Before any

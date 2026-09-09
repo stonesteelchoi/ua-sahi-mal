@@ -201,6 +201,9 @@ def test_awscli_head_object_uses_json_and_parses(monkeypatch):
         return _Proc()
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    # resolve_aws_binary() must not require a real aws on the test machine
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda name: "aws")
     client = AwsCliClient(bucket="sorel-20m", aws="aws")
     length, etag = client.head_object("09-DEC-2020/binaries/" + SHA_A)
     assert (length, etag) == (777, "deadbeef")
@@ -209,3 +212,52 @@ def test_awscli_head_object_uses_json_and_parses(monkeypatch):
     assert "--no-sign-request" in argv
     assert "--output" in argv and argv[argv.index("--output") + 1] == "json"
     assert "--query" not in argv  # the buggy JMESPath tab-join is gone
+
+
+def test_awscli_missing_binary_fails_early(monkeypatch):
+    """A missing aws executable must raise once, up front, with an actionable message."""
+    import shutil
+
+    from ua_sahi_mal.sorel.acquire import AwsCliClient, AwsCliNotFoundError
+
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    with pytest.raises(AwsCliNotFoundError, match="not found on PATH"):
+        AwsCliClient(bucket="sorel-20m", aws="aws")
+
+
+def test_awscli_full_path_binary_accepted(monkeypatch, iso_dir):
+    """--aws-bin with a full path is honoured when which() resolves it."""
+    import shutil
+
+    from ua_sahi_mal.sorel.acquire import AwsCliClient
+
+    fake = iso_dir / "aws.exe"
+    fake.write_bytes(b"")
+    monkeypatch.setattr(shutil, "which", lambda name: str(fake) if name == str(fake) else None)
+    client = AwsCliClient(bucket="sorel-20m", aws=str(fake))
+    assert client.aws == str(fake)
+
+
+def test_awscli_head_object_surfaces_cli_reason(monkeypatch):
+    """A non-zero aws exit must raise S3CommandError carrying the CLI's own (SHA-masked) reason."""
+    import shutil
+    import subprocess
+
+    from ua_sahi_mal.sorel.acquire import AwsCliClient, S3CommandError, preflight
+
+    class _Proc:
+        returncode = 254
+        stdout = ""
+        stderr = ("\nAn error occurred (404) when calling the HeadObject operation: Not Found\n")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "aws")
+    monkeypatch.setattr(subprocess, "run", lambda argv, **kw: _Proc())
+    client = AwsCliClient(bucket="sorel-20m")
+    with pytest.raises(S3CommandError) as ei:
+        client.head_object("09-DEC-2020/binaries/" + SHA_A)
+    assert ei.value.returncode == 254
+    assert "(404)" in ei.value.reason and "Not Found" in ei.value.reason
+    # through preflight the recorded error is SHA-free and informative
+    res = preflight([SHA_A], client)
+    assert not res[0].ok
+    assert "404" in res[0].error and SHA_A not in res[0].error

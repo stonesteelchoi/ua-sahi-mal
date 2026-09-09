@@ -11,13 +11,19 @@ session.
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ua_sahi_mal.sorel.acquire import AwsCliClient, budget_total, preflight  # noqa: E402
+from ua_sahi_mal.sorel.acquire import (  # noqa: E402
+    AwsCliClient,
+    AwsCliNotFoundError,
+    budget_total,
+    error_bucket,
+    preflight,
+    write_preflight_csv,
+)
 from ua_sahi_mal.sorel.paths import assert_isolated_output  # noqa: E402
 
 
@@ -33,13 +39,21 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--bucket", default="sorel-20m")
     p.add_argument("--budget-mb", type=float, default=None,
                    help="if set, warn when the total exceeds this many MB")
+    p.add_argument("--aws-bin", default="aws", help="AWS CLI executable (name on PATH or full path)")
+    p.add_argument("--verbose", action="store_true",
+                   help="print one line per SHA (default: summary only; per-SHA detail goes to --out-csv). "
+                        "G0-S: SHA lists are private — keep console output SHA-free unless needed.")
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     ns = _parse_args(argv)
     shas = _read_shalist(ns.sha_list)
-    client = AwsCliClient(bucket=ns.bucket)
+    try:
+        client = AwsCliClient(bucket=ns.bucket, aws=ns.aws_bin)
+    except AwsCliNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     results = preflight(shas, client)
 
     ok = [r for r in results if r.ok]
@@ -47,11 +61,20 @@ def main(argv: list[str] | None = None) -> int:
     total = budget_total(results)
     total_mb = total / (1024 * 1024)
 
-    for r in results:
-        if r.ok:
-            print(f"OK   {r.sha256}  {r.content_length:>10d}  {r.etag}")
-        else:
-            print(f"FAIL {r.sha256}  {r.error}")
+    if ns.verbose:
+        for r in results:
+            if r.ok:
+                print(f"OK   {r.sha256}  {r.content_length:>10d}  {r.etag}")
+            else:
+                print(f"FAIL {r.sha256}  {r.error}")
+    else:
+        # SHA-free summary of failure causes (G0-S): reason -> count
+        reasons: dict[str, int] = {}
+        for r in bad:
+            key = error_bucket(r.error)
+            reasons[key] = reasons.get(key, 0) + 1
+        for reason, n in sorted(reasons.items(), key=lambda kv: -kv[1]):
+            print(f"FAIL x{n}: {reason}")
 
     print(f"\nresolved {len(ok)}/{len(results)} objects; failed {len(bad)}")
     print(f"total budget: {total} bytes ({total_mb:.1f} MB)")
@@ -61,11 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if ns.out_csv:
         out = assert_isolated_output(ns.out_csv, kind="preflight CSV")
-        with open(out, "w", newline="", encoding="utf-8") as fh:
-            w = csv.writer(fh)
-            w.writerow(["sha256", "ok", "content_length", "etag", "error"])
-            for r in results:
-                w.writerow([r.sha256, int(r.ok), r.content_length, r.etag, r.error])
+        write_preflight_csv(out, results)
         print(f"preflight csv: {out}")
     return 0 if not bad else 1
 
