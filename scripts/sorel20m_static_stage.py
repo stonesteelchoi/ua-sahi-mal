@@ -42,6 +42,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="affirm an approved static-only isolated environment (required)")
     p.add_argument("--no-pefile", action="store_true", help="skip the pefile cross-check")
     p.add_argument("--no-peatlas", action="store_true", help="skip the peatlas coverage mapping")
+    p.add_argument("--verbose", action="store_true",
+                   help="print one line per SHA prefix (default: SHA-free summary; details in results JSON)")
     return p.parse_args(argv)
 
 
@@ -76,10 +78,18 @@ def main(argv: list[str] | None = None) -> int:
 
     ok = sum(1 for r in results if r.disarm_ok and r.peatlas_status in ("ok", "skipped:peatlas_unavailable"))
     armed = sum(1 for r in results if r.exclusion_reason.startswith("not_disarmed"))
-    for r in results:
-        cov = f"{r.coverage_ok_fraction:.4f}" if r.coverage_ok_fraction is not None else "n/a"
-        flag = r.exclusion_reason or r.peatlas_status or "ok"
-        print(f"{r.sorel_original_sha256[:12]}...  disarm={int(r.disarm_ok)}  cov={cov}  {flag}")
+    if ns.verbose:
+        for r in results:
+            cov = f"{r.coverage_ok_fraction:.4f}" if r.coverage_ok_fraction is not None else "n/a"
+            flag = r.exclusion_reason or r.peatlas_status or "ok"
+            print(f"{r.sorel_original_sha256[:12]}...  disarm={int(r.disarm_ok)}  cov={cov}  {flag}")
+    else:
+        flags: dict[str, int] = {}
+        for r in results:
+            key = (r.exclusion_reason or r.peatlas_status or "ok").split(":", 1)[0]
+            flags[key] = flags.get(key, 0) + 1
+        for key, n in sorted(flags.items(), key=lambda kv: -kv[1]):
+            print(f"{key:28s} x{n}")
     print(f"\nprocessed {len(results)}; disarm-intact analyses {ok}; armed/refused {armed}")
     print(f"results: {results_path}")
     if armed:

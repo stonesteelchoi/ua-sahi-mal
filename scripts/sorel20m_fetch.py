@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ua_sahi_mal.sorel.acquire import (  # noqa: E402
     AwsCliClient,
+    AwsCliNotFoundError,
     assert_within_budget,
     fetch,
     preflight,
@@ -50,6 +51,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="isolated prefix for the acquisition record JSON (default: <dest-dir>/../acquisition)")
     p.add_argument("--bucket", default="sorel-20m")
     p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--aws-bin", default="aws", help="AWS CLI executable (name on PATH or full path)")
+    p.add_argument("--verbose", action="store_true",
+                   help="print one line per SHA (default: SHA-free summary; details in the manifest/record)")
     return p.parse_args(argv)
 
 
@@ -61,7 +65,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     shas = _read_shalist(ns.sha_list)
-    client = AwsCliClient(bucket=ns.bucket)
+    try:
+        client = AwsCliClient(bucket=ns.bucket, aws=ns.aws_bin)
+    except AwsCliNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     heads = preflight(shas, client)
     max_bytes = int(ns.budget_mb * 1024 * 1024)
@@ -94,8 +102,12 @@ def main(argv: list[str] | None = None) -> int:
         kept_compressed=True, never_rearmed=True,
     )
     record_path = write_run_record(f"{rec_prefix}_record.json", record)
-    for r in results:
-        print(f"{r.download_status:16s} {r.sha256}  {r.dest}")
+    if ns.verbose:
+        for r in results:
+            print(f"{r.download_status:16s} {r.sha256}  {r.dest}")
+    else:
+        for key, n in sorted(status_counts.items(), key=lambda kv: -kv[1]):
+            print(f"{key:16s} x{n}")
     print(f"\nstored {ok}/{len(results)} artefacts (kept zlib-compressed) in {ns.dest_dir}")
     print(f"record: {record_path}")
     print("REMINDER: do not decompress or re-arm here; that is a later static-only step.")

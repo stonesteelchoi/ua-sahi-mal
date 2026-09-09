@@ -24,6 +24,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -35,6 +36,10 @@ from .paths import assert_isolated_binary_dir
 BUCKET = "sorel-20m"
 KEY_PREFIX = "09-DEC-2020/binaries"
 _SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+class AwsCliNotFoundError(RuntimeError):
+    """Raised when the AWS CLI executable cannot be resolved on PATH (or via --aws-bin)."""
 
 
 class TermsNotAcceptedError(RuntimeError):
@@ -197,6 +202,23 @@ def fetch(shas: Iterable[str], client: S3Client, dest_dir: str | Path, *,
 # --------------------------------------------------------------------------- #
 # Default client: AWS CLI, --no-sign-request. Only runs on the operator machine.
 # --------------------------------------------------------------------------- #
+def resolve_aws_binary(aws: str = "aws") -> str:
+    """Resolve the AWS CLI executable once, up front, with an actionable error.
+
+    Without this, a missing/unreachable ``aws`` surfaces as one identical
+    ``FileNotFoundError: [WinError 2]`` per SHA (300 times on the pilot) — e.g. when the
+    shell was opened before the CLI was installed and its PATH is stale.
+    """
+    found = shutil.which(aws)
+    if found is None:
+        raise AwsCliNotFoundError(
+            f"AWS CLI executable {aws!r} not found on PATH. Install AWS CLI v2, open a NEW shell "
+            "(or refresh PATH: $env:Path += ';C:\\Program Files\\Amazon\\AWSCLIV2'), or pass "
+            "--aws-bin with the full path to aws.exe."
+        )
+    return found
+
+
 def parse_head_object_json(stdout: str) -> tuple[int, str]:
     """Parse ``aws s3api head-object --output json`` into (content_length, etag).
 
@@ -221,7 +243,7 @@ class AwsCliClient:
 
     def __init__(self, bucket: str = BUCKET, *, aws: str = "aws") -> None:
         self.bucket = bucket
-        self.aws = aws
+        self.aws = resolve_aws_binary(aws)
 
     def head_object(self, key: str) -> tuple[int, str]:
         # Ask for JSON and parse it here rather than shaping output with a JMESPath

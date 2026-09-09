@@ -17,7 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ua_sahi_mal.sorel.acquire import AwsCliClient, budget_total, preflight  # noqa: E402
+from ua_sahi_mal.sorel.acquire import (  # noqa: E402
+    AwsCliClient,
+    AwsCliNotFoundError,
+    budget_total,
+    preflight,
+)
 from ua_sahi_mal.sorel.paths import assert_isolated_output  # noqa: E402
 
 
@@ -33,13 +38,21 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--bucket", default="sorel-20m")
     p.add_argument("--budget-mb", type=float, default=None,
                    help="if set, warn when the total exceeds this many MB")
+    p.add_argument("--aws-bin", default="aws", help="AWS CLI executable (name on PATH or full path)")
+    p.add_argument("--verbose", action="store_true",
+                   help="print one line per SHA (default: summary only; per-SHA detail goes to --out-csv). "
+                        "G0-S: SHA lists are private — keep console output SHA-free unless needed.")
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     ns = _parse_args(argv)
     shas = _read_shalist(ns.sha_list)
-    client = AwsCliClient(bucket=ns.bucket)
+    try:
+        client = AwsCliClient(bucket=ns.bucket, aws=ns.aws_bin)
+    except AwsCliNotFoundError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     results = preflight(shas, client)
 
     ok = [r for r in results if r.ok]
@@ -47,11 +60,20 @@ def main(argv: list[str] | None = None) -> int:
     total = budget_total(results)
     total_mb = total / (1024 * 1024)
 
-    for r in results:
-        if r.ok:
-            print(f"OK   {r.sha256}  {r.content_length:>10d}  {r.etag}")
-        else:
-            print(f"FAIL {r.sha256}  {r.error}")
+    if ns.verbose:
+        for r in results:
+            if r.ok:
+                print(f"OK   {r.sha256}  {r.content_length:>10d}  {r.etag}")
+            else:
+                print(f"FAIL {r.sha256}  {r.error}")
+    else:
+        # SHA-free summary of failure causes (G0-S): reason -> count
+        reasons: dict[str, int] = {}
+        for r in bad:
+            key = r.error.split(":", 1)[0] if r.error else "unknown"
+            reasons[key] = reasons.get(key, 0) + 1
+        for reason, n in sorted(reasons.items(), key=lambda kv: -kv[1]):
+            print(f"FAIL x{n}: {reason}")
 
     print(f"\nresolved {len(ok)}/{len(results)} objects; failed {len(bad)}")
     print(f"total budget: {total} bytes ({total_mb:.1f} MB)")
