@@ -23,16 +23,28 @@ Silver-evidence intervals are sample-linked derived data. Until written Terms
 
 ## Silver evidence (union per file)
 
-| Source | Scope | Overlay-valid | How |
-| --- | --- | --- | --- |
-| `embedded_artifact` | byte | yes | scan raw bytes for embedded PE images; claim the (exactly computable) header region |
-| `capa` | function | no | capability matches -> enclosing function RVA extent -> file offsets via the E1-verified `PeAtlas.map_component` |
+| Source | Scope | Overlay-valid | In-memory | How |
+| --- | --- | --- | --- | --- |
+| `embedded_artifact` | byte | yes | yes | scan raw bytes for embedded PE images; claim the (exactly computable) header region |
+| `yara` | byte | yes | yes | YARA rule string matches via `rules.match(data=...)` — no disk, no disassembly |
+| `capa` | function | no | **no (writes to disk)** | capability matches -> enclosing function RVA extent -> file offsets via the E1-verified `PeAtlas.map_component` |
 
 Entropy is **not** a silver source — it is a selector feature only — so the
-retrieval comparison is free of circularity. capa runs static disassembly +
-vivisect abstract emulation (no OS execution) in memory, with a hard per-file
-timeout; on any failure the run degrades to embedded-artifact silver and records
-the reason.
+retrieval comparison is free of circularity.
+
+**Environment split (v2).** `embedded_artifact` and `yara` scan the decompressed
+bytes purely in memory, so they run on the AV-monitored operator machine (cau).
+**capa does not**: its vivisect backend (`viv_utils.getWorkspaceFromBytes`)
+writes the decompressed sample to a temp file to build the workspace, which
+persists a disarmed-but-signature-intact sample to disk and trips resident AV
+(observed on cau: AhnLab quarantined it — see
+`claude/E2_capa_디스크persist_안전이슈`). The capa runner therefore **refuses
+without an isolated `--capa-work-dir`**, confines its temp writes to that dir, and
+must be run **only in a dedicated isolated environment without resident AV**.
+On any failure the run degrades to the other silver sources and records the
+reason. `E2_prereg_v2` (`configs/sorel20m_e2_v2.yaml`) is the cau pilot
+(silver = `embedded_artifact ∪ yara`); the capa arm runs `v1` in the isolated
+environment.
 
 ## Tiles, selectors, strata
 
@@ -59,13 +71,22 @@ selection), not hidden.
 
 ## Pipeline (operator, cau)
 
+cau pilot (in-memory silver — AV-safe):
+
 ```
 sorel20m_e2_run.py --compressed-dir <iso>/compressed --sha-list <iso>/..._effective_sha256.txt \
-    --out-prefix <iso>/e2 --static-only [--enable-capa --capa-rules <dir> --capa-version <v>]
+    --out-prefix <iso>/e2 --static-only [--enable-yara --yara-rules <dir>]
 sorel20m_e2_aggregate_gate.py --results <iso>/e2_e2_results.json --out <iso>/e2_report.json
 ```
 
-`--static-only` is required (in-memory decompress, never to disk). Per-file
-results (SHA-carrying) stay in the isolated path; the aggregate report is
-SHA-free and INTERNAL_ONLY. capa is opt-in: validate it on a few files first,
-then enable for the full effective-300 run.
+Isolated environment only (no resident AV) — the capa arm:
+
+```
+sorel20m_e2_run.py ... --static-only --enable-capa --capa-rules <dir> \
+    --capa-work-dir <iso>/capa_work --capa-version <v>
+```
+
+`--static-only` is required. `--enable-capa` is **refused without
+`--capa-work-dir`** and must never be run on cau (capa writes the sample to
+disk). Per-file results (SHA-carrying) stay in the isolated path; the aggregate
+report is SHA-free and INTERNAL_ONLY.

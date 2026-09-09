@@ -36,11 +36,23 @@ def test_process_compressed_capa_disabled():
 def test_process_compressed_capa_injected():
     comp = zlib.compress(_overlay_dominant_sample())
 
-    def runner(data, *, timeout, image_base):
+    def runner(data, *, timeout, image_base, work_dir=None):
         return [CapaMatch(rule="inject", fn_start_rva=0x1000, fn_end_rva=0x1080)]
 
     res = process_compressed(comp, sha256=_SHA, static_only=True, enable_capa=True, capa_runner=runner)
     assert res.silver["capa_status"] == "ok" and res.silver["capa_intervals"]
+
+
+def test_process_compressed_yara_injected():
+    comp = zlib.compress(_overlay_dominant_sample())
+
+    def matcher(data):
+        off = data.find(b"MZ", 1)          # the embedded PE's MZ, in the overlay
+        return [(off, 4, "mz_magic")] if off != -1 else []
+
+    res = process_compressed(comp, sha256=_SHA, static_only=True, enable_yara=True, yara_matcher=matcher)
+    assert res.silver["yara_status"] == "ok" and res.silver["yara_intervals"]
+    assert res.silver["capa_status"] == "disabled"
 
 
 def test_armed_sample_refused():

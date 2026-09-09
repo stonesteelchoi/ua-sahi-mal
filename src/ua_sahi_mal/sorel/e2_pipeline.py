@@ -36,24 +36,29 @@ OVERLAY_DOMINANT_THRESHOLD = 0.50
 # --------------------------------------------------------------------------
 
 
-def _capa_worker(queue, data: bytes, image_base: int, rules_path: str | None) -> None:  # pragma: no cover - child proc
+def _capa_worker(queue, data: bytes, image_base: int, rules_path: str | None,
+                 work_dir: str | None) -> None:  # pragma: no cover - child proc
     try:
-        matches = _default_capa_runner(data, timeout=0, image_base=image_base, rules_path=rules_path)
+        matches = _default_capa_runner(data, timeout=0, image_base=image_base,
+                                       rules_path=rules_path, work_dir=work_dir)
         queue.put(("ok", matches))
     except BaseException as exc:  # noqa: BLE001 - report everything to the parent
         queue.put(("err", f"{type(exc).__name__}: {exc}"))
 
 
-def make_capa_runner(*, timeout: int, rules_path: str | None = None):
+def make_capa_runner(*, timeout: int, rules_path: str | None = None, work_dir: str | None = None):
     """A capa runner that enforces ``timeout`` seconds per file by running the
-    (in-memory) capa analysis in a spawned process and terminating it on
-    overrun. Raises :class:`CapaUnavailable` on timeout or worker error, which
-    the pipeline records as a per-file capa status without failing the run."""
+    capa analysis in a spawned process and terminating it on overrun. capa writes
+    the sample to disk (vivisect backend), so it is confined to the isolated
+    ``work_dir`` and refuses without one. Raises :class:`CapaUnavailable` on
+    timeout/refusal/worker error, recorded as a per-file status without failing
+    the run."""
     context = mp.get_context("spawn")
 
-    def runner(data: bytes, *, timeout: int = timeout, image_base: int):  # noqa: A002
+    def runner(data: bytes, *, timeout: int = timeout, image_base: int,
+               work_dir: str | None = work_dir):  # noqa: A002
         queue = context.Queue()
-        process = context.Process(target=_capa_worker, args=(queue, data, image_base, rules_path))
+        process = context.Process(target=_capa_worker, args=(queue, data, image_base, rules_path, work_dir))
         process.start()
         process.join(timeout)
         if process.is_alive():  # pragma: no cover - timing dependent
@@ -93,20 +98,24 @@ class E2FileResult:
             return f"{case_id}: EXCLUDED {self.exclusion_reason}"
         silver_bytes = self.evaluation.get("silver_bytes", 0)
         capa = self.silver.get("capa_status", "?")
+        yara = self.silver.get("yara_status", "?")
         return (f"{case_id}: {self.stratum} pe32+={self.is_pe32_plus} "
                 f"overlay_share={self.overlay_share:.3f} silver_bytes={silver_bytes} "
-                f"embedded={self.silver.get('embedded_count', 0)} capa={capa}")
+                f"embedded={self.silver.get('embedded_count', 0)} yara={yara} capa={capa}")
 
 
 def _silver_public(silver) -> dict[str, object]:
     return {
         "embedded_count": silver.embedded_count,
+        "yara_status": silver.yara_status,
+        "yara_meta": silver.yara_meta,
         "capa_status": silver.capa_status,
         "capa_meta": silver.capa_meta,
         "silver_bytes": silver.silver_bytes,
         "n_union_regions": len(silver.union_intervals),
         # offsets are structural, sample-linked -> isolated record only
         "embedded_intervals": silver.embedded_intervals,
+        "yara_intervals": silver.yara_intervals,
         "capa_intervals": silver.capa_intervals,
         "union_intervals": silver.union_intervals,
     }
@@ -117,10 +126,14 @@ def process_compressed(
     *,
     sha256: str,
     static_only: bool,
-    enable_capa: bool,
+    enable_capa: bool = False,
+    enable_yara: bool = False,
     capa_timeout: int = 300,
     capa_rules_path: str | None = None,
+    capa_work_dir: str | None = None,
     capa_version: str = "",
+    yara_rules_path: str | None = None,
+    yara_matcher=None,
     geom: Geometry = DEFAULT_GEOMETRY,
     budgets: tuple[float, ...] = BUDGETS,
     seed: int = 0,
@@ -157,10 +170,13 @@ def process_compressed(
         result.stratum = "overlay_dominant" if result.overlay_share > overlay_threshold else "non_dominant"
 
         if enable_capa and capa_runner is None:
-            capa_runner = make_capa_runner(timeout=capa_timeout, rules_path=capa_rules_path)
+            capa_runner = make_capa_runner(timeout=capa_timeout, rules_path=capa_rules_path,
+                                           work_dir=capa_work_dir)
         silver = build_silver(
-            data, atlas, image_base=layout.image_base, enable_capa=enable_capa,
-            capa_timeout=capa_timeout, capa_version=capa_version, capa_runner=capa_runner,
+            data, atlas, image_base=layout.image_base,
+            enable_capa=enable_capa, enable_yara=enable_yara,
+            capa_timeout=capa_timeout, capa_work_dir=capa_work_dir, capa_version=capa_version,
+            capa_runner=capa_runner, yara_rules_path=yara_rules_path, yara_matcher=yara_matcher,
         )
         result.silver = _silver_public(silver)
 

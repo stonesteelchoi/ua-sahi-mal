@@ -1,0 +1,88 @@
+# SOREL-20M E2 사전등록 v2 (E2_prereg_v2) — 결과 이전 동결.
+# 공개 범위: G0-S — 은니(silver) 증거 구간은 샘플연결 파생물이므로 INTERNAL_ONLY.
+# 설계: claude/E2_사전등록_설계_2026-09-09.md
+#
+# v1(sorel20m_e2_v1.yaml)로부터의 개정 사유 (2026-09-09):
+#   capa의 vivisect 백엔드는 해제된 샘플을 디스크 임시파일로 쓴다 -> no_persist 위반 +
+#   cau 상주 AhnLab이 탐지·격리(claude/E2_capa_디스크persist_안전이슈 참조). 따라서
+#   cau(상주 AV) 파일럿의 은니 = embedded_artifact ∪ YARA(둘 다 순수 인메모리 바이트 스캔).
+#   capa 함수-스코프 은니는 별도의 격리 환경(상주 AV 없음)에서만 수행하며 그 실행은 v1 계약을 따른다.
+#   게이트 정의(바이트-스코프 선택기 vs 기준선, 양 층)는 v1과 동일 — 은니 타깃 집합만 바뀜.
+version: E2_prereg_v2
+
+sample:
+  selection: selection_v1        # effective 300 (동결 primary 295 + reserve 대체 5)
+  n_effective: 300
+
+geometry:
+  projection: raw-rgb
+  stride_bytes: 3
+  width_px: 256
+  tile_rows: 64
+  tile_bytes: 49152              # = width_px * stride_bytes * tile_rows
+
+budgets: [0.02, 0.05, 0.10, 0.20, 0.50]
+primary_budget: 0.10
+
+selectors:
+  - random
+  - uniform
+  - front_first
+  - back_first
+  - entropy
+  - entropy_boundary
+  - oracle_silver                # 상한(공정한 방법 아님, 천장 보고용)
+
+random_seed: 20260909
+
+silver:
+  # cau(상주 AV) 파일럿: 순수 인메모리 소스만.
+  sources: [embedded_artifact, yara]
+  entropy_excluded_from_silver: true   # 순환성 회피: 엔트로피는 선택기 전용
+  embedded_artifact:
+    kinds: [embedded_pe]
+    header_span_cap_bytes: 65536
+  yara:
+    enabled: true
+    in_memory: true                    # rules.match(data=...) — 디스크·디스어셈블 없음
+    rules_corpus: PIN_AT_RUN           # 코퍼스 경로·해시·라이선스는 실행 시 기록
+  capa:
+    # 격리 환경(상주 AV 없음) 전용. cau에서는 실행 금지.
+    enabled: false
+    isolated_env_only: true
+    backend: vivisect
+    scope: function
+    timeout_seconds: 300
+    writes_sample_to_disk: true         # viv_utils 한계 — 반드시 격리 work_dir + AV 없는 환경
+    version: PIN_AT_RUN
+
+strata:
+  overlay_dominant:
+    field: overlay_share                # (file_size - overlay_offset) / file_size
+    threshold: 0.50
+
+metrics:
+  primary: coverage_at_budget           # (silver ∩ selected) / silver, at primary_budget
+  secondary: [byte_iou, interval_recall_50, evidence_hit_rate]
+  coverage_defined_on: files_with_silver
+  paired:
+    method: paired_bootstrap
+    iterations: 1000
+    seed: 20260909
+    effect_size: cohens_d_paired
+  multiple_comparison: holm_bonferroni
+
+gate:
+  byte_scope_selectors: [entropy, entropy_boundary]
+  baselines: [random, front_first]
+  require_both_strata: true
+  overlay_dominant_beats_front_first: true
+  significance: difference_excludes_zero
+
+safety:
+  static_only: true
+  in_memory_decompress: true
+  no_persist_decompressed: true         # embedded/yara/select/report 경로에서 유지
+  isolated_output: true
+  console_sha_free: true
+  capa_note: "capa는 디스크에 샘플을 씀 -> 격리 work_dir + 상주 AV 없는 환경에서만. cau 금지."

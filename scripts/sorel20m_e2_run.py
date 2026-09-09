@@ -32,7 +32,7 @@ from ua_sahi_mal.sorel.e2_pipeline import process_dir, result_to_dict  # noqa: E
 from ua_sahi_mal.sorel.e2_tiles import BUDGETS, PRIMARY_BUDGET, TILE_BYTES  # noqa: E402
 from ua_sahi_mal.sorel.paths import assert_isolated_output  # noqa: E402
 
-_DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "sorel20m_e2_v1.yaml"
+_DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "sorel20m_e2_v2.yaml"
 
 
 def _read_shalist(path: str) -> list[str]:
@@ -45,10 +45,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--sha-list", required=True, help="effective_sha256.txt (selection_v1 effective 300)")
     p.add_argument("--out-prefix", required=True, help="isolated output prefix")
     p.add_argument("--static-only", action="store_true", help="affirm static-only isolated env (required)")
-    p.add_argument("--config", default=str(_DEFAULT_CONFIG), help="frozen E2 config (default: E2_prereg_v1)")
-    p.add_argument("--enable-capa", action="store_true", help="enable capa function-scope silver (opt-in)")
-    p.add_argument("--capa-rules", default=None, help="path to the capa rules directory (cau)")
-    p.add_argument("--capa-version", default="", help="capa version string to record (cau: capa.__version__)")
+    p.add_argument("--config", default=str(_DEFAULT_CONFIG), help="frozen E2 config (default: E2_prereg_v2)")
+    p.add_argument("--enable-yara", action="store_true",
+                   help="enable YARA byte-scope silver (in-memory scan; AV-safe)")
+    p.add_argument("--yara-rules", default=None, help="path to a YARA rules dir/file (or compiled .yac)")
+    p.add_argument("--enable-capa", action="store_true",
+                   help="enable capa function-scope silver. REFUSED without --capa-work-dir; capa writes the "
+                        "sample to disk (vivisect) -> run ONLY in an isolated env WITHOUT resident AV, never on cau")
+    p.add_argument("--capa-rules", default=None, help="path to the capa rules directory")
+    p.add_argument("--capa-work-dir", default=None,
+                   help="isolated dir capa may write its temp workspace to (required for --enable-capa)")
+    p.add_argument("--capa-version", default="", help="capa version string to record (capa.__version__)")
     p.add_argument("--verbose", action="store_true", help="print SHA-free case-NN lines")
     return p.parse_args(argv)
 
@@ -72,14 +79,22 @@ def main(argv: list[str] | None = None) -> int:
     seed = int(cfg["random_seed"])
     capa_timeout = int(cfg["silver"]["capa"]["timeout_seconds"])
 
-    if not ns.enable_capa and cfg["silver"]["capa"]["enabled"]:
-        print("NOTE: config marks capa enabled, but --enable-capa not passed -> "
-              "running embedded-artifact silver only.", file=sys.stderr)
+    if ns.enable_capa:
+        if not ns.capa_work_dir:
+            print("error: --enable-capa requires --capa-work-dir (an isolated dir). capa writes the "
+                  "decompressed sample to disk via vivisect; run ONLY in an isolated environment WITHOUT "
+                  "resident AV — never on cau.", file=sys.stderr)
+            return 2
+        assert_isolated_output(ns.capa_work_dir, kind="capa work dir")  # refuse repo/sync paths
+        print("WARNING: capa writes the (disarmed) sample to disk under the work dir to disassemble it. "
+              "Run this ONLY in a dedicated isolated environment WITHOUT resident AV.", file=sys.stderr)
 
     shas = _read_shalist(ns.sha_list)
     results = process_dir(
-        ns.compressed_dir, shas, static_only=True, enable_capa=ns.enable_capa,
-        capa_timeout=capa_timeout, capa_rules_path=ns.capa_rules, capa_version=ns.capa_version, seed=seed,
+        ns.compressed_dir, shas, static_only=True,
+        enable_capa=ns.enable_capa, enable_yara=ns.enable_yara,
+        capa_timeout=capa_timeout, capa_rules_path=ns.capa_rules, capa_work_dir=ns.capa_work_dir,
+        capa_version=ns.capa_version, yara_rules_path=ns.yara_rules, seed=seed,
     )
 
     results_path = assert_isolated_output(f"{ns.out_prefix}_e2_results.json", kind="e2 results")
@@ -91,10 +106,13 @@ def main(argv: list[str] | None = None) -> int:
         "config_sha256": cfg_sha,
         "utc": datetime.now(timezone.utc).isoformat(),
         "seed": seed,
+        "enable_yara": ns.enable_yara,
+        "yara_rules": ns.yara_rules,
         "enable_capa": ns.enable_capa,
         "capa_timeout_seconds": capa_timeout,
         "capa_version": ns.capa_version,
         "capa_rules": ns.capa_rules,
+        "capa_work_dir": ns.capa_work_dir,
         "n_shas": len(shas),
         "tile_bytes": TILE_BYTES,
         "primary_budget": PRIMARY_BUDGET,
@@ -121,11 +139,12 @@ def _print_summary(results, *, verbose: bool) -> None:
     for key, n in sorted(reasons.items(), key=lambda kv: -kv[1]):
         print(f"  excluded {key:24s} x{n}")
 
-    capa: dict[str, int] = {}
-    for r in ok:
-        key = str(r.silver.get("capa_status", "?")).split(":", 1)[0]
-        capa[key] = capa.get(key, 0) + 1
-    print("  capa status:", {k: v for k, v in sorted(capa.items())})
+    for source in ("yara_status", "capa_status"):
+        counts: dict[str, int] = {}
+        for r in ok:
+            key = str(r.silver.get(source, "?")).split(":", 1)[0]
+            counts[key] = counts.get(key, 0) + 1
+        print(f"  {source.replace('_status', '')} status:", {k: v for k, v in sorted(counts.items())})
 
     budget_key = f"{PRIMARY_BUDGET:.2f}"
     for stratum in ("overlay_dominant", "non_dominant"):
