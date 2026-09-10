@@ -1,0 +1,98 @@
+# SOREL-20M E2 전체 사전등록 v3 (E2_prereg_v3) — 학습 선택기. 학습·평가 이전 동결.
+# 공개 범위: G0-S — 은니 구간·SHA는 INTERNAL_ONLY. 학습 가중치는 샘플연결 파생물이 아니므로 내부 저장 가능.
+# 설계: claude/E2_full_v3_학습선택기_사전등록_설계_2026-09-09.md
+#
+# 파일럿(v1/v2)의 강건한 negative("값싼 무학습 콘텐츠 선택기는 위치 prior를 못 이김")를 받아,
+# 콘텐츠 전용 학습 타일 스코어러가 overlay_dominant에서 front_first를 이기는지 시험한다.
+version: E2_prereg_v3
+
+sample:
+  selection: selection_v2                 # 동결 seed 동일("sorel-v3-frozen-2026") -> v1의 확장(상위집합)
+  targets: {train: 5000, validation: 500, test: 1000}
+  splits: official_temporal               # train < 1543542570 <= val < 1547279640 <= test
+  roles: {train: fit, validation: tune_and_select_best, test: localization_eval_only}
+
+geometry:                                 # v1/v2와 동일
+  projection: raw-rgb
+  stride_bytes: 3
+  width_px: 256
+  tile_rows: 64
+  tile_bytes: 49152
+  cnn_tile_shape: [64, 768]               # 타일을 2D grayscale로 (행 x 바이트폭)
+  ragged_last_tile: validity_mask         # 옛 SampleStore 감사 이슈를 SOREL 경로에서 원천 처리
+
+budgets: [0.02, 0.05, 0.10, 0.20, 0.50]
+primary_budget: 0.10
+random_seed: 20260909
+
+supervision:                              # 은니와 독립 -> 순환성 없음
+  label: dominant_behavior_tag            # 11개 태그 카운트의 argmax
+  tags: [adware, flooder, ransomware, dropper, spyware, packed, crypto_miner, file_infector, installer, worm, downloader]
+  min_class_support: 150                  # train 지지 미달 태그 -> other
+  exclude_no_tag_from_training: true
+  never_uses_silver: true                 # embedded/YARA/오프셋은 학습에 절대 미제공
+
+representation:
+  positional_input_to_tile_model: false   # 콘텐츠 전용 (front_first 대비가 콘텐츠 vs 위치를 분리)
+  decompressed_persist: false             # zlib -> 메모리 -> 타일 -> GPU; 래스터 PNG 캐시 금지
+  ram_cache_allowed: true                 # train 5k ≈ 9 GB 해제 <= 31.7 GB RAM
+
+learned_selectors:
+  - name: attr_tile_conf
+    method: tiled_classifier_per_tile_logprob     # evidence.classifiers.TiledClassifier 재사용
+  - name: attr_occlusion
+    method: occlusion_necessity_delta_nll          # evidence Prober/occlusion/routing 재사용
+    fill: histogram
+  - name: mil_attention
+    method: gated_attention_mil                    # 신규: 공유 CNN 타일 임베딩 -> gated attention -> 파일 태그
+  - name: position_only                            # 강화된 위치 기준선(콘텐츠 무시): train-split 은니 밀도 ~ 정규화 오프셋을
+    method: positional_prior_fitted_on_train_silver  # 적합한 최강 위치 prior. test 은니는 보지 않음(누수 없음).
+best_selector_chosen_on: validation                # test에서 고르지 않음 (선택 편향 방지)
+
+baselines: [random, uniform, front_first, back_first, entropy, entropy_boundary, oracle_silver]
+
+silver:                                   # 평가 타깃 (v2와 동일, 인메모리)
+  sources: [embedded_artifact, yara]
+  entropy_excluded_from_silver: true
+  eval_set: test_split_files_with_silver
+
+model_sanity_gate:                        # 전제조건: 무의미한 분류기의 attribution은 평가하지 않음
+  on: validation
+  accuracy_minus_majority_pt: 10
+  macro_f1_over_baseline_ratio: 1.5
+
+strata:
+  overlay_dominant: {field: overlay_share, threshold: 0.50}
+
+metrics:
+  primary: coverage_at_budget
+  secondary: [byte_iou, interval_recall_50, evidence_hit_rate]
+  coverage_defined_on: files_with_silver
+  paired: {method: paired_bootstrap, iterations: 1000, seed: 20260909, effect_size: cohens_d_paired}
+  multiple_comparison: holm_bonferroni
+
+gate:
+  primary: {stratum: overlay_dominant, learned_best: ">", baseline: front_first}   # 위치 prior가 가장 강한 곳
+  secondary:
+    - {stratum: overlay_dominant, learned_best: ">", baseline: entropy_boundary}
+    - {stratum: non_dominant, learned_best: ">", baseline: front_first}
+    - {stratum: non_dominant, learned_best: ">", baseline: entropy_boundary}
+  strong_content_test: {stratum: overlay_dominant, learned_best: ">", baseline: position_only}
+  #   콘텐츠 전용 학습 선택기가 데이터로 적합한 최강 위치 prior조차 이기면 "콘텐츠가 위치를 넘어선다"가 성립.
+  #   (타일 모델은 위치 입력이 없어 위치 누수는 구성상 불가 — 이 검정은 그 위에 추가되는 강한 조건.)
+  significance: holm_significant_positive
+  report_negative: true
+
+compute:
+  device: cuda_with_cpu_fallback          # cau RTX 5070 Laptop 8 GB VRAM
+  tile_batch: 64                          # 짧은 pilot로 VRAM 측정 후 확정
+  determinism: {seed_fixed: true, cublas_workspace_config: ":4096:8"}
+
+safety:
+  static_only: true
+  in_memory_decompress: true
+  no_persist_decompressed: true
+  no_raster_cache_on_disk: true
+  isolated_output: true
+  console_sha_free: true
+  capa: not_used_here                     # 격리 VM B트랙 별도

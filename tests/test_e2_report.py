@@ -70,3 +70,37 @@ def test_report_is_sha_free_by_construction():
     results = _cohort("overlay_dominant", 0.5, 0.1, rng, n=5) + _cohort("non_dominant", 0.5, 0.1, rng, n=5)
     report = build_report(results, iterations=200, seed=1)  # build_report calls assert_no_sample_link
     assert report["publication_scope"] == "INTERNAL_ONLY"
+
+
+def _file_v3(stratum: str, cov: dict[str, float]) -> dict:
+    names = _ALL + ("attr_tile_conf", "attr_occlusion", "mil_attention", "position_only")
+    return {
+        "ok": True, "stratum": stratum, "silver": {"capa_status": "disabled"},
+        "evaluation": {"has_silver": True,
+                       "selectors": {n: {"0.10": {"coverage": float(cov.get(n, 0.0))}} for n in names}},
+    }
+
+
+def test_v3_gate_learned_beats_front_first_in_overlay():
+    from ua_sahi_mal.sorel.e2_report import LEARNED_SELECTORS
+    rng = np.random.default_rng(1)
+    results = []
+    for stratum, learned_mu, front_mu in (("overlay_dominant", 0.7, 0.3), ("non_dominant", 0.6, 0.2)):
+        for _ in range(30):
+            results.append(_file_v3(stratum, {
+                "attr_occlusion": float(np.clip(learned_mu + rng.normal(0, 0.05), 0, 1)),
+                "attr_tile_conf": float(np.clip(learned_mu - 0.2 + rng.normal(0, 0.05), 0, 1)),
+                "mil_attention": float(np.clip(learned_mu - 0.1 + rng.normal(0, 0.05), 0, 1)),
+                "front_first": float(np.clip(front_mu + rng.normal(0, 0.05), 0, 1)),
+                "entropy_boundary": float(np.clip(front_mu + rng.normal(0, 0.05), 0, 1)),
+                "random": 0.1, "position_only": float(np.clip(front_mu + 0.05 + rng.normal(0, 0.05), 0, 1)),
+            }))
+    rep = build_report(results, prereg_version="E2_prereg_v3", iterations=300, seed=2,
+                       learned=LEARNED_SELECTORS, best_learned="attr_occlusion")
+    gate = rep["gate"]
+    assert gate["gate_pass"] is True and gate["primary_overlay_beats_front_first"] is True
+    assert gate["strong_content_test_overlay_beats_position_only"] is True
+    assert "position_only" in rep["strata"]["overlay_dominant"]["coverage_mean"]
+    # without a validation-chosen best selector the gate is undecided, never silently passed
+    undecided = build_report(results, iterations=200, seed=2, learned=LEARNED_SELECTORS)
+    assert undecided["gate"]["gate_pass"] is None
