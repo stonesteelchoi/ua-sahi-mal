@@ -49,11 +49,19 @@ function Invoke-Step {
     }
     Write-Host ("[step] {0}" -f $Name)
     $Started = Get-Date
+    Set-Content -Path $LogPath -Value "" -Encoding utf8
     try {
-        & $Command 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
+        # Native stderr arrives as ErrorRecord objects under 2>&1; render them as plain text so
+        # progress messages (e.g. `python -m build`) are not shown as red NativeCommandError blocks,
+        # and write UTF-8 logs (Tee-Object in Windows PowerShell 5.1 would write UTF-16).
+        & $Command 2>&1 | ForEach-Object {
+            $Line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { "$_" }
+            Add-Content -Path $LogPath -Value $Line -Encoding utf8
+            Write-Host $Line
+        }
         $Code = $LASTEXITCODE
     } catch {
-        $_ | Out-File -FilePath $LogPath -Append -Encoding utf8
+        Add-Content -Path $LogPath -Value ("{0}" -f $_) -Encoding utf8
         $Code = 1
     }
     if ($null -eq $Code) { $Code = 0 }

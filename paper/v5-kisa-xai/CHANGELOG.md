@@ -1,5 +1,13 @@
 # KISA-XAI v5 변경 이력
 
+## 2026-09-15 — Windows RTX 5070 환경 검증, Grad-CAM smoke 스크립트
+
+- `audit/ENV_CHECK_2026-09-15_windows-rtx5070.md`: Windows 11 / RTX 5070 Laptop 8 GB / driver 616.56 /
+  torch 2.8.0+cu128에서 `kisa_xai_env_check.ps1` 11단계 전부 통과(실제 CUDA 계산 OK, pytest 420 통과).
+  `xai` 의존성 설치와 CUDA Grad-CAM 1건은 미수행으로 기록.
+- `scripts/kisa_xai_gradcam_smoke.py` 추가: CPU/CUDA에서 grad-cam vs hook 구현 일치, empty CAM, peak VRAM 기록.
+- `scripts/kisa_xai_env_check.ps1`: UTF-8 로그, 네이티브 stderr 문자열화(빨간 NativeCommandError 표시 제거).
+
 ## 2026-09-14 (2차) — P0 데이터 접근 사전 점검, 환경 회귀검사, xai 의존성 그룹
 
 - `audit/DATA_ACCESS_AUDIT_2026-09-14.md`·`audit/data_access_audit_20260914.json`: KISA 2017/2018/2019
