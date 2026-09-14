@@ -37,7 +37,7 @@ v1–v4의 문서, 코드, 사전등록 결과는 삭제하거나 새 결과와 
 
 ## 빠른 시작
 
-**다른 컴퓨터로 이전한다면:** [새 GPU 컴퓨터 설치·최소 다운로드·LLM 인수인계](docs/NEW_MACHINE_HANDOFF.md)를 먼저 확인하십시오. 기존 BIG2015 v2 A/B 학습·추론은 CPU 전용이며, XAI-v4는 validity 처리를 고친 새 구현과 재학습이 필요합니다.
+**다른 컴퓨터나 LLM으로 v5를 이전한다면:** [KISA-XAI-v5 독립형 인수인계 프롬프트](paper/v5-kisa-xai/HANDOFF_PROMPT_KO.md)를 먼저 사용하십시오. 기존 자산의 상세 복원은 [새 GPU 컴퓨터 설치·최소 다운로드 안내](docs/NEW_MACHINE_HANDOFF.md)를 함께 확인합니다.
 
 **Python 3.10–3.12와 Git**이 필요합니다. 합성 smoke test는 실제 데이터셋·가중치·GPU 없이 실행할 수 있으며, 최초 의존성 설치에는 네트워크가 필요합니다. 아래는 Windows PowerShell 기준입니다.
 
