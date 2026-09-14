@@ -1,23 +1,20 @@
-# 연구 방향 재설계
+# 현재 연구 방향: XAI-v4
 
-[비전 / XAI] "악성코드 시각화와 설명 가능성"
-앞서 고민하셨던 '정적 PE 이미지화 및 위치화(Localization)' 연구의 가장 훌륭한 타협안입니다. 복잡한 Bounding Box 정답을 만드는 대신 XAI(설명 가능한 AI)로 우회합니다.
+현재 활성 연구선은 악성코드 이미지 분류기의 정확도와 함께 설명의 충실성,
+안정성, 구조 정합성을 평가하는 `XAI-v4`이다. Grad-CAM 히트맵은 악성 바이트의
+ground truth가 아니라 모델의 **패밀리 판정 근거 후보**로 취급한다. 동일 면적의
+무작위 영역과 비교한 deletion/sufficiency 검증을 통과하기 전에는 이를 악성 구역이나
+분석 시간 절감으로 해석하지 않는다.
 
-타겟 데이터셋: phoenixml/Maldataset-2021
+- 연구 허브: [`paper/v4-xai/README.md`](paper/v4-xai/README.md)
+- 연구 설계: [`paper/v4-xai/RESEARCH_DESIGN.md`](paper/v4-xai/RESEARCH_DESIGN.md)
+- 데이터 선택: [`paper/v4-xai/DATASET_DECISION.md`](paper/v4-xai/DATASET_DECISION.md)
+- 실험 프로토콜: [`paper/v4-xai/EXPERIMENT_PROTOCOL.md`](paper/v4-xai/EXPERIMENT_PROTOCOL.md)
+- 국문 초안: [`paper/v4-xai/draft/PAPER_DRAFT_KO.md`](paper/v4-xai/draft/PAPER_DRAFT_KO.md)
 
-데이터 특징: 원본 악성코드를 224x224 RGB 이미지(PNG)로 이미 변환해 둔 데이터셋입니다. 28개의 악성 패밀리로 분류되어 있어 전처리가 전혀 필요 없습니다.
-
-논문 아이디어 (가제): Beyond Accuracy: Explainable Malware Family Classification using Structure-Aware XAI (정확도를 넘어: 구조 인지형 XAI를 활용한 설명 가능한 악성코드 패밀리 분류)
-
-역설계 스토리라인:
-
-"기존의 비전 기반 악성코드 탐지 논문들은 정확도(Accuracy)만 자랑할 뿐, 대체 이미지의 어느 부분을 보고 악성이라 판단했는지 설명하지 못하는 블랙박스다"라고 비판합니다.
-
-ResNet이나 ViT로 패밀리 분류기를 학습시킨 후, Grad-CAM이나 Attention Map을 추출해 붉은색 히트맵을 띄웁니다.
-
-"랜섬웨어는 주로 이미지의 특정 부분(예: 리소스 섹션)에서 붉게 반응한다"며, 정답 박스(Ground Truth) 없이 모델의 판단 근거를 보여주는 것만으로 시각적으로 훌륭한 논문이 됩니다.
-
-장점: 시각적인 결과물(컬러풀한 히트맵)이 나와서 포스터 발표나 논문의 Figure로 쓸 때 심사위원의 눈길을 사로잡기 가장 좋습니다.
+v1–v3의 문서, 코드, 사전등록 결과는 삭제하거나 새 결과와 합치지 않는다. 방향 변경의
+근거는 [`paper/decisions/ADR-002-xai-v4-direction.md`](paper/decisions/ADR-002-xai-v4-direction.md)에
+기록되어 있다.
 
 
 # UA-SAHI-MAL
@@ -41,7 +38,7 @@ ResNet이나 ViT로 패밀리 분류기를 학습시킨 후, Grad-CAM이나 Atte
 
 ## 빠른 시작
 
-**다른 컴퓨터로 이전한다면:** [새 GPU 컴퓨터 설치·최소 다운로드·LLM 인수인계](docs/NEW_MACHINE_HANDOFF.md)를 먼저 확인하십시오. 기존 BIG2015 v2 A/B 학습·추론은 CPU 전용이며, 현재 v3는 추가 구현이 필요한 단계입니다.
+**다른 컴퓨터로 이전한다면:** [새 GPU 컴퓨터 설치·최소 다운로드·LLM 인수인계](docs/NEW_MACHINE_HANDOFF.md)를 먼저 확인하십시오. 기존 BIG2015 v2 A/B 학습·추론은 CPU 전용이며, XAI-v4는 validity 처리를 고친 새 구현과 재학습이 필요합니다.
 
 **Python 3.10–3.12와 Git**이 필요합니다. 합성 smoke test는 실제 데이터셋·가중치·GPU 없이 실행할 수 있으며, 최초 의존성 설치에는 네트워크가 필요합니다. 아래는 Windows PowerShell 기준입니다.
 
@@ -194,7 +191,7 @@ MaleVis의 timing은 batch의 모델 forward 시간을 batch size로 나눈 값�
 
 | 읽고 싶은 내용 | 문서 |
 |---|---|
-| 현재 논문 전체 맥락 | [논문 허브](paper/README.md) · [v3 계획](paper/plan/RESEARCH_PLAN_v3.md) · [초안 재검토](paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md) |
+| 현재 논문 전체 맥락 | [논문 허브](paper/README.md) · [XAI-v4 설계](paper/v4-xai/RESEARCH_DESIGN.md) · [국문 초안](paper/v4-xai/draft/PAPER_DRAFT_KO.md) |
 | 비교군 선정·선행연구 | [ADR-001](paper/decisions/ADR-001-deepreflect-baseline.md) · [참고문헌](paper/references/README.md) |
 | 데이터 계약·실행 경로 | [데이터 계약](docs/DATA_CONTRACT.md) · [v1 탐지](docs/DECODE_PIPELINE.md) · [v2 근거 구간](docs/EVIDENCE_PROTOCOL.md) |
 | 결과·재현·감사 | [근거 데이터](docs/results/README.md) · [연구 감사](docs/RESEARCH_AUDIT_2026-09-04.md) · [환경 검증](docs/verification/README.md) |
@@ -203,7 +200,7 @@ MaleVis의 timing은 batch의 모델 forward 시간을 batch size로 나눈 값�
 
 ```text
 ua-sahi-mal-yolo/
-├─ paper/                  현재 v3 계획 · 결정 기록 · 초안 · 참고문헌
+├─ paper/                  현재 XAI-v4 설계 · 결정 기록 · 초안 · 참고문헌
 ├─ src/ua_sahi_mal/         인코딩 · 데이터 계약 · YOLO/SAHI · CLI
 │  └─ evidence/            v2 바이트 근거 구간 프로토콜
 ├─ scripts/                설치 · 데이터 감사 · 학습 · 집계 · 검증

@@ -1,0 +1,140 @@
+protocol:
+  id: XAI-V4.0-DRAFT
+  status: design_only
+  frozen: false
+  branch: research/xai-v4
+  base_commit: 6581b2f6d5437c6feb742dae5793457577bd8945
+  test_opened_for_v4: false
+  note: >-
+    This file records intended settings. Null values must be filled and reviewed
+    before creating XAI-V4.1-FROZEN. Historical v1-v3 checkpoints and results are
+    not valid XAI-v4 measurements.
+
+data:
+  primary:
+    name: Microsoft BIG2015
+    task: nine_family_classification
+    source_form: address_indexed_bytes_dump
+    coordinate_claim: dump_virtual_address
+    original_file_offset_claim: prohibited
+    manifest_path: null
+    manifest_sha256: null
+    sample_count: null
+  optional_external_image_baseline:
+    name: MaleVis
+    resolution: [224, 224]
+    enabled: false
+  optional_structure_audit:
+    name: SOREL-20M-disarmed
+    enabled: false
+
+representation:
+  native_raster_width_bytes: 512
+  model_grid: [224, 224]
+  model_grid_aggregation: valid_byte_mean_over_recorded_half_open_source_cells
+  candidates:
+    - compact_valid
+    - mask_aware
+  selected: null
+  selection_data: validation_only
+  preserve:
+    - byte_value
+    - validity
+    - base_virtual_address
+    - raster_index_to_virtual_address
+    - model_cell_to_source_address_set
+    - source_sha256
+  augmentation:
+    rotate: false
+    horizontal_flip: false
+    vertical_flip: false
+    color_jitter: false
+
+split:
+  method: group_stratified
+  target_fraction:
+    train: 0.70
+    validation: 0.15
+    test: 0.15
+  exact_duplicate_key: source_content_sha256
+  near_duplicate_method: null
+  split_manifest_sha256: null
+
+model:
+  primary: resnet18
+  reference: resnet50
+  cheap_baseline: null
+  initialization_selected: null
+  target_layer: null
+  optimizer: AdamW
+  maximum_epochs: 30
+  checkpoint_metric: validation_macro_f1
+  seeds: [42, 43, 44]
+  batch_size: null
+  mixed_precision: null
+
+xai:
+  primary_method: Grad-CAM
+  class_target: ground_truth_class
+  interpolation: bilinear
+  align_corners: false
+  valid_area_budgets_percent: [5, 10, 20, 40]
+  primary_budget_percent: 10
+  score_tie_break: ascending_virtual_address
+  controls:
+    - matched_random
+    - entropy
+    - front_position
+  matched_random_repeats_per_sample: 20
+
+perturbation:
+  apply_in_source_address_space_then_reaggregate: true
+  primary_fill: valid_byte_histogram
+  sensitivity_fill: null
+  evaluate:
+    - deletion
+    - keep_only
+    - cumulative_aopc
+
+primary_statistics:
+  unit: file
+  bootstrap: paired
+  bootstrap_repetitions: 2000
+  confidence_level: 0.95
+  multiplicity: Holm
+  tests:
+    - gradcam_vs_matched_random_deletion_delta_nll_at_10_percent
+    - gradcam_vs_matched_random_keep_only_score_at_10_percent
+
+gates:
+  classification_sanity:
+    validation_macro_f1_over_majority_percentage_points: 10
+    require_prediction_for_every_class: true
+  necessity:
+    effect: gradcam_deletion_delta_nll_minus_matched_random
+    confidence_interval_must_exclude_zero: true
+  sufficiency:
+    effect: gradcam_keep_only_score_minus_matched_random
+    confidence_interval_must_exclude_zero: true
+  randomization_sanity:
+    compare_random_weight_model: true
+    compare_label_shuffled_model: true
+  stability:
+    require_seed_effect_direction_agreement: true
+
+reporting:
+  primary_terms:
+    - family_decision_evidence_candidate
+    - model_attributed_region
+    - budgeted_explanation
+  prohibited_without_independent_evidence:
+    - malicious_code_region
+    - exact_original_file_offset
+    - proven_family_specific_structure
+    - analyst_time_reduction
+  per_sample_results_required: true
+  cost_metrics:
+    - classification_latency_ms
+    - gradcam_latency_ms
+    - mapping_latency_ms
+    - peak_vram_mb

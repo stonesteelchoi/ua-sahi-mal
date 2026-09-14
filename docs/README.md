@@ -5,10 +5,11 @@ The repository now separates the current paper workspace from implementation doc
 ## Current paper work
 
 - paper hub: [`../paper/README.md`](../paper/README.md)
-- v3 plan: [`../paper/plan/RESEARCH_PLAN_v3.md`](../paper/plan/RESEARCH_PLAN_v3.md)
-- DeepReflect baseline decision: [`../paper/decisions/ADR-001-deepreflect-baseline.md`](../paper/decisions/ADR-001-deepreflect-baseline.md)
-- manuscript review: [`../paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md`](../paper/reviews/PAPER_DRAFT_REVIEW_2026-09-04.md)
-- draft and bibliography: [`../paper/draft/README.md`](../paper/draft/README.md), [`../paper/references/README.md`](../paper/references/README.md)
+- XAI-v4 hub: [`../paper/v4-xai/README.md`](../paper/v4-xai/README.md)
+- research design and dataset decision: [`../paper/v4-xai/RESEARCH_DESIGN.md`](../paper/v4-xai/RESEARCH_DESIGN.md), [`../paper/v4-xai/DATASET_DECISION.md`](../paper/v4-xai/DATASET_DECISION.md)
+- experiment protocol: [`../paper/v4-xai/EXPERIMENT_PROTOCOL.md`](../paper/v4-xai/EXPERIMENT_PROTOCOL.md)
+- Korean draft: [`../paper/v4-xai/draft/PAPER_DRAFT_KO.md`](../paper/v4-xai/draft/PAPER_DRAFT_KO.md)
+- canonical bibliography: [`../paper/references/README.md`](../paper/references/README.md)
 
 ## Reusable implementation contracts and runbooks
 
@@ -32,4 +33,4 @@ The repository now separates the current paper workspace from implementation doc
 - [`EXTERNAL_REVIEW_PROMPT.md`](EXTERNAL_REVIEW_PROMPT.md): snapshot of the v2 external-review brief
 - [`legacy_remote_sensing/`](legacy_remote_sensing/): original remote-sensing prototype documentation
 
-Historical documents remain where old result links can resolve, but their headings point readers to the active v3 paper workspace. Do not combine v1/v2 measurements with v3 malicious-component metrics.
+Historical documents remain where old result links can resolve. Do not combine v1-v3 measurements or checkpoints with XAI-v4 results.

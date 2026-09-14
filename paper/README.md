@@ -1,6 +1,12 @@
 # UA-SAHI-Mal paper workspace
 
-이 폴더가 2026-09-04 이후 논문 설계·초안·참고문헌의 단일 진입점이다. 현재 상태는 **v3 pre-results**이며, 아직 성능이나 analyst utility를 주장하지 않는다.
+> **현재 활성 연구선은 XAI-v4이다.** 연구 설계, 데이터 결정, 실험 프로토콜과 국문
+> 초안은 [`v4-xai/README.md`](v4-xai/README.md)에서 관리한다. 아래 v3 자료는 연구 이력과
+> 재현성을 위해 보존하며 v4 결과와 합치지 않는다.
+
+이 폴더는 논문 설계·초안·참고문헌의 단일 진입점이다. v3는 **archived pre-results**
+상태이며, v4는 **design draft** 상태다. 두 연구선 모두 아직 새 성능이나 analyst utility를
+주장하지 않는다.
 
 ## 현재 결정
 
@@ -16,10 +22,12 @@
 
 | 경로 | 역할 | 상태 |
 |---|---|---|
-| `plan/RESEARCH_PLAN_v3.md` | 현재 연구 질문, 실험 순서, gate, 최소 baseline | current |
+| `v4-xai/` | 현재 연구 질문, 데이터 결정, 프로토콜, 국문 초안 | current design draft |
+| `plan/RESEARCH_PLAN_v3.md` | 과거 연구 질문, 실험 순서, gate, 최소 baseline | archived |
 | `decisions/ADR-001-deepreflect-baseline.md` | DECODE 제외/DeepReflect 채택 결정과 trade-off | accepted |
-| `draft/` | 영문 pre-results Markdown·LaTeX·23쪽 검토용 PDF | source snapshot |
-| `reviews/PAPER_DRAFT_REVIEW_2026-09-04.md` | 이번 재검토의 우선순위와 수정 기준 | current |
+| `decisions/ADR-002-xai-v4-direction.md` | XAI-v4 전환과 주장 범위 결정 | accepted |
+| `draft/` | v3 영문 pre-results Markdown·LaTeX·23쪽 검토용 PDF | archived snapshot |
+| `reviews/PAPER_DRAFT_REVIEW_2026-09-04.md` | v3 초안 재검토의 우선순위와 수정 기준 | archived review |
 | `reviews/UA_SAHI_Mal_top_tier_design_review_ko.md` | 제공받은 top-tier 설계 검토서 | imported |
 | `reviews/UA_SAHI_Mal_public_dataset_investigation_ko.md` | 제공받은 공개 데이터셋 조사서 | imported; live facts rechecked in v3 plan |
 | `references/UA_SAHI_Mal_references.bib` | 초안의 BibTeX | canonical bibliography |
