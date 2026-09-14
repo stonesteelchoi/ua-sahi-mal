@@ -31,6 +31,8 @@ v5와 합치지 않는다.
 | [`EXPERIMENT_PROTOCOL.md`](EXPERIMENT_PROTOCOL.md) | 데이터 감사, 학습, XAI, 통계, 종료 규칙 |
 | [`protocol/KISA_XAI_V5_0_DRAFT.yaml`](protocol/KISA_XAI_V5_0_DRAFT.yaml) | 기계 판독 가능한 설계 스냅샷 |
 | [`HANDOFF_PROMPT_KO.md`](HANDOFF_PROMPT_KO.md) | 새 장비·다른 LLM용 clone, 환경 구축, 데이터 접근 인수인계 |
+| [`INTERVAL_BINNED_V1_CONTRACT.md`](INTERVAL_BINNED_V1_CONTRACT.md) | P1 입력 표현·역매핑·예산 선택 계약 (`src/ua_sahi_mal/kisa_xai/`) |
+| [`audit/`](audit/) | P0 데이터 접근 감사(2026-09-14, NO-GO 대기)와 환경 회귀검사 기록 |
 | [`deliverables/최석철_개인프로젝트계획서_KISA_XAI_v5.docx`](deliverables/최석철_개인프로젝트계획서_KISA_XAI_v5.docx) | 제출·공유용 Word 문서 |
 | [`CHANGELOG.md`](CHANGELOG.md) | v5 변경 이력 |
 | [`../decisions/ADR-003-kisa-binary-xai.md`](../decisions/ADR-003-kisa-binary-xai.md) | v4 패밀리 분류에서 v5 이진 탐지로 전환한 결정 |

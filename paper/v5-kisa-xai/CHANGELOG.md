@@ -11,6 +11,10 @@
 - `pyproject.toml`: `xai` 선택 의존성 그룹 추가(grad-cam 1.5.x, scikit-learn, scipy, pefile,
   opencv-python-headless<5 고정). CPU Grad-CAM 1건과 empty-CAM 사례 재현.
 - `scripts/kisa_xai_env_check.ps1`: Windows NVIDIA 장비용 환경·CUDA·회귀검사 일괄 기록 스크립트 추가.
+- P1 구현: `src/ua_sahi_mal/kisa_xai/representation.py` — `interval-binned-v1` 변환기, 픽셀↔file-offset
+  half-open interval 지도, 불변식 검사, `map_sha256`/`raster_sha256`, 고유 바이트 예산 선택
+  (requested/achieved/overshoot/`cam_empty`/`positive_pixels_exhausted` 기록). 합성 테스트 30건 추가
+  (`tests/test_kisa_xai_representation.py`), 계약 문서 `INTERVAL_BINNED_V1_CONTRACT.md`.
 
 ## 2026-09-14 — KISA-XAI-V5.0-DRAFT
 
