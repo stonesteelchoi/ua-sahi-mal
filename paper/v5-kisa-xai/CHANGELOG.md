@@ -1,5 +1,17 @@
 # KISA-XAI v5 변경 이력
 
+## 2026-09-14 (2차) — P0 데이터 접근 사전 점검, 환경 회귀검사, xai 의존성 그룹
+
+- `audit/DATA_ACCESS_AUDIT_2026-09-14.md`·`audit/data_access_audit_20260914.json`: KISA 2017/2018/2019
+  공식 페이지에 다운로드·신청·로그인·약관 요소가 없고 신청 메뉴(`278.do`)가 삭제 상태임을 확인.
+  현재 확인된 채널은 KISA 사이버보안빅데이터센터(방문 분석, 원본 반출 불가, 폐쇄망)와 C-TAS(회원 승인).
+  P0 판정 **NO-GO(접근 대기)**. 프로토콜 수치는 변경하지 않음(V5.0-DRAFT 유지).
+- `audit/ENV_CHECK_2026-09-14_cloud-linux-cpu.md`: Linux CPU 샌드박스에서 torch 2.8.0/torchvision 0.23.0
+  설치, pytest 390 통과, smoke·evidence smoke·안전검사·수치감사·build 통과. CUDA 검사는 GPU 부재로 미수행.
+- `pyproject.toml`: `xai` 선택 의존성 그룹 추가(grad-cam 1.5.x, scikit-learn, scipy, pefile,
+  opencv-python-headless<5 고정). CPU Grad-CAM 1건과 empty-CAM 사례 재현.
+- `scripts/kisa_xai_env_check.ps1`: Windows NVIDIA 장비용 환경·CUDA·회귀검사 일괄 기록 스크립트 추가.
+
 ## 2026-09-14 — KISA-XAI-V5.0-DRAFT
 
 - 패밀리 분류 중심 XAI-v4를 보존하고 정적 PE 정상·악성 이진 탐지 연구선을 분리

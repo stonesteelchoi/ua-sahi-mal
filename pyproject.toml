@@ -32,6 +32,18 @@ dev = [
   "pytest-cov>=5,<7",
   "ruff>=0.11,<1",
 ]
+# KISA-XAI-v5 (Grad-CAM, PE structure map, statistics baselines). Ranges verified 2026-09-14 on
+# Python 3.12 / torch 2.8.0 / torchvision 0.23.0: grad-cam 1.5.7, scikit-learn 1.9.1, scipy 1.18.1.
+# grad-cam depends on opencv-python-headless, which shares the `cv2` package directory with
+# opencv-python; the headless pin below keeps both on the same 4.x range so `import cv2` stays 4.x.
+# Verify with `python -c "import cv2; print(cv2.__version__)"` and `pip check` after installing.
+xai = [
+  "grad-cam>=1.5.5,<1.6",
+  "opencv-python-headless>=4.12.0.88,<5",
+  "pefile>=2024.8.26,<2025",
+  "scikit-learn>=1.6,<2",
+  "scipy>=1.13,<2",
+]
 
 [project.scripts]
 ua-sahi-mal = "ua_sahi_mal.cli:main"
