@@ -1,19 +1,18 @@
-# 현재 연구 방향: XAI-v4
+# 현재 연구 방향: KISA-XAI-v5
 
-현재 활성 연구선은 악성코드 이미지 분류기의 정확도와 함께 설명의 충실성,
-안정성, 구조 정합성을 평가하는 `XAI-v4`이다. Grad-CAM 히트맵은 악성 바이트의
-ground truth가 아니라 모델의 **패밀리 판정 근거 후보**로 취급한다. 동일 면적의
-무작위 영역과 비교한 deletion/sufficiency 검증을 통과하기 전에는 이를 악성 구역이나
-분석 시간 절감으로 해석하지 않는다.
+현재 활성 연구선은 KISA 원본 PE 정상·악성 이진 탐지기의 설명 충실성,
+안정성, 구조 정합성과 교차연도 외부 평가를 설계하는 `KISA-XAI-v5`이다. Grad-CAM
+히트맵은 악성 바이트 ground truth가 아니라 모델의 **악성 판정 근거 후보**로 취급한다.
+동일 바이트 예산의 구조 일치 무작위 영역과 비교한 deletion/keep-only 검증을 통과하기
+전에는 이를 악성 구역이나 분석 시간 절감으로 해석하지 않는다.
 
-- 연구 허브: [`paper/v4-xai/README.md`](paper/v4-xai/README.md)
-- 연구 설계: [`paper/v4-xai/RESEARCH_DESIGN.md`](paper/v4-xai/RESEARCH_DESIGN.md)
-- 데이터 선택: [`paper/v4-xai/DATASET_DECISION.md`](paper/v4-xai/DATASET_DECISION.md)
-- 실험 프로토콜: [`paper/v4-xai/EXPERIMENT_PROTOCOL.md`](paper/v4-xai/EXPERIMENT_PROTOCOL.md)
-- 국문 초안: [`paper/v4-xai/draft/PAPER_DRAFT_KO.md`](paper/v4-xai/draft/PAPER_DRAFT_KO.md)
+- 연구 허브: [`paper/v5-kisa-xai/README.md`](paper/v5-kisa-xai/README.md)
+- 연구계획서: [`paper/v5-kisa-xai/RESEARCH_PROPOSAL_KO.md`](paper/v5-kisa-xai/RESEARCH_PROPOSAL_KO.md)
+- 실험 프로토콜: [`paper/v5-kisa-xai/EXPERIMENT_PROTOCOL.md`](paper/v5-kisa-xai/EXPERIMENT_PROTOCOL.md)
+- 기계 판독 프로토콜: [`paper/v5-kisa-xai/protocol/KISA_XAI_V5_0_DRAFT.yaml`](paper/v5-kisa-xai/protocol/KISA_XAI_V5_0_DRAFT.yaml)
 
-v1–v3의 문서, 코드, 사전등록 결과는 삭제하거나 새 결과와 합치지 않는다. 방향 변경의
-근거는 [`paper/decisions/ADR-002-xai-v4-direction.md`](paper/decisions/ADR-002-xai-v4-direction.md)에
+v1–v4의 문서, 코드, 사전등록 결과는 삭제하거나 새 결과와 합치지 않는다. 방향 변경의
+근거는 [`paper/decisions/ADR-003-kisa-binary-xai.md`](paper/decisions/ADR-003-kisa-binary-xai.md)에
 기록되어 있다.
 
 
@@ -26,7 +25,7 @@ v1–v3의 문서, 코드, 사전등록 결과는 삭제하거나 새 결과와 
 [![검증](https://github.com/stonesteelchoi/ua-sahi-mal/actions/workflows/verify.yml/badge.svg)](https://github.com/stonesteelchoi/ua-sahi-mal/actions/workflows/verify.yml)
 [![Python 3.10–3.12](https://img.shields.io/badge/Python-3.10%E2%80%933.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![Project license: MIT](https://img.shields.io/badge/Project_license-MIT-green)](LICENSE)
-[![Research: v3 pre-results](https://img.shields.io/badge/Research-v3_pre--results-orange)](paper/README.md)
+[![Research: KISA-XAI v5 draft](https://img.shields.io/badge/Research-KISA--XAI_v5_draft-orange)](paper/v5-kisa-xai/README.md)
 
 [빠른 시작](#quickstart) · [현재 연구 상태](#research-status) · [가중치·데이터셋](#artifacts) · [실험 재현](#reproduction) · [결과와 검증](#results) · [문서 지도](#documentation)
 

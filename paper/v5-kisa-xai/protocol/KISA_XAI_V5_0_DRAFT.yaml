@@ -1,0 +1,213 @@
+protocol:
+  id: KISA-XAI-V5.0-DRAFT
+  status: access_gated_pre_results
+  created: 2026-09-14
+  parent: XAI-V4.0-DRAFT
+  branch: research/kisa-xai-v5
+  task: static_windows_pe_binary_malware_detection
+  paper_type: classifier_and_xai_evaluation
+
+claims:
+  permitted:
+    - model_attributed_region
+    - malicious_decision_evidence_candidate
+    - explanation_faithfulness
+    - pe_structure_alignment
+    - cross_year_dataset_external_evaluation
+  prohibited_without_new_evidence:
+    - true_malicious_code_region
+    - malicious_behavior_ground_truth
+    - analyst_time_reduction
+    - proven_temporal_robustness
+    - novel_gradcam_algorithm
+
+data:
+  primary_candidate:
+    id: KISA_CISC2017_datachallenge_Malwares.01
+    role: train_validation_internal_test
+    page: https://www.ksecurity.or.kr/kisis/subIndex/374.do
+    official_description:
+      samples: 15000
+      sets: 2
+      set_size: 7500
+      size_gb: 6.733
+      labels: binary_0_normal_1_malicious
+      payload: original_files
+    access_state: not_acquired
+    license_state: not_verified
+  external_candidate:
+    id: KISA-datachallenge2018-Malwares.03
+    role: frozen_external_evaluation
+    page: https://www.ksecurity.or.kr/kisis/subIndex/376.do
+    official_description:
+      total_samples: 50000
+      sets: 5
+      set_size: 10000
+      labeled_sets: 3
+      stated_platform: windows_32bit
+      suffix: KISA_4_bytes
+    access_state: not_acquired
+    license_state: not_verified
+  secondary_external_candidate:
+    id: KISA-datachallenge2019-Malwares.04
+    role: optional_pe_only_external_evaluation
+    page: https://www.ksecurity.or.kr/kisis/subIndex/461.do
+    risks:
+      - mixed_pe_html_hwp_and_scripts
+      - kisa_suffix
+      - labeled_set_counts_not_verified
+  existing_assets:
+    sorel20m_disarmed_pilot:
+      use: peatlas_regression_only
+      pooled_into_v5_results: false
+    big2015:
+      use: code_regression_only
+      pooled_into_v5_results: false
+    malevis:
+      use: none
+      pooled_into_v5_results: false
+
+access_gate:
+  required:
+    - research_and_publication_terms_verified
+    - archive_and_label_hashes_recorded
+    - file_label_join_rate_gte_0_99
+    - at_least_1000_parseable_pe_per_class_after_exact_dedup
+    - recoverable_metadata_and_dataset_marker_confounding
+    - group_split_constructible
+  failure_action: do_not_run_or_report_empirical_test
+
+eligibility:
+  labels: [0, 1]
+  formats: [PE32, PE32_PLUS]
+  require_structure_map: true
+  exact_duplicate_policy: keep_one
+  near_duplicate_policy: group_split
+  independent_parser_crosscheck: true
+
+split:
+  type: group_stratified
+  ratios:
+    train: 0.70
+    validation: 0.15
+    internal_test: 0.15
+  strata:
+    - label
+    - pe_kind
+  test_access: once_after_protocol_freeze
+  external_adaptation: forbidden
+
+representation:
+  id: interval-binned-v1
+  shape: [1, 224, 224]
+  source_coordinate: half_open_file_offset_interval
+  long_file_policy: contiguous_interval_mean_pool
+  short_file_policy: nearest_byte_repetition
+  selection_budget_denominator: unique_source_bytes
+  augmentations_forbidden:
+    - horizontal_flip
+    - vertical_flip
+    - rotation
+    - random_crop
+    - color_jitter
+
+model:
+  primary: resnet18
+  reference_required: false
+  initialization: select_on_validation_then_freeze
+  optimizer: adamw
+  epochs_max: 30
+  early_stopping_patience: 5
+  seeds: [42, 43, 44]
+  amp: true
+  batch_size: measure_on_rtx5070_8gb
+  selection_metric: validation_macro_f1
+  baselines:
+    - majority
+    - metadata_logistic
+    - byte_histogram_logistic
+
+classification_sanity:
+  macro_f1_margin_over_majority: 0.10
+  balanced_accuracy_min: 0.70
+  per_class_recall_min: 0.60
+  require_seed_direction_agreement: true
+
+xai:
+  method: Grad-CAM
+  target_layer: freeze_exact_module_path_before_test
+  primary_target: malicious_logit_on_all_malicious_test_files
+  secondary_targets:
+    - predicted_class
+    - benign_logit
+    - correctly_detected_malicious_subset
+  upsampling:
+    method: bilinear
+    align_corners: false
+  budgets: [0.05, 0.10, 0.20, 0.40]
+  primary_budget: 0.10
+  interval_overshoot_policy: record_requested_and_achieved_then_match_controls_to_achieved_bytes
+  empty_positive_cam_policy: retain_and_flag
+  controls:
+    - uniform_random_20_repeats
+    - front_position
+    - entropy
+    - structure_matched_random_20_repeats
+  primary_comparator: structure_matched_random
+  fills:
+    primary: structure_conditioned_resampling
+    robustness: local_median_or_blur
+    diagnostic: zero
+
+primary_hypotheses:
+  h1: gradcam_top10_deletion_delta_nll_gt_structure_matched_random
+  h2: gradcam_top10_keep_only_malicious_score_gt_structure_matched_random
+  familywise_tests: 2
+  correction: holm
+
+statistics:
+  unit: file_or_near_duplicate_group
+  paired_bootstrap_repeats: 2000
+  confidence_level: 0.95
+  random_control_repeats_per_file: 20
+  report_each_seed: true
+  report_seed_average: true
+  primary_population: all_malicious_test_files
+  secondary_population: correctly_detected_malicious_files
+
+structure_regions:
+  - dos_and_pe_headers
+  - executable_sections
+  - non_executable_sections
+  - resource_like_sections
+  - certificate_table
+  - overlay
+  - unknown
+
+external_replication:
+  required_for_cross_year_title: true
+  retraining: false
+  threshold_tuning: false
+  require_effect_direction_report: true
+  call_temporal_only_if_collection_dates_verified: true
+
+security:
+  execute_payloads: false
+  dynamic_analysis: false
+  storage: isolated_non_sync_location
+  raw_payloads_in_git: false
+  reversible_images_in_git: false
+  publish_only_non_reversible_aggregates: true
+
+revision_rules:
+  freeze_id: KISA-XAI-V5.1-FROZEN
+  exploratory_id: KISA-XAI-V5.2-EXPLORATORY
+  freeze_requires:
+    - access_gate_passed
+    - dataset_revision
+    - archive_hashes
+    - audit_report
+    - split_hash
+    - representation_and_map_hash
+    - model_and_target_layer
+    - perturbation_and_statistics

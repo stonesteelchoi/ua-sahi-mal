@@ -15,6 +15,8 @@ The canonical bibliography for the manuscript is [`UA_SAHI_Mal_references.bib`](
 | EMBER2024-capa | [Hugging Face dataset](https://huggingface.co/datasets/joyce8/EMBER2024-capa) | Tier 2 silver function bytes/disassembly | ~18.6M non-deduplicated malicious Win32/Win64 function records; Apache-2.0; ~23.8 GB |
 | SAHI | [ICIP 2022 DOI](https://doi.org/10.1109/ICIP46576.2022.9897990) | slicing lineage and Full-SAHi comparison | citation recorded in BibTeX |
 | Upsample Anything | [arXiv:2511.16301](https://arxiv.org/abs/2511.16301) and [official code](https://github.com/seominseok0429/Upsample-Anything_Pytorch) | optional reconstruction component | code pin `39251463a8bb352785c063c3c3f941f1dcdf4c51`; local provenance in `external/upsample-anything/VENDORED_SOURCE.md` |
+| KISA 2017 대용량 정상/악성파일 I | [official dataset page](https://www.ksecurity.or.kr/kisis/subIndex/374.do) | v5 access-gated primary binary-detection candidate | page states 15,000 original normal/malicious files and binary labels; archive, license and contents not yet verified |
+| KISA 2018 대용량 정상/악성파일 III | [official dataset page](https://www.ksecurity.or.kr/kisis/subIndex/376.do) | v5 external cross-year candidate | page states five 10,000-file sets, labels for the first three sets and a four-byte `KISA` suffix; archive not yet verified |
 
 ## Why third-party PDFs are not mirrored here
 

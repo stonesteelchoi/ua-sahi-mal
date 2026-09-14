@@ -1,31 +1,39 @@
 # UA-SAHI-Mal paper workspace
 
-> **현재 활성 연구선은 XAI-v4이다.** 연구 설계, 데이터 결정, 실험 프로토콜과 국문
-> 초안은 [`v4-xai/README.md`](v4-xai/README.md)에서 관리한다. 아래 v3 자료는 연구 이력과
-> 재현성을 위해 보존하며 v4 결과와 합치지 않는다.
+> **현재 활성 연구선은 KISA-XAI-v5이다.** KISA 원본 PE 정상·악성 이진 탐지와 구조
+> 매핑 XAI 평가 계획은 [`v5-kisa-xai/README.md`](v5-kisa-xai/README.md)에서 관리한다.
+> 패밀리 분류 XAI-v4와 그 이전 자료는 연구 이력과 재현성을 위해 보존하며 v5 결과와
+> 합치지 않는다.
 
-이 폴더는 논문 설계·초안·참고문헌의 단일 진입점이다. v3는 **archived pre-results**
-상태이며, v4는 **design draft** 상태다. 두 연구선 모두 아직 새 성능이나 analyst utility를
-주장하지 않는다.
+이 폴더는 논문 설계·초안·참고문헌의 단일 진입점이다. v3는 **archived pre-results**,
+v4는 **superseded design draft**, v5는 **access-gated design draft** 상태다. v5의 실제
+KISA 데이터와 결과는 아직 없으며 새 성능이나 analyst utility를 주장하지 않는다.
 
 ## 현재 결정
 
-- DECODE는 직접 수치 baseline에서 제외한다. 동적 CAPE API-call 영상, multi-label 행동 분류, Bayesian Grad-CAM pseudo-box를 쓰기 때문에 정적 PE component retrieval과 입력·라벨·평가 단위가 다르다.
-- DeepReflect를 가장 직접적인 선행 static function/basic-block localization baseline으로 사용한다.
-- DeepReflect 하나로 비교군을 대체하지 않는다. random/uniform/entropy, attribution, MIL, capa/YARA, supervised-gold 및 exhaustive 기준선을 동일 예산에서 함께 측정한다.
-- canonical prediction과 ground truth는 `file_offset_intervals: [[start, end), ...]`이다. mask와 bbox는 파생 표현이다.
-- 기존 DECODE/YOLO 및 BIG2015 v1/v2 코드는 삭제하지 않는다. 새 논문과 구분된 재현성·negative-result 자산이다.
+- KISA 2017 대용량 정상/악성파일 I을 접근 조건부 주 데이터로 사용한다.
+- 분류 과제는 malware family가 아니라 Windows PE 정상·악성 이진 탐지이다.
+- KISA 2018 라벨 보유 PE를 우선 외부 평가로 사용하며, challenge 연도를 sample 수집일로
+  간주하지 않는다.
+- Grad-CAM의 10% source-byte 구간을 structure-matched random과 deletion·keep-only로
+  비교한다.
+- 위치 ground truth가 없으므로 결과를 실제 악성 코드 구간이라고 부르지 않는다.
+- 기존 v1–v4 코드와 결과는 삭제하지 않되 v5 통계와 합치지 않는다.
 
-결정의 근거와 실행 조건은 [`decisions/ADR-001-deepreflect-baseline.md`](decisions/ADR-001-deepreflect-baseline.md), 전체 계획은 [`plan/RESEARCH_PLAN_v3.md`](plan/RESEARCH_PLAN_v3.md)에 있다.
+결정의 근거는 [`decisions/ADR-003-kisa-binary-xai.md`](decisions/ADR-003-kisa-binary-xai.md),
+전체 계획과 실행 조건은 [`v5-kisa-xai/RESEARCH_PROPOSAL_KO.md`](v5-kisa-xai/RESEARCH_PROPOSAL_KO.md)와
+[`v5-kisa-xai/EXPERIMENT_PROTOCOL.md`](v5-kisa-xai/EXPERIMENT_PROTOCOL.md)에 있다.
 
 ## 폴더 구성
 
 | 경로 | 역할 | 상태 |
 |---|---|---|
-| `v4-xai/` | 현재 연구 질문, 데이터 결정, 프로토콜, 국문 초안 | current design draft |
+| `v5-kisa-xai/` | KISA 이진 탐지, 구조 매핑 XAI, 외부 평가 계획 | current access-gated draft |
+| `v4-xai/` | BIG2015 패밀리 분류 XAI 설계 | superseded design draft |
 | `plan/RESEARCH_PLAN_v3.md` | 과거 연구 질문, 실험 순서, gate, 최소 baseline | archived |
 | `decisions/ADR-001-deepreflect-baseline.md` | DECODE 제외/DeepReflect 채택 결정과 trade-off | accepted |
 | `decisions/ADR-002-xai-v4-direction.md` | XAI-v4 전환과 주장 범위 결정 | accepted |
+| `decisions/ADR-003-kisa-binary-xai.md` | KISA 원본 PE 이진 탐지로 전환한 결정 | accepted |
 | `draft/` | v3 영문 pre-results Markdown·LaTeX·23쪽 검토용 PDF | archived snapshot |
 | `reviews/PAPER_DRAFT_REVIEW_2026-09-04.md` | v3 초안 재검토의 우선순위와 수정 기준 | archived review |
 | `reviews/UA_SAHI_Mal_top_tier_design_review_ko.md` | 제공받은 top-tier 설계 검토서 | imported |
@@ -33,7 +41,7 @@
 | `references/UA_SAHI_Mal_references.bib` | 초안의 BibTeX | canonical bibliography |
 | `references/README.md` | 공식 논문·artifact 링크, 버전 및 재배포 정책 | current |
 
-## 초안 상태
+## 보존된 v3 초안 상태
 
 초안은 결과를 `[TBD]`로 남긴 점, provenance tier를 합치지 않는 점, byte interval을 authoritative coordinate로 둔 점이 좋다. 그러나 gold corpus, DeepReflect adapter, analyst study는 저장소에 없고(Binary Ninja 확보 불가 확정으로 DeepReflect 재현은 명시적 제외), PEAtlas는 저장소에 있으나(P1) 실제 PE 결과가 아직 없는데, 초안이 이들을 이미 완성된 시스템처럼 서술하므로 **submission-ready가 아니다**.
 
@@ -47,7 +55,7 @@
 - DECODE 직접 비교 불가 판정의 과거 기록: [`../docs/DECODE_BASELINE_PLAN.md`](../docs/DECODE_BASELINE_PLAN.md)
 - remote-sensing 원형: [`../docs/legacy_remote_sensing/README.md`](../docs/legacy_remote_sensing/README.md)
 
-과거 문서의 수치와 gate는 v3의 component-localization 결과로 이월하지 않는다.
+과거 문서의 수치와 gate는 v5의 PE 이진 탐지 및 XAI 결과로 이월하지 않는다.
 
 ## 문서·artifact 정책
 
