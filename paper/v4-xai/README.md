@@ -26,6 +26,7 @@
 |---|---|
 | [`RESEARCH_DESIGN.md`](RESEARCH_DESIGN.md) | 연구 질문, 기여, 방법, 지표, 범위 |
 | [`DATASET_DECISION.md`](DATASET_DECISION.md) | 보유 데이터 비교와 최종 선택 규칙 |
+| [`KISA_DATASET_AUDIT.md`](KISA_DATASET_AUDIT.md) | KISA 공개 악성코드 목록의 적합성·접근조건·전환 기준 |
 | [`EXPERIMENT_PROTOCOL.md`](EXPERIMENT_PROTOCOL.md) | 분할, 학습, XAI, 통계, 성공 게이트 |
 | [`protocol/XAI_V4_0_DRAFT.yaml`](protocol/XAI_V4_0_DRAFT.yaml) | 설계값과 미확정값을 구분한 기계 판독 protocol snapshot |
 | [`draft/PAPER_DRAFT_KO.md`](draft/PAPER_DRAFT_KO.md) | 결과를 꾸며 넣지 않은 국문 논문 초안 |

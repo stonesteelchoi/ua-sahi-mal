@@ -27,6 +27,16 @@ data:
   optional_structure_audit:
     name: SOREL-20M-disarmed
     enabled: false
+  conditional_binary_detection_candidate:
+    name: KISA_CISC2017_datachallenge_Malwares.01
+    enabled: false
+    switch_requires:
+      - archive_access_verified
+      - research_and_publication_terms_verified
+      - labeled_files_verified
+      - pe_only_class_balance_audited
+      - duplicate_group_split_feasible
+    consequence: replace_nine_family_task_with_binary_malware_detection
 
 representation:
   native_raster_width_bytes: 512

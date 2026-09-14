@@ -2,10 +2,17 @@
 
 ## 결정
 
-**권장 주 데이터는 BIG2015, 빠른 보조 기준선은 MaleVis 224×224이다.** SOREL-20M
+**현재 권장 주 데이터는 BIG2015, 빠른 보조 기준선은 MaleVis 224×224이다.** SOREL-20M
 300개 파일럿은 PE 구조 및 독립 silver 증거와의 정합성을 점검하는 선택적 보조 분석에
 한정한다. Maldataset-2021은 출처, 라이선스, split, 원본 좌표 정보를 재확인하기 전에는
 사용하지 않는다.
+
+KISA 정보보호 R&D 데이터셋 재검토 결과, 패밀리 분류를 이진 정상·악성 탐지로 변경할
+수 있다면 `KISA_CISC2017_datachallenge_Malwares.01`이 조건부 주 데이터 후보가 된다.
+원본 파일과 이진 정답지가 실제로 제공되면 BIG2015보다 정확한 PE file-offset/section
+분석이 가능하다. 다만 공개 페이지에 데이터 다운로드, 현재 이용조건과 라이선스가 없어
+실제 접근 및 파일 감사를 통과하기 전에는 주 데이터 결정을 바꾸지 않는다. 상세 판정은
+[`KISA_DATASET_AUDIT.md`](KISA_DATASET_AUDIT.md)에 기록했다.
 
 이 결정은 “이미 분류하기 쉬운 PNG가 있는가”보다 다음 질문에 우선순위를 둔다.
 
@@ -23,6 +30,8 @@
 | MaleVis 300 | Drive에 3.137 GB ZIP | MaleVis 224와 동일 | PNG 픽셀까지만 가능 | 기존 실험에서 224보다 macro-F1이 낮았음 | 해상도 ablation만 |
 | SOREL-20M 파일럿 | 코드·프로토콜과 300개 실행 기록은 존재, private payload는 Git 밖 | family가 아니라 vendor-derived behavior tag | PEAtlas로 file offset/RVA/VA/pixel 연결 가능 | disarmed sample, family label 부재, silver evidence 희소·편향 | 선택적 구조/silver 감사 |
 | Maldataset-2021 | 현재 보관 목록과 checkout에 없음 | CDMC 2021의 28 class, 224×224 RGB 과제로 확인 | 공개 PNG 위치만 가능 | `phoenixml` 출처 미확인, 원본 PE·변환 규칙·라이선스·중복 정보 미확인 | 보류 |
+| KISA 2017 대용량 정상/악성파일 I | 공식 페이지에는 15,000개·6.733 GB·원본 파일·이진 정답지로 기재, 실제 archive 미확보 | 정상/악성 이진 탐지 | 실제 PE subset이면 exact file offset과 PE 구조 연결 가능 | family label 없음, 다운로드·라이선스·중복·PE 비율 미확인 | **이진 탐지 전환 시 조건부 후보** |
+| KISA 2018/2019 | 공식 페이지에는 labeled training set과 원본 `.vir`로 기재 | 연도 이동 이진 탐지 | suffix 제거 후 PE subset에서 exact mapping 가능 | `KISA` 4-byte suffix, unlabeled test, 2019 비 PE 혼합, 접근조건 미확인 | 선택적 외부 평가 후보 |
 | DECODE | 코드·문헌 어댑터 존재, 실제 주 데이터 없음 | 동적 API 기반 8-category/multilabel | API 이미지 좌표 | 정적 PE family 및 byte-image와 estimand 불일치 | 관련 연구 |
 
 ## 왜 BIG2015인가
