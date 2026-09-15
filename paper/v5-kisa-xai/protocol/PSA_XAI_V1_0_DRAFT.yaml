@@ -1,0 +1,313 @@
+# Derived from KISA_XAI_V5_0_DRAFT.yaml on 2026-09-15 after the KISA raw data proved
+# offline-only (no export) and the PSA PE Malware Machine Learning Dataset passed the
+# P0 data gates. KISA-XAI-V5.0-DRAFT is preserved unchanged as the parent design.
+# Every number below was measured on the acquired data; nothing is projected.
+
+protocol:
+  id: PSA-XAI-V1.0-DRAFT
+  status: p0_data_gates_passed_pre_freeze
+  created: 2026-09-15
+  parent: KISA-XAI-V5.0-DRAFT
+  branch: research/kisa-xai-v5
+  task: static_windows_pe_binary_malware_detection
+  paper_type: classifier_and_xai_evaluation
+  freeze_blockers:
+    - batch_size_not_yet_measured_on_rtx5070_8gb
+    - target_layer_module_path_not_yet_pinned   # candidate layer4.1 (CUDA smoke)
+    - independent_pefile_crosscheck_not_yet_run  # P2
+
+# Section 5 of the experiment protocol tripped (metadata-only AUROC >= 0.90) and the
+# rule was kept unchanged by decision on 2026-09-15. Section 14 therefore limits the
+# main conclusion to dataset-bias evaluation. The claims list encodes that.
+claims:
+  permitted:
+    - model_attributed_region
+    - explanation_faithfulness
+    - pe_structure_alignment
+    - dataset_specific_static_discrimination
+    - dataset_bias_evaluation
+  prohibited_without_new_evidence:
+    - malicious_decision_evidence          # downgraded: metadata shortcut gate tripped
+    - malicious_semantics
+    - true_malicious_code_region
+    - malicious_behavior_ground_truth
+    - analyst_time_reduction
+    - proven_temporal_robustness
+    - cross_year_generalization            # single 2018 collection, no external set yet
+    - novel_gradcam_algorithm
+  mandatory_reported_baseline:
+    metadata_only_logistic_auroc_group_disjoint: 0.95   # 0.9499-0.9526 across two implementations
+
+data:
+  primary:
+    id: psa-pe-malware-ml-2018
+    name: PE Malware Machine Learning Dataset (Practical Security Analytics, M. Lester)
+    page: https://practicalsecurityanalytics.com/pe-malware-machine-learning-dataset/
+    role: train_validation_internal_test
+    access_state: acquired_and_verified_2026-09-15
+    license_state: recorded_from_page_text
+    terms:
+      - non_commercial_research_use
+      - no_malicious_use
+      - citation_required: "Michael Lester, practicalsecurityanalytics.com"
+    archive:
+      file: pe-machine-learning-dataset.7z
+      format: 7z_solid_password_protected
+      password: infected
+      bytes: 43836090371
+      sha256: a8b02407a1f8c77dd9dccc229503a4f668083271edcbb0289d53c28ebf51215e
+      uncompressed_bytes: 126356677232
+      entries: 201553          # 2 dirs + 201,549 samples + 2 csv
+    label_files:
+      samples.csv:
+        sha256: 7874dd996590e3ac0a17e46fcac8512bac897e6e706cd5f26f645db1b1a1f5dd
+        rows: 201549
+      samples-augmented.csv:
+        sha256: d42e3c6d8fa05fb086c57b6068baebf60f03579693ec163cd8db1bc8cacb8713
+        rows: 201549
+        adds: imphash
+    official_description:
+      samples: 201549
+      benign_whitelist: 86812
+      malicious_blacklist: 114737
+      payload: original_pe_files_extension_stripped
+      label_source: av_engine_detection_count_positives_over_total
+      collection: 2018
+      benign_source: windows_7_plus_installs_and_installed_software
+      malicious_source: virusshare_malshare_thezoo
+    measured:
+      file_label_join_rate: 1.0000
+      length_column_mismatches: 0
+      sha256_duplicates: 0
+      parse_failed: 32
+      parse_partial: 16
+      not_pe32_or_pe32plus: 1
+      eligible: 199316
+      eligible_benign: 84928
+      eligible_malicious: 114388
+      pe32: {benign: 55039, malicious: 113409}
+      pe32plus: {benign: 29889, malicious: 979}
+      repr_policy_mean_pool: 165056
+      repr_policy_nearest_repetition: {benign: 24949, malicious: 9311}
+    storage: 'D:\secure-malware-data\psa\'   # outside repo and all sync paths
+    integrity_incident:
+      date: 2026-09-15
+      event: one_sample_quarantined_by_av_between_raster_build_and_gate_check
+      sample_id: "75938"
+      label: malicious_38_of_49_engines
+      resolution: restored_from_archive_sha256_verified
+      lesson: av_loss_is_not_random_it_removes_the_most_detectable_malware
+  external:
+    state: not_identified
+    requirement: raw_pe_benign_and_malicious_with_collection_year_and_source_different_from_primary
+    consequence: external_replication_and_cross_year_title_unavailable_until_found
+    auxiliary_only:
+      dikedataset_pe:
+        benign: 982
+        malicious: 8970
+        reason_not_external: repackaging_of_figshare_6635642_five_families_shared_virusshare_lineage
+  existing_assets:
+    sorel20m_disarmed_pilot: {use: peatlas_regression_only, pooled: false}
+    big2015: {use: code_regression_only, pooled: false}
+    malevis: {use: none, pooled: false}
+    kisa_2017_2018_2019: {use: none, state: offline_visit_only_no_export}
+
+access_gate:
+  result: passed_2026-09-15
+  evidence: paper/v5-kisa-xai/audit/DATA_AUDIT_2026-09-15_psa_p0_stage1.md
+  evidence_2: paper/v5-kisa-xai/audit/DATA_AUDIT_2026-09-15_psa_p0_stage2.md
+  gate_report: p0_gate_report.json   # D:\secure-malware-data\psa\audit\
+  items:
+    research_and_publication_terms_verified: recorded_from_page_text
+    archive_and_label_hashes_recorded: true
+    file_label_join_rate_gte_0_99: 1.0000
+    at_least_1000_parseable_pe_per_class_after_exact_dedup: true
+    recoverable_metadata_and_dataset_marker_confounding: audited_see_metadata_shortcut_audit
+    group_split_constructible: true_77469_groups
+
+eligibility:
+  labels: [0, 1]
+  label_rule:
+    benign: total_engines_gte_40_and_positives_eq_0
+    malicious: positives_gte_10
+    boundary_band_excluded: 2184
+    rationale: list_column_alone_is_not_a_clean_threshold_1771_whitelisted_with_detections_105_blacklisted_with_none
+  formats: [PE32, PE32_PLUS]
+  require_structure_map: true
+  exact_duplicate_policy:
+    source_sha256: all_unique
+    raster_sha256: keep_one_representative
+    raster_duplicate_groups: 116
+    rows_in_groups: 266
+    excluded_at_load: 150
+    cross_split_groups: 0
+    cross_label_groups: 0
+    file: raster_duplicate_groups.csv
+  near_duplicate_policy: group_split_by_imphash
+  independent_parser_crosscheck: pending_p2
+
+split:
+  type: group_disjoint_stratified
+  group_key: imphash_or_singleton_when_no_import_table
+  groups: 77469
+  largest_group: {imphash: dae02f32a21e03ce65412f6e56942daa, size: 20271, forced_into: train}
+  ratios: {train: 0.70, validation: 0.15, internal_test: 0.15}
+  strata: [label, pe_kind, repr_policy]     # repr_policy added: label-correlated 29% vs 8%
+  seed: 42
+  manifest: split_manifest.csv
+  split_sha256: 843bcb8033205a5b37b420b93cdf940ed69dce58d73e5f3eaf942d7cc318099b
+  counts: {train: 139192, validation: 29953, internal_test: 30171}
+  stratum_deviation_note: malicious_pe32plus_n979_is_66_15_19_all_other_strata_within_0_5_points
+  test_access: once_after_protocol_freeze
+  external_adaptation: forbidden
+  robustness_subset:
+    id: era_matched
+    purpose: removes_toolchain_age_artefact_linker_version_and_compile_date
+    n: 70938
+    balanced: {benign: 35469, malicious: 35469}
+    metadata_only_auroc: 0.90-0.91
+    caveat: drops_54k_old_toolchain_malware_not_population_representative
+    split_manifest: split_manifest_era.csv
+    note: regenerate_with_stratified_make_split_before_use   # built before stratification fix
+
+representation:
+  id: interval-binned-v1
+  shape: [1, 224, 224]
+  dtype: float32
+  source_coordinate: half_open_file_offset_interval
+  long_file_policy: contiguous_interval_mean_pool
+  short_file_policy: nearest_byte_repetition
+  policy_threshold_bytes: 50176
+  selection_budget_denominator: unique_source_bytes
+  materialised:
+    file: rasters.npy
+    shape: [199316, 50176]
+    bytes: 40001380352
+    raster_index_sha256: 94d02b247fc761d64fdea5aeac9afe2da6dc56bdcc998cc84d4a5c7d3f76f785
+    rasters_meta_sha256: c1398d0c74bc4bb1308ecdf91eb6426a4c558fb1de715df8749ae8fd3512a9e8
+    roundtrip_check: {samples: 2000, failures: 0}
+  policy_label_confound:
+    benign_nearest_repetition_share: 0.294
+    malicious_nearest_repetition_share: 0.081
+    required_controls:
+      - stratify_split_by_repr_policy        # done
+      - report_h1_h2_per_policy_subgroup
+      - sensitivity_mean_pool_only_files_gte_50176_bytes
+  augmentations_forbidden: [horizontal_flip, vertical_flip, rotation, random_crop, color_jitter]
+
+metadata_shortcut_audit:
+  protocol_section: 5
+  gate: 0.90
+  method: logistic_regression_20_byte_derivable_features_group_disjoint_5fold
+  excluded_from_model: [submitted, total, positives]   # collection metadata, not in bytes
+  result_full_eligible: 0.9499-0.9526
+  result_era_matched: 0.9028-0.9112
+  gate_tripped: true
+  strongest_single_features:
+    max_section_entropy: 0.822
+    linker_major: 0.778
+    file_entropy: 0.759
+    subsystem: 0.763
+  ablation_finding: redundant_no_single_family_removal_drops_below_0.90
+  latent_confounder: toolchain_era_gap   # benign VS2005-2013, malicious VC6/Delphi
+  era_matching_effect:
+    removed: [linker_major, linker_minor, timestamp, dll_characteristics, signed]
+    retained_or_strengthened: [max_section_entropy, file_entropy, subsystem, is_pe32plus]
+  interpretation: remaining_separability_is_static_malware_trait_not_collection_artefact
+  section_14_consequence: main_conclusion_limited_to_dataset_bias_evaluation
+  testable_prediction: gradcam_mass_should_concentrate_in_high_entropy_executable_sections_not_header
+
+model:
+  primary: resnet18
+  reference_required: false
+  initialization: select_on_validation_then_freeze
+  optimizer: adamw
+  epochs_max: 30
+  early_stopping_patience: 5
+  seeds: [42, 43, 44]
+  amp: true
+  batch_size: measure_on_rtx5070_8gb     # freeze blocker
+  selection_metric: validation_macro_f1
+  baselines: [majority, metadata_logistic, byte_histogram_logistic]
+
+classification_sanity:
+  macro_f1_margin_over_majority: 0.10
+  balanced_accuracy_min: 0.70
+  per_class_recall_min: 0.60
+  require_seed_direction_agreement: true
+
+xai:
+  method: Grad-CAM
+  target_layer: layer4.1_candidate_pin_exact_module_path_at_freeze
+  library_vs_hook_agreement_spearman: 0.9999999999   # RTX 5070 CUDA smoke 2026-09-15
+  primary_target: malicious_logit_on_all_malicious_test_files
+  secondary_targets: [predicted_class, benign_logit, correctly_detected_malicious_subset]
+  upsampling: {method: bilinear, align_corners: false}
+  budgets: [0.05, 0.10, 0.20, 0.40]
+  primary_budget: 0.10
+  interval_overshoot_policy: record_requested_and_achieved_then_match_controls_to_achieved_bytes
+  empty_positive_cam_policy: retain_and_flag
+  controls: [uniform_random_20_repeats, front_position, entropy, structure_matched_random_20_repeats]
+  primary_comparator: structure_matched_random
+  fills: {primary: structure_conditioned_resampling, robustness: local_median_or_blur, diagnostic: zero}
+
+primary_hypotheses:
+  h1: gradcam_top10_deletion_delta_nll_gt_structure_matched_random
+  h2: gradcam_top10_keep_only_malicious_score_gt_structure_matched_random
+  familywise_tests: 2
+  correction: holm
+
+statistics:
+  unit: file_or_imphash_group
+  paired_bootstrap_repeats: 2000
+  confidence_level: 0.95
+  random_control_repeats_per_file: 20
+  report_each_seed: true
+  report_seed_average: true
+  primary_population: all_malicious_test_files
+  secondary_population: correctly_detected_malicious_files
+  internal_test_malicious_n: 17431
+
+structure_regions:
+  - dos_and_pe_headers
+  - executable_sections
+  - non_executable_sections
+  - resource_like_sections
+  - certificate_table
+  - overlay
+  - unknown
+
+external_replication:
+  required_for_cross_year_title: true
+  external_set: none_identified
+  retraining: false
+  threshold_tuning: false
+  require_effect_direction_report: true
+  call_temporal_only_if_collection_dates_verified: true
+
+security:
+  execute_payloads: false
+  dynamic_analysis: false
+  storage: isolated_non_sync_location
+  raw_payloads_in_git: false
+  reversible_images_in_git: false        # rasters.npy stays on D:, never in git
+  publish_only_non_reversible_aggregates: true
+  av_handling: folder_exclusion_on_storage_root_only_never_global_disable
+
+tooling:
+  stage2_manifest: scripts/psa_stream_audit.py       # 199,316 in 11.1 min, 180 MiB/s
+  shortcut_audit_and_split: scripts/psa_shortcut_audit.py
+  confound_drilldown: scripts/psa_confound_drilldown.py
+  rasters: scripts/psa_build_rasters.py              # 199,316 in 3.1 min, 658 MiB/s
+  gate_finalisation: scripts/psa_p0_finalize.py
+  manifest_stage2_sha256: 3dc0bd7fb42935692462013f716bbd8ccd339b20bb436289aa93e78852b17414
+
+revision_rules:
+  freeze_id: PSA-XAI-V1.1-FROZEN
+  exploratory_id: PSA-XAI-V1.2-EXPLORATORY
+  freeze_requires:
+    - batch_size_measured
+    - target_layer_module_path_pinned
+    - independent_pefile_crosscheck_passed
+    - era_matched_split_regenerated_stratified
+    - all_hashes_above_unchanged

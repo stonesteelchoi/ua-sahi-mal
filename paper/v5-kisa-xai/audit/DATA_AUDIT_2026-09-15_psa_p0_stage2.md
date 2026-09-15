@@ -172,3 +172,69 @@ enrichment가 이를 직접 판정한다. 헤더에 몰린다면 모델이 남�
   `--restrict-to <ids.txt> --tag <name>` 으로 매칭 부분집합의 분할을 따로 만든다.
 - `scripts/psa_confound_drilldown.py` — 변수군 ablation, `--match-on {era, era-plus-form,
   size-entropy-linker, size-entropy}` 매칭, 클래스 프로파일
+
+
+---
+
+## 6. P0 게이트 마감 (2026-09-15, `psa_p0_finalize.py`)
+
+### 6.1 중간에 생긴 일 — 백신 격리 1건
+
+첫 finalize 실행에서 `samples\75938`이 `PermissionError`, 재실행에서 `FileNotFoundError`로 바뀌었다
+(검사 중 잠금 → 제거의 전형적 순서). 래스터 빌드(직전 3.1분)는 199,316개를 전부 읽었으므로 그 사이에
+백신이 처리한 것이다. 정체: Blacklist, **38/49 엔진 탐지**, 엔트로피 7.88, imphash `65236e9e…`
+(558개짜리 100% 악성 클러스터). 1단계 §4에서 경고한 편향 메커니즘 — **백신은 무작위가 아니라 가장
+잘 알려진 악성을 지운다** — 가 n=1로 실증됐다. 백신 해제 후 전수 가독성 199,315/199,316 → 아카이브에서
+해당 파일만 복원(반디집 `bz x`), samples.csv의 sha256과 대조.
+
+이 사건 이후 finalize에 **표본 sha256 ↔ 라벨 파일 sha256 대조**를 추가했다(복원·교체된 파일 검증용).
+
+### 6.2 분할 층화 정정
+
+첫 분할은 그룹 분리만 하고 층화를 빠뜨렸다(정상 PE32+가 68.8/12.5/18.7). `make_split`을
+label × pe_kind × repr_policy 층화 + 그룹 분리로 고쳐 재생성했다.
+
+| 층 | n | train / val / test |
+|---|---|---|
+| 정상 PE32 | 55,039 | 70.0 / 15.0 / 15.0 |
+| 정상 PE32+ | 29,889 | 70.0 / 15.0 / 15.0 |
+| 악성 PE32 | 113,409 | 69.7 / 15.0 / 15.2 |
+| 악성 PE32+ | 979 | 66.2 / 15.3 / 18.5 (소규모 층, 그룹 덩어리 때문) |
+
+새 `split_sha256 = 843bcb8033205a5b37b420b93cdf940ed69dce58d73e5f3eaf942d7cc318099b`,
+train 139,192 / val 29,953 / test 30,171 (69.8 / 15.0 / 15.1). 래스터는 결정론적이므로 재빌드해
+split 열과 메타 해시만 갱신됐다(3.1분).
+
+### 6.3 최종 게이트 결과 — 전부 통과
+
+| 검사 | 결과 |
+|---|---|
+| 라벨·manifest·split·index·meta SHA-256 | 6개 기록 (프로토콜 YAML에 전사) |
+| PE32 / PE32+ 클래스×split 표 | 위 6.2 |
+| 래스터 수준 exact duplicate | 116그룹 / 266행, **split 경계 넘는 것 0, 라벨 넘는 것 0** → 대표 1개씩 남기면 150행 로드 시 제외 |
+| 표현 왕복 (2,000 무작위) | `raster_sha256`·`map_sha256`·memmap 행 비트 대조·interval 불변식 **실패 0** |
+| 전수 가독성 | **199,316 / 199,316** |
+| 판정 | **ALL P0 DATA GATES OK** |
+
+### 6.4 산출물 (전부 `D:\secure-malware-data\psa\`, 저장소 밖)
+
+| 파일 | 내용 | SHA-256 |
+|---|---|---|
+| `manifest_stage2.csv` | 표본별 PE 사실 28열 | `3dc0bd7f…7414` |
+| `audit/split_manifest.csv` | 층화·그룹 분리 분할 | `843bcb80…099b` |
+| `rasters/rasters.npy` | 199,316 × 50,176 float32 (37.3 GiB) | — (index로 검증) |
+| `rasters/raster_index.csv` | row↔sample_id, raster/map 해시 | `94d02b24…f785` |
+| `rasters/rasters_meta.json` | 표현 ID·크기·split 해시 | `c1398d0c…a9e8` |
+| `rasters/raster_duplicate_groups.csv` | 래스터 중복 116그룹 | — |
+| `audit/p0_gate_report.json` | 이 표의 기계 판독본 | — |
+
+## 7. 프로토콜 파생 — `PSA-XAI-V1.0-DRAFT`
+
+`protocol/PSA_XAI_V1_0_DRAFT.yaml`을 `KISA_XAI_V5_0_DRAFT.yaml`에서 파생했다(부모는 그대로 보존).
+데이터 절을 PSA 실측치로 채우고, §5 게이트 결과와 §14 결론 제한을 `claims`에 명문화했다:
+`malicious_decision_evidence`·`cross_year_generalization`을 금지 목록으로 옮기고
+`dataset_specific_static_discrimination`·`dataset_bias_evaluation`을 허용 목록에 넣었다.
+`metadata_only_logistic_auroc 0.95`는 필수 보고 기준선이다.
+
+동결(`PSA-XAI-V1.1-FROZEN`) 차단 항목 3개: batch size 실측, target layer 모듈 경로 고정,
+독립 pefile 교차검사(P2). 여기까지가 데이터 측에서 할 수 있는 전부다.
