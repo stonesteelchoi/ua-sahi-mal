@@ -218,10 +218,21 @@ def main() -> int:
     ap.add_argument("--benign-min-total", type=float, default=40.0)
     ap.add_argument("--malicious-min-positives", type=float, default=10.0)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--restrict-to", default=None,
+                    help="file of sample_ids (one per line) to restrict the analysis to, "
+                         "e.g. matched_sample_ids_era.txt -- use this to build the split "
+                         "manifest for a matched dataset revision")
+    ap.add_argument("--tag", default="", help="suffix for the output file names")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
 
     rows = load(args.manifest, args.labels)
+    if args.restrict_to:
+        with open(args.restrict_to, encoding="utf-8") as fh:
+            allow = {ln.strip() for ln in fh if ln.strip()}
+        before = len(rows)
+        rows = [r for r in rows if r["sample_id"] in allow]
+        print(f"restricted to {args.restrict_to}: {before:,} -> {len(rows):,}")
     elig, stats = eligibility(rows, args.benign_min_total, args.malicious_min_positives)
     print("\n=== eligibility ===")
     for k, v in sorted(stats.items(), key=lambda kv: -kv[1]):
@@ -264,7 +275,8 @@ def main() -> int:
     print("\n=== group-disjoint split ===")
     for k, v in counts.items():
         print(f"  {k:6} {v:8,} ({100*v/len(elig):.1f}%)")
-    split_path = os.path.join(args.outdir, "split_manifest.csv")
+    suffix = f"_{args.tag}" if args.tag else ""
+    split_path = os.path.join(args.outdir, f"split_manifest{suffix}.csv")
     with open(split_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh, lineterminator="\n")
         w.writerow(["sample_id", "label", "group", "split", "pe_kind", "repr_policy"])
@@ -292,10 +304,11 @@ def main() -> int:
         "split_counts": counts,
         "split_sha256": split_hash,
         "seed": args.seed,
+        "restrict_to": args.restrict_to,
         "benign_min_total": args.benign_min_total,
         "malicious_min_positives": args.malicious_min_positives,
     }
-    sp = os.path.join(args.outdir, "shortcut_audit.json")
+    sp = os.path.join(args.outdir, f"shortcut_audit{suffix}.json")
     with open(sp, "w", encoding="utf-8") as fh:
         json.dump(summary, fh, indent=2, ensure_ascii=False)
     print(f"\nwrote {sp}")
