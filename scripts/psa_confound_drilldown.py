@@ -95,6 +95,13 @@ def main() -> int:
     ap.add_argument("--labels", required=True)
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--match-on", default="size-entropy-linker",
+                    choices=("size-entropy-linker", "era", "era-plus-form", "size-entropy"),
+                    help="which variables define a matching cell. 'era' matches ONLY on "
+                         "collection artefacts (toolchain age) and deliberately leaves "
+                         "packing/structure free, because those are arguably real malware "
+                         "traits rather than artefacts -- matching them away would remove "
+                         "the phenomenon under study.")
     args = ap.parse_args()
     os.makedirs(args.outdir, exist_ok=True)
     rng = np.random.default_rng(args.seed)
@@ -154,14 +161,26 @@ def main() -> int:
     # version: inside a cell benign and malicious look alike on the variables that
     # carry most of the shortcut, so anything left is not those variables.
     print("\n=== matched subset ===")
-    size_b = np.digitize(X[:, pos["archive_size"]],
-                         np.quantile(X[:, pos["archive_size"]], np.linspace(0.1, 0.9, 9)))
-    ent_b = np.digitize(X[:, pos["file_entropy"]],
-                        np.quantile(X[:, pos["file_entropy"]], np.linspace(0.1, 0.9, 9)))
-    lnk = X[:, pos["linker_major"]].astype(int)
+    def deciles(col):
+        return np.digitize(X[:, pos[col]],
+                           np.quantile(X[:, pos[col]], np.linspace(0.1, 0.9, 9)))
+
+    keys: list[np.ndarray] = []
+    if args.match_on in ("size-entropy-linker", "size-entropy"):
+        keys += [deciles("archive_size"), deciles("file_entropy")]
+    if args.match_on == "size-entropy-linker":
+        keys.append(X[:, pos["linker_major"]].astype(int))
+    if args.match_on in ("era", "era-plus-form"):
+        # collection artefacts only: toolchain version and compile date
+        keys += [X[:, pos["linker_major"]].astype(int),
+                 np.digitize(X[:, pos["linker_minor"]], [1, 5, 10, 20, 30]),
+                 deciles("timestamp")]
+    if args.match_on == "era-plus-form":
+        keys += [X[:, pos["subsystem"]].astype(int), X[:, pos["is_pe32plus"]].astype(int)]
+    print(f"  matching on: {args.match_on}")
     cells = defaultdict(lambda: ([], []))
     for i in range(len(rows)):
-        cells[(int(size_b[i]), int(ent_b[i]), int(lnk[i]))][int(y[i])].append(i)
+        cells[tuple(int(k[i]) for k in keys)][int(y[i])].append(i)
     sel = []
     for (_, (b, m)) in cells.items():
         k = min(len(b), len(m))
@@ -210,14 +229,14 @@ def main() -> int:
             c = Counter(X[y == lv, j].astype(int)).most_common(5)
             print(f"     {lname:10} {c}")
 
-    out = {"combined_auroc": full, "ablation": ab, "matched_auroc": matched,
+    out = {"match_on": args.match_on, "combined_auroc": full, "ablation": ab, "matched_auroc": matched,
            "matched_n": int(len(sel)), "eligible_n": len(rows),
            "per_feature": per, "profiles": prof, "seed": args.seed}
-    p = os.path.join(args.outdir, "confound_drilldown.json")
+    p = os.path.join(args.outdir, f"confound_drilldown_{args.match_on}.json")
     with open(p, "w", encoding="utf-8") as fh:
         json.dump(out, fh, indent=2, ensure_ascii=False)
-    np.save(os.path.join(args.outdir, "matched_indices.npy"), sel)
-    with open(os.path.join(args.outdir, "matched_sample_ids.txt"), "w", encoding="utf-8") as fh:
+    np.save(os.path.join(args.outdir, f"matched_indices_{args.match_on}.npy"), sel)
+    with open(os.path.join(args.outdir, f"matched_sample_ids_{args.match_on}.txt"), "w", encoding="utf-8") as fh:
         for i in sel:
             fh.write(rows[i]["sample_id"] + "\n")
     print(f"\nwrote {p}")
