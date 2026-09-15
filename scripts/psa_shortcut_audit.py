@@ -251,11 +251,14 @@ def main() -> int:
     verdict = "n/a"
     if comb is not None:
         print(f"  AUROC = {comb:.4f}")
-        verdict = "SHORTCUT_DOMINANT" if comb >= 0.90 else "below_0.90_gate"
+        verdict = "SHORTCUT_GATE_TRIPPED" if comb >= 0.90 else "below_0.90_gate"
         print(f"  protocol section 5 gate (0.90): {verdict}")
         if comb >= 0.90:
-            print("  -> the main claim must be limited to dataset-specific static")
-            print("     discrimination, not malicious semantics.")
+            print("  -> the gate requires the label-source relationship to be ANALYSED next")
+            print("     (psa_confound_drilldown.py: family ablation + matching). The main")
+            print("     claim is narrowed to dataset-specific static discrimination only if")
+            print("     the effect survives matching or stratification -- not on this number")
+            print("     alone.")
 
     assign, counts = make_split(elig, groups, seed=args.seed)
     print("\n=== group-disjoint split ===")
