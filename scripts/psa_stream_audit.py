@@ -1,7 +1,14 @@
 """Stream the PSA PE Malware Machine Learning Dataset archive and emit a P0 manifest.
 
-The archive is a *solid* 7z, so random access is expensive; this makes exactly one
-sequential pass.  Sample bytes are decompressed into memory, measured, and dropped.
+Two input modes:
+
+  --samples-dir  read already-extracted samples from a directory (FAST, parallel).
+  --archive      stream the solid 7z without extracting anything (SLOW, single pass).
+
+Measured on this dataset: py7zr streaming tops out near 5.7 MiB/s of decompressed
+bytes (~6 h for the 117.7 GiB payload, ~17 h with PE parsing), while native 7-Zip
+extraction plus a parallel directory pass finishes in well under an hour.  Stream
+only when writing the samples to disk is not acceptable.
 
     **No sample byte is ever written to disk.**
 
@@ -208,9 +215,51 @@ class AuditFactory(WriterFactory):
         return SampleIO(filename, self._sink, self._max)
 
 
+def analyse_path(path: str) -> dict:
+    """Directory mode worker: read one extracted sample and describe it."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    row = describe(data)
+    row["sample_id"] = os.path.basename(path)
+    row["archive_size"] = str(len(data))
+    row["sha256"] = hashlib.sha256(data).hexdigest()
+    return row
+
+
+def run_directory(args, writer, fh, state) -> None:
+    import multiprocessing as mp
+
+    paths = [os.path.join(args.samples_dir, n) for n in os.listdir(args.samples_dir)]
+    paths = [p for p in paths if os.path.isfile(p)]
+    if args.limit:
+        paths = paths[: args.limit]
+    print(f"{len(paths):,} samples in {args.samples_dir}, {args.workers} workers", flush=True)
+    with mp.Pool(args.workers) as pool:
+        for row in pool.imap_unordered(analyse_path, paths, chunksize=64):
+            state["n"] += 1
+            state["bytes"] += int(row["archive_size"] or 0)
+            scrub_and_write(writer, row)
+            if state["n"] % 5000 == 0:
+                el = time.time() - state["t0"]
+                gb = state["bytes"] / 2**30
+                print(f"  {state['n']:,} samples  {gb:.1f} GiB  {el/60:.1f} min  "
+                      f"{gb*1024/max(el,1):.0f} MiB/s", flush=True)
+                fh.flush()
+
+
+def scrub_and_write(writer, row) -> None:
+    for k, v in row.items():
+        if isinstance(v, str) and any(ord(c) < 0x20 or ord(c) == 0x7F for c in v):
+            row[k] = "".join(c if 0x20 <= ord(c) < 0x7F else f"\\x{ord(c):02x}" for c in v)
+    writer.writerow(row)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--archive", required=True)
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--archive", help="stream the .7z (slow)")
+    src.add_argument("--samples-dir", help="directory of extracted samples (fast)")
+    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 4) - 1))
     ap.add_argument("--out", required=True)
     ap.add_argument("--password", default="infected")
     ap.add_argument("--limit", type=int, default=0, help="stop after N samples (smoke test)")
@@ -247,10 +296,7 @@ def main() -> int:
         row["sample_id"] = name[len(SAMPLE_PREFIX):]
         row["archive_size"] = str(size)
         row["sha256"] = sha
-        for k, v in row.items():
-            if isinstance(v, str) and any(ord(c) < 0x20 or ord(c) == 0x7F for c in v):
-                row[k] = "".join(c if 0x20 <= ord(c) < 0x7F else f"\\x{ord(c):02x}" for c in v)
-        writer.writerow(row)
+        scrub_and_write(writer, row)
         n = state["n"]
         if n % 2000 == 0:
             el = time.time() - state["t0"]
@@ -261,6 +307,16 @@ def main() -> int:
         if args.limit and n >= args.limit:
             state["stop"] = True
             raise KeyboardInterrupt("limit reached")
+
+    if args.samples_dir:
+        try:
+            run_directory(args, writer, fh, state)
+        finally:
+            fh.close()
+        el = time.time() - state["t0"]
+        print(f"done: {state['n']:,} samples, {state['bytes']/2**30:.1f} GiB, "
+              f"{el/60:.1f} min -> {args.out}", flush=True)
+        return 0
 
     print(f"streaming {args.archive}", flush=True)
     try:

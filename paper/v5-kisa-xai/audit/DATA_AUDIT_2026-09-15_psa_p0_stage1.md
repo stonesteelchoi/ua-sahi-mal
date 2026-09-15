@@ -150,18 +150,50 @@ imphash는 바이트에서 유도되므로 CNN이 이를 학습하는 것은 정
 
 ## 9. 도구 — `scripts/psa_stream_audit.py`
 
-아카이브가 solid 7z라 단일 파일 임의 접근이 비싸다. 이 스크립트는 **한 번의 순차 스트리밍**으로
-표본마다 sha256·MZ 판정·PE32/PE32+·machine·timestamp·subsystem·linker 버전·section 수와 이름·
-실행/비실행 섹션 바이트·overlay·certificate·signed·최대 섹션 엔트로피·비표준 섹션 수·imphash·
-파일 엔트로피·`interval-binned-v1` 정책을 계산해 manifest CSV로 쓴다.
+두 가지 입력 모드를 지원한다.
 
-**표본 바이트는 메모리에서만 다루고 디스크에 쓰지 않는다.** 따라서 해제가 필요 없고,
-실시간 백신 검사가 발동하지 않으며 제외 설정도 필요 없다. 실행·임포트·동적 로딩은 하지 않는다.
+| 모드 | 입력 | 특성 |
+|---|---|---|
+| `--samples-dir` | 이미 해제된 표본 디렉터리 | **빠름.** 코어 수만큼 병렬 처리 |
+| `--archive` | solid 7z를 해제 없이 스트리밍 | 느림. 표본 바이트를 디스크에 쓰지 않음 |
+
+표본마다 sha256·MZ 판정·PE32/PE32+·machine·timestamp·subsystem·DllCharacteristics·linker 버전·
+section 수와 이름·실행/비실행 섹션 바이트·overlay·certificate·signed·최대 섹션 엔트로피·
+비표준 섹션 수·imphash·파일 엔트로피·`interval-binned-v1` 정책을 계산해 manifest CSV로 쓴다.
+원본을 실행·임포트·동적 로딩하지 않고 pefile로 **데이터로서만** 파싱한다.
+
+### 9.1 실측 — 스트리밍은 쓰지 않는다
+
+| 모드 | 처리량(해제 바이트 기준) | 117.7 GiB 환산 |
+|---|---|---|
+| `--archive --analysis hash-only` (해제 천장) | 5.7 MiB/s | **약 5.9시간** |
+| `--archive` full (PE 파싱 포함) | 1.9 MiB/s | **약 17시간** |
+| `--samples-dir` (해제 후 병렬) | 디스크 I/O 한계 | 수십 분 |
+
+`py7zr`의 해제 천장이 5.7 MiB/s로 네이티브 7-Zip보다 한 자릿수 이상 느리다.
+초기에는 "해제하지 않고 스트리밍"을 권했으나 **이 측정으로 철회한다**:
+한 번 해제(네이티브 7-Zip)한 뒤 디렉터리 모드로 병렬 분석하는 쪽이 압도적으로 빠르다.
+해제된 표본은 백신 제외가 필요하며, 이때 격리로 인한 누락이 라벨 분포를 편향시키므로
+**해제 후 파일 수를 201,549와 반드시 대조**한다(§4·§2 참조).
+
+참고: 첫 최적화에서 순수 파이썬 엔트로피(`Counter` 순회 + pefile `get_entropy`)를
+numpy `bincount`로 교체해 full 모드가 약 3배 빨라졌다(0.6 → 1.9 MiB/s). 그래도 해제 천장에 막힌다.
+
+### 9.2 사용법
 
 ```powershell
+# 1) 네이티브 7-Zip으로 해제 (백신 제외 선행)
+& "C:\Program Files\7-Zip\7z.exe" x -p"infected" `
+  "C:\research\ua-sahi-mal\datasets\pe-machine-learning-dataset.7z" `
+  -o"D:\secure-malware-data\psa"
+
+# 2) 해제 검증 — 201,549 가 나와야 한다
+(Get-ChildItem "D:\secure-malware-data\psa\pe-machine-learning-dataset\samples" -File).Count
+
+# 3) 병렬 분석
 .\.venv\Scripts\python.exe scripts\psa_stream_audit.py `
-  --archive "C:\research\ua-sahi-mal\datasets\pe-machine-learning-dataset.7z" `
-  --out "D:\secure-malware-data\psa\manifest_stage2.csv" --limit 400   # 먼저 smoke
+  --samples-dir "D:\secure-malware-data\psa\pe-machine-learning-dataset\samples" `
+  --out "D:\secure-malware-data\psa\manifest_stage2.csv"
 ```
 
-`--limit`을 빼면 전량(117.7 GiB 압축 해제 상당)을 처리한다. 필요 패키지: `py7zr`, `pefile`.
+필요 패키지: `pefile`, `numpy` (디렉터리 모드), `py7zr` (스트리밍 모드에만).
