@@ -188,26 +188,39 @@ def combined_auroc(X, y, groups, seed=42, folds=5):
 
 
 def make_split(rows, groups, seed=42, ratios=(0.70, 0.15, 0.15)):
+    """Group-disjoint AND stratified.
+
+    Every group goes whole into one split (no imphash family straddles a boundary).
+    Groups are assigned greedily, largest first, to whichever split is currently the
+    most under-filled for that group's stratum = (label, pe_kind, repr_policy).
+    The protocol names label and PE32/PE32+ as stratification variables; repr_policy
+    is added because the stage-1 audit found it label-correlated (29% vs 8%)."""
+    names = ["train", "val", "test"]
     by_group = defaultdict(list)
     for r, g in zip(rows, groups, strict=True):
-        by_group[g].append(r["sample_id"])
+        by_group[g].append(r)
+
+    def stratum(r):
+        return (r["_label"], r["pe_kind"], r["repr_policy"])
+
+    strata_total = Counter(stratum(r) for r in rows)
+    target = {(st, k): ratios[k] * cnt for st, cnt in strata_total.items() for k in range(3)}
+    filled = Counter()
+
     order = sorted(by_group.items(), key=lambda kv: (-len(kv[1]), kv[0]))
     rng = random.Random(seed)
-    # largest group first into train (it can exceed a whole split on its own),
-    # remainder shuffled then greedily filled to target sizes
     head, tail = order[:1], order[1:]
     rng.shuffle(tail)
-    total = len(rows)
-    targets = [ratios[0] * total, ratios[1] * total, ratios[2] * total]
-    names = ["train", "val", "test"]
-    counts = [0, 0, 0]
     assign = {}
-    for g, ids in head + tail:
-        k = 0 if counts[0] < targets[0] else (1 if counts[1] < targets[1] else 2)
-        counts[k] += len(ids)
-        for sid in ids:
-            assign[sid] = names[k]
-    return assign, dict(zip(names, counts, strict=True))
+    for g, members in head + tail:
+        # the group's dominant stratum decides which split is most under target
+        dom = Counter(stratum(r) for r in members).most_common(1)[0][0]
+        k = min(range(3), key=lambda kk: (filled[(dom, kk)] + 1e-9) / (target[(dom, kk)] + 1e-9))
+        for r in members:
+            filled[(stratum(r), k)] += len([1])
+            assign[r["sample_id"]] = names[k]
+    counts = {nm: sum(1 for r in rows if assign[r["sample_id"]] == nm) for nm in names}
+    return assign, counts
 
 
 def main() -> int:
@@ -272,9 +285,19 @@ def main() -> int:
             print("     alone.")
 
     assign, counts = make_split(elig, groups, seed=args.seed)
-    print("\n=== group-disjoint split ===")
+    print("\n=== group-disjoint, stratified split (label x pe_kind x repr_policy) ===")
     for k, v in counts.items():
         print(f"  {k:6} {v:8,} ({100*v/len(elig):.1f}%)")
+    strat = Counter((r["_label"], r["pe_kind"], r["repr_policy"], assign[r["sample_id"]]) for r in elig)
+    tot_st = Counter((r["_label"], r["pe_kind"], r["repr_policy"]) for r in elig)
+    print("  per-stratum share in train/val/test (target 70/15/15):")
+    worst = 0.0
+    for st, tot in sorted(tot_st.items()):
+        sh = [100 * strat.get((*st, nm), 0) / tot for nm in ("train", "val", "test")]
+        worst = max(worst, abs(sh[0] - 70), abs(sh[1] - 15), abs(sh[2] - 15))
+        print(f"    label={st[0]} {st[1]:5} {st[2]:28} n={tot:7,}  "
+              f"{sh[0]:5.1f} / {sh[1]:5.1f} / {sh[2]:5.1f}")
+    print(f"  worst deviation from target: {worst:.1f} points")
     suffix = f"_{args.tag}" if args.tag else ""
     split_path = os.path.join(args.outdir, f"split_manifest{suffix}.csv")
     with open(split_path, "w", newline="", encoding="utf-8") as fh:
