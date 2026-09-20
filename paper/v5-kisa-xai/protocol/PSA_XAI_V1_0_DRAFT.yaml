@@ -12,9 +12,8 @@ protocol:
   task: static_windows_pe_binary_malware_detection
   paper_type: classifier_and_xai_evaluation
   freeze_blockers:
-    - batch_size_not_yet_measured_on_rtx5070_8gb
-    - target_layer_module_path_not_yet_pinned   # candidate layer4.1 (CUDA smoke)
-    - independent_pefile_crosscheck_not_yet_run  # P2
+    - source_integrity_restore_required_before_p2
+    - independent_pefile_crosscheck_not_yet_passed  # P2 diagnostic blocked by unstable source tree
 
 # Section 5 of the experiment protocol tripped (metadata-only AUROC >= 0.90) and the
 # rule was kept unchanged by decision on 2026-09-15. Section 14 therefore limits the
@@ -226,8 +225,9 @@ model:
   early_stopping_patience: 5
   seeds: [42, 43, 44]
   amp: true
-  batch_size: measure_on_rtx5070_8gb     # freeze blocker
+  batch_size: 512   # pilot 6070.7 MiB; max training 6072.7 / 8123.4 MiB (74.76%)
   selection_metric: validation_macro_f1
+  required_comparison: cnn_val_auroc_vs_metadata_only_auroc_0.95
   baselines: [majority, metadata_logistic, byte_histogram_logistic]
 
 classification_sanity:
@@ -238,7 +238,7 @@ classification_sanity:
 
 xai:
   method: Grad-CAM
-  target_layer: layer4.1_candidate_pin_exact_module_path_at_freeze
+  target_layer: layer4.1   # BasicBlock; CUDA activation/gradient [1,512,7,7] verified 2026-09-21
   library_vs_hook_agreement_spearman: 0.9999999999   # RTX 5070 CUDA smoke 2026-09-15
   primary_target: malicious_logit_on_all_malicious_test_files
   secondary_targets: [predicted_class, benign_logit, correctly_detected_malicious_subset]
@@ -300,6 +300,13 @@ tooling:
   confound_drilldown: scripts/psa_confound_drilldown.py
   rasters: scripts/psa_build_rasters.py              # 199,316 in 3.1 min, 658 MiB/s
   gate_finalisation: scripts/psa_p0_finalize.py
+  training: scripts/psa_train.py
+  training_verification: scripts/psa_verify_training.py
+  freeze_prerequisite_verification: scripts/psa_verify_freeze_prereqs.py
+  era_split_regeneration: scripts/psa_regenerate_era_split.py
+  structure_mapping: src/ua_sahi_mal/kisa_xai/structure.py
+  structure_crosscheck: scripts/psa_structure_audit.py
+  p2_integrity_blocker: paper/v5-kisa-xai/audit/P2_SOURCE_INTEGRITY_BLOCKER_2026-09-21.md
   manifest_stage2_sha256: 3dc0bd7fb42935692462013f716bbd8ccd339b20bb436289aa93e78852b17414
 
 revision_rules:
