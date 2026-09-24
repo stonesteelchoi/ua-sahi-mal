@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a, C8b-b, C8b-c(C8b 종결), C8p(YAML 보완)
-다음: C8r — 사용자 재학습 완료 후 seed 42·43·44 검증 / C8 gate와 방향 일치 확인
-남은 청크: C8r 재학습 결과 재검증; C9 승인 후 XAI; C10 통계·결과 문서
+완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a, C8b-b, C8b-c(C8b 종결), C8p(YAML 보완), C8r-a
+다음: C8r-b — seed별 학습 로그 3개 인자 직접 대조 / provenance와 일치 확인
+남은 청크: C8r-b 로그 증거; C8r-c 가중치 명령·YAML count 원인·최종 판정; C9 승인 후 XAI; C10 통계·결과 문서
 
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하.
@@ -40,11 +40,12 @@
 - 세 summary에 `epochs_max`, `early_stopping_patience` 설정 필드가 없어 값 자체는 미확증. C8b-c에서 실행 설정 근거 확인 필요. 판정 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
 - C8b-c: 현재 `scripts/psa_train.py` 기본값은 epochs_max 30·patience 5. run 직전 커밋 2075df27(2026-09-15 22:12:34 +09:00)에 이 파일이 없고 run 이후 커밋 661db79f(2026-09-21 07:47:04 +09:00)에서 기본값 30/5로 처음 추가되어 전후 동일성 비교 불가. 세 run 폴더는 각각 best.pt·summary.json만 있고 args·config·log 파일 없음. 종료 양상과 사후 코드 기본값을 통한 간접 확증으로 C8b 종결. 상세 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
 - C9 YAML 계획 확인: Grad-CAM·`layer4.1`, 4개 budget, uniform/front/entropy/structure-matched 대조군, deletion ΔNLL·keep-only와 3종 fill, 동일 sample·달성 budget·fill random state, 쌍체 bootstrap 2,000·Holm 2검정·effect·95% CI·조정 p·eligible n 명시.
+- C8r-a: 기존·재학습 검증 JSON의 공통 validation 지표·gate·방향은 seed 42/43/44에서 정확히 일치한다. 새 JSON의 AUROC·시간·경로·해시는 달라 JSON 전체 동일은 아니다. 재학습 provenance에 커밋 `62a15542f14b94b16271dbac8defbe99ee57b3ca`와 batch 512·ImageNet·epochs 30·patience 5·3 seed 명령이 직접 기록돼 있다. C8 gate는 이 재학습 전 등록 기준이고 검증 결과상 통과했다. C9 후보는 `D:\secure-malware-data\psa\runs\c8_retrain_20260924\seed{42,43,44}_imagenet_bs512\best.pt`이며 SHA-256은 `291af0bd…`, `4156f2b8…`, `62c0d8b0…`; 이전 runs 체크포인트를 대체한다. 근거 `audit/C8R_RETRAIN_ADJUDICATION_2026-09-24.md`.
 
 미해결·주의:
 - 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
 - C8b는 간접 확증으로 종결. epoch 상한·patience의 run 당시 직접 증거는 없으며 이를 직접 확증으로 인용하지 않는다.
-- C8r에서 사용자 재학습 완료 여부와 검증 JSON을 확인한다. 완료·gate 통과 전 C9로 넘어가지 않는다.
+- C8r-a에서 재학습 검증 JSON·provenance·체크포인트 존재를 확인했다. 최종 판정 전 C8r-b에서 로그 인자, C8r-c에서 가중치 비교 명령과 YAML `17431` 대 검증기 `17407` 원인을 확인한다. YAML은 수정하지 않는다. C9·전체 프로토콜 동결로 넘어가지 않는다.
 - Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
