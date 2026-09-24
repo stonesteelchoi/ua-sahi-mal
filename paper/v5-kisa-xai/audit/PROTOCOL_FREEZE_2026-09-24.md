@@ -41,6 +41,13 @@ All six recomputed checkpoint hashes match their recorded values. Both provenanc
 - Test output records reason counts as descriptive statistics. It omits the train/validation 62/1/10 gate and the `protocol_freeze_authorized` field. Unclassified parse errors and non-target disagreements stay in the ledger with `structure_attribution_available=false`; the summary counts them. This is an audit-tool change, not a mapping-policy change or a new freeze decision.
 - No test census or model evaluation was executed during this preparation. User-run commands and output checks are in `audit/C9_TEST_STRUCTURE_COMMANDS_2026-09-24.md`.
 
+## C9c test structure census and first payload access
+
+- After the 2026-09-24 freeze approval, both `audit/era_test_structure_census_20260924/audit_plan.json` and `audit/main_test_structure_census_20260924/audit_plan.json` record `population=deduplicated_test_only`, `limit=0`, and `test_payload_access=true`. These records establish that the respective held-out test payloads were accessed for structure census. They do not contain a timestamp for the first payload read.
+- The original era `audit_plan.json` on `D:` was created and last written **2026-09-24 19:01:05 KST**. Its ledger was created at 19:01:05 and last written at 19:01:24; the repository summary records 10,652 selected rows and 18.453 elapsed seconds. The plan file time is a filesystem-based approximate census start, not a measured first-read time.
+- The original main `audit_plan.json` on `D:` was created and last written **2026-09-24 19:02:47 KST**. Its ledger was created at 19:02:47 and last written at 19:03:38; the repository summary records 30,146 selected rows and 51.703 elapsed seconds. The plan file time is likewise an approximate census start. Repository copies were created later and preserve the original plan last-write times.
+- The first held-out payload access is thus documented as occurring during these postfreeze structure census runs: era around 19:01:05 KST, then main around 19:02:47 KST. Exact per-file first-read times are unavailable. This access was structure mapping only; no model evaluation was performed in C9c. The fallback and eligibility adjudication is in `audit/C9_TEST_STRUCTURE_ADJUDICATION_2026-09-24.md`.
+
 ## User-run Git tag
 
 After committing the frozen YAML, this record, and `PROGRESS.md`, run from the repository root:

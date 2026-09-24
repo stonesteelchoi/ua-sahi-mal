@@ -1,4 +1,4 @@
-# C9c-b test structure adjudication (partial: main test)
+# C9c-b test structure adjudication
 
 ## Scope and evidence
 
@@ -27,4 +27,12 @@ The 42 fallback files occupy 10 groups. Fallback-only group sizes are 16, 14, 4,
 
 The frozen protocol defines the primary population as all 17,407 deduplicated malicious main test files, with a structure-matched random comparator and `eligible_n` reported for H1/H2. A whole-file `unknown` fallback retains the sample for image/model analysis, but provides no attributed PE regions with which to perform a meaningful structure-matched comparison. The ledger field `structure_attribution_available=true` means a fallback representation exists; its only span is `unknown` and it is not evidence of a usable PE-region attribution. Accordingly, the expected H1/H2 *structure-matched comparison* eligible count is **17,407 − 42 = 17,365 malicious files**, before any later execution-specific eligibility flags. The 42 files remain in the full malicious test population and other applicable descriptive/model analyses; they are not deleted from the split. Both H1 and H2 use the same eligibility decision. This is an interpretation of the frozen comparison definition, not a new mapping policy or a model result.
 
-Era-test fallback class/group census, its corresponding eligible count, and `audit_plan.json` census times / first-access notation in `PROTOCOL_FREEZE_2026-09-24.md` remain for C9c-b2.
+## Era fallback and H1/H2 eligibility
+
+- The frozen era test ledger at `D:\secure-malware-data\psa\audit\era_test_structure_census_20260924\structure_ledger.jsonl` contains one `accepted_unknown_fallback` among 10,652 deduplicated test rows (10,651 agreements, zero unattributable). It has `sample_id=64884`, `split=test`, and reason `directory_count_exceeds_optional_header_capacity`.
+- Joining that ID to `D:\secure-malware-data\psa\rasters\raster_index.csv` yields exactly one row: `label=1` (malicious), `split=test`, imphash group `aab70c7ad50e818c0354dff5ba1aaaf9`. The fallback occupies one group; this is a fallback-only group count, not the size of the entire era test group.
+- The era protocol's deduplicated malicious test population is 5,332. The whole-file `unknown` fallback remains in the test population but has no usable PE-region attribution for the structure-matched random comparator. Expected H1/H2 structure-matched **eligible_n = 5,332 − 1 = 5,331**, before execution-specific eligibility checks. This applies the same interpretation as main test; it does not change the frozen policy or evaluate a model.
+
+## Census access record
+
+The two repository `audit_plan.json` copies each record `test_payload_access=true`. Their original file creation/last-write times provide approximate census start times, not exact first-read timestamps: era 2026-09-24 19:01:05 KST and main 2026-09-24 19:02:47 KST. See `PROTOCOL_FREEZE_2026-09-24.md` for the audit trail. No model evaluation was performed in C9c-b.
