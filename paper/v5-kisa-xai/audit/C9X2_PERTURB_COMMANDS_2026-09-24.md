@@ -71,6 +71,6 @@ $elapsed = Measure-Command {
 - `python scripts\psa_perturb.py` 직접 실행을 위해 같은 `scripts` 폴더의 `psa_gradcam`을 import한다.
 - Entropy 정렬은 원본 파일당 한 번 캐시한다. 대조군 offset은 `(sample, budget, control, repeat)`별 한 번만 선택하고 fill 3종에 공유한다. offset 난수 seed에는 fill을 넣지 않는다. ledger의 `pair_seed`와 fill 난수 상태는 `(sample, budget, fill, control, repeat)`별로 분리한다. 출력 필드와 결과 정의는 유지한다.
 - 원본 파일의 pixel별 정수 바이트 합·개수를 캐시하고 바뀐 바이트의 delta를 `np.bincount`로 pixel에 모아 float32 래스터를 만든다. nearest-byte 정책에는 같은 delta를 해당 pixel들에 직접 전파한다.
-- 워커는 래스터를 `multiprocessing.shared_memory`에 쓰고 이름·shape만 반환한다. 주 프로세스가 GPU 점수화를 마치면 공유 메모리를 해제한다. 최대 3개 준비 작업을 미리 제출해 CPU 준비와 GPU 소비를 겹친다. `--workers` 기본값은 `max(1, (os.cpu_count() or 1)-4)`다.
+- C9x-2d Windows 긴급 수정: 워커는 래스터를 하나의 연속 float32 ndarray `(n, side, side)`로 쌓아 행·점수화 대상과 함께 반환한다. 주 프로세스는 배열을 512개씩 나눠 GPU 점수화한다. Windows에서 마지막 열린 핸들이 닫히면 세그먼트가 해제되는 문제 때문에 공유 메모리 전달은 제거했다. 최대 3개 준비 작업을 미리 제출해 CPU 준비와 GPU 소비를 겹친다. `--workers` 기본값은 `max(1, (os.cpu_count() or 1)-4)`다.
 - 5×5 local median의 부분 마지막 행 주변을 `rows >= height-3`에서 직접 재계산한다. 매 표본 완료마다 stderr에 경과 시간, 표본당 초, 예상 잔여 시간을 출력한다. 예상 잔여 시간은 이 실행에서 완료한 표본의 평균에 근거한다.
 - 합성 무작위 바이트, 비배수 길이, partial last row 테스트를 추가했다. 기존 테스트 4건은 유지했다. 기존 `.venv` Python 런처가 사라진 base Python을 가리켜 pytest 실행은 실패했다. 전체 perturb 실행과 새 smoke는 하지 않았다.

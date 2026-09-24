@@ -16,7 +16,6 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from collections import deque
 from itertools import groupby
-from multiprocessing import shared_memory
 from pathlib import Path
 
 import numpy as np
@@ -183,7 +182,7 @@ def nll(logits: np.ndarray, label: int) -> float:
     return maximum + math.log(float(np.exp(logits - maximum).sum())) - float(logits[label])
 
 
-def score_batch(model, rasters: list[np.ndarray], device: str, malicious: int,
+def score_batch(model, rasters: np.ndarray, device: str, malicious: int,
                 batch_size: int = 512) -> list[tuple[float, float]]:
     import torch
     from psa_train import preprocess_raster
@@ -247,18 +246,8 @@ def prepare_sample(task):
                                 rasters.append(perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side, medians, cache))
                                 targets.append((len(rows), name, mode, original_nll))
                     rows.append(result)
-    shape = (len(rasters), side, side)
-    shm = shared_memory.SharedMemory(create=True, size=max(1, int(np.prod(shape)) * np.dtype(np.float32).itemsize))
-    try:
-        shared = np.ndarray(shape, dtype=np.float32, buffer=shm.buf)
-        for i, raster in enumerate(rasters):
-            shared[i] = raster
-        return rows, shm.name, shape, targets, ineligible
-    except BaseException:
-        shm.unlink()
-        raise
-    finally:
-        shm.close()
+    prepared = np.ascontiguousarray(np.stack(rasters)) if rasters else np.empty((0, side, side), dtype=np.float32)
+    return rows, prepared, targets, ineligible
 
 
 def completed_samples(output: Path, expected_rows: dict[str, int]) -> tuple[set[str], dict[str, int]]:
@@ -412,41 +401,32 @@ def main() -> int:
         try:
             while pending:
                 future = pending.popleft()
-                rows, name, shape, targets, ineligible = future.result()
+                rows, prepared, targets, ineligible = future.result()
                 submit_next()  # CPU preparation continues during this sample's GPU inference.
-                shm = shared_memory.SharedMemory(name=name)
-                try:
-                    prepared = np.ndarray(shape, dtype=np.float32, buffer=shm.buf)
-                    for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
-                            targets, score_batch(model, prepared, device, malicious), strict=True):
-                        if mode == "deletion":
-                            rows[row_number][f"{target_name}_deletion_delta_nll"] = value_nll - original_nll
-                        else:
-                            rows[row_number][f"{target_name}_keep_only_malicious_score"] = malicious_score
-                    out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
-                    out.flush()
-                    counts["samples"] += 1
-                    counts["rows"] += len(rows)
-                    counts["forward_passes"] += shape[0]
-                    counts["structure_ineligible_rows"] += ineligible
-                    elapsed = time.monotonic() - started
-                    processed = counts["samples"] - initial_samples
-                    per_sample = elapsed / processed
-                    remaining = per_sample * (len(grouped) - counts["samples"])
-                    print(f"samples={counts['samples']}/{len(grouped)} elapsed={elapsed:.1f}s "
-                          f"seconds_per_sample={per_sample:.1f} eta={remaining:.1f}s", file=sys.stderr, flush=True)
-                finally:
-                    shm.close()
-                    shm.unlink()
+                for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
+                        targets, score_batch(model, prepared, device, malicious), strict=True):
+                    if mode == "deletion":
+                        rows[row_number][f"{target_name}_deletion_delta_nll"] = value_nll - original_nll
+                    else:
+                        rows[row_number][f"{target_name}_keep_only_malicious_score"] = malicious_score
+                out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
+                out.flush()
+                counts["samples"] += 1
+                counts["rows"] += len(rows)
+                counts["forward_passes"] += len(prepared)
+                counts["structure_ineligible_rows"] += ineligible
+                elapsed = time.monotonic() - started
+                processed = counts["samples"] - initial_samples
+                per_sample = elapsed / processed
+                remaining = per_sample * (len(grouped) - counts["samples"])
+                print(f"samples={counts['samples']}/{len(grouped)} elapsed={elapsed:.1f}s "
+                      f"seconds_per_sample={per_sample:.1f} eta={remaining:.1f}s", file=sys.stderr, flush=True)
         finally:
             for future in pending:
                 if future.cancel():
                     continue
                 try:
-                    _, name, _, _, _ = future.result()
-                    orphan = shared_memory.SharedMemory(name=name)
-                    orphan.close()
-                    orphan.unlink()
+                    future.result()
                 except Exception:
                     pass
     (args.outdir / "perturb_summary.json").write_text(json.dumps({"protocol_sha256": sha256(FROZEN),

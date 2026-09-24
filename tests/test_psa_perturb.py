@@ -1,16 +1,52 @@
 """Synthetic PE checks; no held-out payload is opened."""
+import hashlib
+
 import numpy as np
 import pytest
 
 from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values, nll,
                                  local_median_grid, offsets, pair_seed, perturbed_raster,
-                                 offset_seed, raster_cache, region_ids)
-from ua_sahi_mal.kisa_xai.representation import encode_interval_binned
+                                 offset_seed, prepare_sample, raster_cache, region_ids)
+from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
 
 def synthetic():
     return build_pe(sections=[SectionSpec(".text", 0x1000, 0x200, 0x200, 0x200)], overlay=b"SYNTHETIC")
+
+
+@pytest.mark.parametrize("status, expected_rows, expected_passes, expected_ineligible", [
+    ("agreement", 18, 72, 0),
+    ("accepted_unknown_fallback", 18, 48, 6),
+])
+def test_prepare_sample_returns_contiguous_rasters_for_synthetic_pe(
+        tmp_path, status, expected_rows, expected_passes, expected_ineligible):
+    data = synthetic()
+    sample_path = tmp_path / "synthetic.pe"
+    sample_path.write_bytes(data)
+    side = 16
+    original, imap = encode_interval_binned(data, side=side)
+    entry = {
+        "sample_id": "synthetic.pe", "file_size": len(data), "group": "synthetic",
+        "benign_logit": 0.0, "malicious_logit": 1.0, "structure_status": status,
+        "budget": {"requested_fraction": 0.1, "intervals": [[0, 2]], "achieved_bytes": 2},
+    }
+    structure = {"status": status, "structure": {"spans": [
+        {"start": 0, "end": len(data), "region": "synthetic"}]}}
+    task = ([entry], sample_path, {"sha256": hashlib.sha256(data).hexdigest()},
+            {"file_size": str(len(data)), "raster_sha256": raster_sha256(original),
+             "map_sha256": imap.map_sha256()}, structure, original.reshape(-1), side,
+            ["zero", "local_median", "structure_conditioned_resampling"],
+            ["uniform_random_20_repeats", "front_position", "entropy",
+             "structure_matched_random_20_repeats"], 2, (5, 5), 42, 1)
+    rows, rasters, targets, ineligible = prepare_sample(task)
+    assert len(rows) == expected_rows
+    assert rasters.shape == (expected_passes, side, side)
+    assert rasters.dtype == np.float32
+    assert rasters.flags.c_contiguous
+    assert len(targets) == expected_passes
+    assert ineligible == expected_ineligible
+    assert sum(not row["eligible"] for row in rows) == expected_ineligible
 
 
 def test_matched_budget_and_structure_on_synthetic_pe():
