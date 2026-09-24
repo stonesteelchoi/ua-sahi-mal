@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사)
-다음: C9c-b — fallback 그룹·class·eligible_n 집계와 동결 접근 기록 / 근거 문서·freeze 추기
-남은 청크: C9c-b census 해석; C9v 합성 회귀 확인; C9x XAI 명령 준비; C10 1회 평가·문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정)
+다음: C9c-b2 — era fallback 판정·census 시각·첫 접근 freeze 추기 / 판정 문서 완성
+남은 청크: C9c-b2 era·freeze 추기; C9v 합성 회귀 확인; C9x XAI 명령 준비; C10 1회 평가·문서
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -48,7 +48,7 @@
 - provenance 명령: `$prov=@('main_retrain_commit=62a15542f14b94b16271dbac8defbe99ee57b3ca', ('era_code_head='+ (git rev-parse HEAD)), ('train_script_sha256='+ (Get-FileHash scripts/psa_train.py -Algorithm SHA256).Hash), ('verify_script_sha256='+ (Get-FileHash scripts/psa_verify_training.py -Algorithm SHA256).Hash), 'era_manifest_sha256=fd0a99000b05785ecf3fc01108529b37e08bb31f162b6defc3f3621459d2d91a', 'architecture=resnet18; init=imagenet; batch=512; epochs_max=30; patience=5; seeds=42,43,44; selection=validation_macro_f1; workers=4') -join "`n"; .\.venv\Scripts\python.exe -c "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(sys.argv[2]+chr(10),encoding='utf-8')" (Join-Path $eraRuns 'run_provenance.txt') $prov`.
 - era 학습 명령(사용자 `.venv` 창, 위 두 줄 실행 후): `foreach ($seed in 42,43,44) { & .\.venv\Scripts\python.exe -u scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --split-manifest $eraManifest --out-dir $eraRuns --batch-size 512 --init imagenet --seed $seed --epochs-max 30 --patience 5 --workers 4 2>&1 | Tee-Object -FilePath (Join-Path $eraRuns "seed${seed}_train.log"); if ($LASTEXITCODE -ne 0) { throw "seed $seed failed" } }`. 각 seed best.pt·summary.json과 로그 생성, 로그의 `splits`로 중복 제외 건수 확정.
 - C9b-b era 판정: 유효 train/val/test 49593/10660/10652, 중복 제외 33; 세 seed sanity gate·방향 일치, test 미평가. 체크포인트 SHA-256 세 값과 train/verify 스크립트 해시 직접 일치, provenance HEAD 8323ab75. 세 best.pt를 동결 후 era test 모델로 지정. Era metadata AUROC 0.90–0.91, JSON의 0.95는 main용. Main 대비 validation AUROC 차이는 서로 다른 분할의 기술 통계. 상세 `audit/ERA_TRAINING_2026-09-24.md`; JSON 복사본 `runs/psa-orchestration/era_training_verify_20260924.json`.
-- C9c-a: main/era test census는 30146/10652건, agreement 30104/10651, fallback 42(40 directory-count+2 section_count)/1(directory-count), unattributable 0. 두 summary·audit_plan을 `audit/{main,era}_test_structure_census_20260924/`에 각각 복사하고 원본과 SHA-256 일치 확인. D: ledger SHA-256 main 53bc25ecf7b144cb5d1599fba9052b0eb9d52ef973947672fdbc720ecbd85c7b, era bf538e933bfd87a19a0e5ed47bdf2a40344e3bbd602215b61586d00072473b16. 모델 평가·gate 판정 없음.
+- C9c-a: main/era test census는 30146/10652건, agreement 30104/10651, fallback 42(40 directory-count+2 section_count)/1(directory-count), unattributable 0. 두 summary·audit_plan을 `audit/{main,era}_test_structure_census_20260924/`에 각각 복사하고 원본과 SHA-256 일치 확인. D: ledger SHA-256 main 53bc25ecf7b144cb5d1599fba9052b0eb9d52ef973947672fdbc720ecbd85c7b, era bf538e933bfd87a19a0e5ed47bdf2a40344e3bbd602215b61586d00072473b16. 모델 평가·gate 판정 없음. C9c-b1: main fallback 42건 전부 악성, imphash 10그룹, fallback 최대 16건, 40/2 reason; 구조 비교 H1·H2 예상 eligible_n 17365(17407-42), 표본은 유지. 상세 `audit/C9_TEST_STRUCTURE_ADJUDICATION_2026-09-24.md`.
 
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
