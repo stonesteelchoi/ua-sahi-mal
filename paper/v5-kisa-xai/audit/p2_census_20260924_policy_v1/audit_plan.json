@@ -1,0 +1,26 @@
+{
+  "version": "psa-structure-draft-v1",
+  "population": "deduplicated_train_and_validation_only",
+  "population_n": 169020,
+  "selected_n": 169020,
+  "limit": 0,
+  "sampling": "sample_id ascending; diagnostic subset only when limit > 0",
+  "test_payload_access": false,
+  "workers": 4,
+  "pefile_version": "2024.8.26",
+  "inputs": {
+    "D:\\secure-malware-data\\psa\\rasters\\raster_index.csv": "94d02b247fc761d64fdea5aeac9afe2da6dc56bdcc998cc84d4a5c7d3f76f785",
+    "D:\\secure-malware-data\\psa\\manifest_stage2.csv": "3dc0bd7fb42935692462013f716bbd8ccd339b20bb436289aa93e78852b17414"
+  },
+  "duplicate_file_sha256": "ce91dec954cbcdbe441b29759b52b163be1d5c3009418c1c6a7131574a91686d",
+  "implementation_sha256": "fdc5ce7d1124fb678c5c36ae47b2de061d45fb7ae1017ccefdc6ef9ab4e46ce9",
+  "structure_source_sha256": "6d79fa79175e9c991f2128f6fb6f6a598650bd2593d328b827c3de193853eb44",
+  "adjudication_policy": "conservative_unknown_v1",
+  "section_disagreement_policy_version": "P2-SECTION-DISAGREEMENT-V1",
+  "p2_expected_fallback_reason_counts": {
+    "directory_count_exceeds_optional_header_capacity": 62,
+    "declared_optional_header_missing_or_truncated": 1,
+    "section_count_disagreement": 10
+  },
+  "freeze_policy": "Conservative P2 adjudication: retain every selected file; map hash-valid malformed-header or isolated section disagreements entirely as unknown."
+}
