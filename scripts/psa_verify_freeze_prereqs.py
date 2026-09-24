@@ -16,9 +16,9 @@ import torch
 from psa_train import build_model
 
 EXPECTED_CHECKPOINTS = {
-    "seed42_imagenet_bs512": "42363ec48edace919c3ab93088148a06d6ad05e0ed1cfca3eb430893c52b7b23",
-    "seed43_imagenet_bs512": "6c5fc5b8d2bf6ead3e51acb5b1c0f70cb487e7eeef1ccae7a84a5ac61870b897",
-    "seed44_imagenet_bs512": "c1bb43a14555f8fdb944f79741f4e57b5b2dd4cbd2d21b6ccf12f505c47a6ee2",
+    "seed42_imagenet_bs512": "291af0bd0b2133f3c501fe3efdae0f5503b6de7d4e095a5fc2b1c27a7561f48f",
+    "seed43_imagenet_bs512": "4156f2b8bf8c7995c8d62e4132102b28430d9fc69de49b293ec561af68bcaf56",
+    "seed44_imagenet_bs512": "62c0d8b002586676d61c7488099e362b4c15777a9406424c324c1f4fbec5639c",
 }
 
 
@@ -38,13 +38,14 @@ def load_json(path: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs-dir", type=Path, required=True)
+    parser.add_argument("--pilot-path", type=Path, help="pilot_batch_size.json when stored outside --runs-dir")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--target-layer", default="layer4.1")
     args = parser.parse_args()
     if args.out.exists():
         raise FileExistsError(f"refusing to overwrite {args.out}")
 
-    pilot_path = args.runs_dir / "pilot_batch_size.json"
+    pilot_path = args.pilot_path or args.runs_dir / "pilot_batch_size.json"
     pilot = load_json(pilot_path)
     if pilot.get("recommended_batch_size") != 512 or pilot.get("device") != "cuda":
         raise ValueError("pilot does not pin CUDA batch size 512")
@@ -132,7 +133,7 @@ def main() -> int:
             "verified": True,
         },
         "protocol_freeze_authorized": False,
-        "remaining_blocker": "independent pefile cross-check requires restored source-file access",
+        "remaining_blocker": "Full-protocol freeze authorization remains pending after the P2 mapping-policy freeze; see paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md",
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("x", encoding="utf-8") as handle_out:

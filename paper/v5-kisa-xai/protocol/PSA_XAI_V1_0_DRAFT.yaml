@@ -167,8 +167,13 @@ split:
     balanced: {benign: 35469, malicious: 35469}
     metadata_only_auroc: 0.90-0.91
     caveat: drops_54k_old_toolchain_malware_not_population_representative
-    split_manifest: split_manifest_era.csv
-    note: regenerate_with_stratified_make_split_before_use   # built before stratification fix
+    split_manifest: 'D:\secure-malware-data\psa\audit\era_stratified_freeze_20260924\split_manifest_era.csv'
+    split_sha256: fd0a99000b05785ecf3fc01108529b37e08bb31f162b6defc3f3621459d2d91a
+    counts: {train: 49622, validation: 10662, internal_test: 10654}
+    groups: 32153
+    stratum_deviation_note: malicious_PE32plus_mean_pool_n434_train_67_97pct_test_17_05pct_and_nearest_repetition_n32_train_62_5pct_test_21_875pct_vs_70_15_15_target
+    existing_main_models_can_evaluate_full_era_test_as_unseen: false
+    main_model_era_test_overlap_warning: {main_train_groups: 5774, main_validation: 3212, main_test_intersection: 1668}
 
 representation:
   id: interval-binned-v1
@@ -253,7 +258,7 @@ xai:
   empty_positive_cam_policy: retain_and_flag
   controls: [uniform_random_20_repeats, front_position, entropy, structure_matched_random_20_repeats]
   primary_comparator: structure_matched_random
-  fills: {primary: structure_conditioned_resampling, robustness: local_median_or_blur, diagnostic: zero}
+  fills: {primary: structure_conditioned_resampling, robustness: local_median, diagnostic: zero}  # local_median window size pending implementation decision
   paired_comparison:
     sample: same_sample_for_gradcam_and_control
     budget: same_achieved_unique_source_byte_budget
@@ -266,7 +271,8 @@ primary_hypotheses:
   correction: holm
 
 statistics:
-  unit: file_or_imphash_group
+  unit: imphash_group  # aggregate paired file differences within each group, then resample groups
+  sensitivity_analysis: file  # paired file-level bootstrap, reported separately
   paired_bootstrap_repeats: 2000
   confidence_level: 0.95
   random_control_repeats_per_file: 20

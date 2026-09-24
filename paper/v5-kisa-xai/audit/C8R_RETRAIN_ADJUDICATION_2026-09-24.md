@@ -22,7 +22,7 @@
 
 ## Gate 및 모델 지정
 
-PROGRESS.md의 C8 gate는 **이번 재학습 전에 등록된 기준**이다. 이전 run에 소급하지 않는다. 재학습 검증 JSON에서 세 seed 모두 `sanity_gate_passed=true`, `all_seeds_passed=true`, `direction_agreement=true`이며 모든 수치가 C8 기준을 넘는다. 검증 결과상 C8 sanity gate 통과다.
+C8 gate 기준은 2026-09-15 초안 커밋 `c1262f094c3eac1bb94cda7166295fcf8fc16939`에 등록됐고, 최종 모델은 2026-09-24 재학습했다. 이전 run을 학습 전 C8 사전 등록 run으로 소급하지 않는다. 재학습 검증 JSON에서 세 seed 모두 `sanity_gate_passed=true`, `all_seeds_passed=true`, `direction_agreement=true`이며 모든 수치가 C8 기준을 넘는다. 검증 결과상 C8 sanity gate 통과다.
 
 C9 후보 모델은 기존 `D:\secure-malware-data\psa\runs\seed*_imagenet_bs512`의 best.pt를 대체하는 아래 재학습 체크포인트 세 개다. 파일 존재를 확인했으며 SHA-256은 재학습 검증 JSON이 보고한 값이다.
 
@@ -38,7 +38,7 @@ C9 후보 모델은 기존 `D:\secure-malware-data\psa\runs\seed*_imagenet_bs512
 
 ## 기존·재학습 best.pt 텐서 동일성 확인 명령
 
-사용자 PowerShell의 정상 동작하는 `.venv`에서 아래 한 줄을 실행하면 seed마다 기존 run과 재학습 run의 `model` state_dict에 대해 key 집합과 모든 가중치 텐서의 정확한 값 동일성을 출력한다. 체크포인트 전체 바이트·메타데이터 동일성과는 다른 비교다. Codex 세션의 `.venv` 런처는 base Python 경로 문제로 동작하지 않아 이 명령의 결과를 확인하지 않았으며, 동일하다고 판정하지 않는다.
+사용자 보고에 따르면 아래 비교에서 seed 42·43·44 모두 기존 run과 재학습 run의 `model` state_dict key 및 모든 가중치 텐서가 `identical=True`였다. 이는 **모델 가중치 텐서의 비트 단위 재현**을 뜻한다. 체크포인트 파일 전체의 바이트·메타데이터 동일성과는 다른 비교다. Codex 세션의 `.venv` 런처는 base Python 경로 문제로 동작하지 않아 출력을 독립 재실행하지는 못했다.
 
 ```powershell
 42,43,44 | ForEach-Object { .\.venv\Scripts\python.exe -c 'import sys,torch,pathlib; s=sys.argv[1]; root=pathlib.Path(sys.argv[2]); old=torch.load(root/f"seed{s}_imagenet_bs512"/"best.pt",map_location="cpu",weights_only=True)["model"]; new=torch.load(root/"c8_retrain_20260924"/f"seed{s}_imagenet_bs512"/"best.pt",map_location="cpu",weights_only=True)["model"]; print(f"seed{s}: identical={old.keys()==new.keys() and all(torch.equal(old[k],new[k]) for k in old)}")' $_ 'D:\secure-malware-data\psa\runs' }
@@ -50,4 +50,4 @@ C9 후보 모델은 기존 `D:\secure-malware-data\psa\runs\seed*_imagenet_bs512
 
 ## 최종 판정
 
-C8r은 재학습 provenance, seed별 로그에서 확인 가능한 인자·출력, 검증기 gate, YAML 수 차이의 근거를 기록해 종결한다. 세 재학습 체크포인트를 C9 후보로 유지한다. 기존·재학습 모델의 가중치 텐서 동일 여부는 위 사용자 실행 명령의 결과 전에는 미확인이다. C8 validation sanity gate 통과는 held-out test 성능 판정이나 전체 프로토콜 동결 승인을 뜻하지 않는다. C9 및 test payload 접근 전 사용자 동결 승인이 필요하다.
+C8r은 재학습 provenance, seed별 로그에서 확인 가능한 인자·출력, 검증기 gate, YAML 수 차이의 근거를 기록해 종결한다. 세 재학습 체크포인트를 C9 후보로 유지한다. 기존·재학습 모델 가중치의 비트 단위 재현은 세 seed의 `identical=True`라는 사용자 보고로 기록하며 독립 실행 확인과 구분한다. C8 validation sanity gate 통과는 held-out test 성능 판정이나 전체 프로토콜 동결 승인을 뜻하지 않는다. C9 및 test payload 접근 전 사용자 동결 승인이 필요하다.
