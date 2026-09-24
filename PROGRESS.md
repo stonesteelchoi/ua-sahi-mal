@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정)
-다음: C9x — 동결 설정으로 XAI 실행 명령 준비 / 입력·출력·모델·해시·실행 경계 문서 확인
-남은 청크: C9x XAI 명령 준비; C9v 합성 회귀 확인; C10 1회 평가·문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM)
+다음: C9x-2 — 대조군·perturb 구현 / 달성 byte budget 쌍체 규칙 합성 검증
+남은 청크: C9x-2 대조군·perturb; C9x-3 통계·명령; C9v 합성 회귀; C10 평가·문서
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -35,7 +35,6 @@
 - C8b-a 판정: 검증 JSON은 `all_seeds_passed=true`, `direction_agreement=true`, `test_evaluation_performed=false`; seed 42/43/44 validation macro-F1 0.953395/0.946615/0.952926, balanced accuracy 0.952678/0.945863/0.953281, 양 class recall 모두 ≥0.932271. 보고서 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
 - C8b-b: D: run summary 3개에서 seed 42/43/44, init imagenet, batch 512 직접 확인. history epoch은 0 기준, 마지막 번호 18/10/16. `epochs_ran-best.epoch`은 모두 6이나 최적 뒤 실행은 `(epochs_ran-1)-best.epoch=5`; 각 후속 5 epoch에 macro-F1 최고값 갱신 없음. patience 5 동작과 부합. 판정 문서의 C8b-a 산술 오류 정정.
 - C8b-c: 현재 `scripts/psa_train.py` 기본값은 epochs_max 30·patience 5. run 직전 커밋 2075df27(2026-09-15 22:12:34 +09:00)에 이 파일이 없고 run 이후 커밋 661db79f(2026-09-21 07:47:04 +09:00)에서 기본값 30/5로 처음 추가되어 전후 동일성 비교 불가. 세 run 폴더는 각각 best.pt·summary.json만 있고 args·config·log 파일 없음. 종료 양상과 사후 코드 기본값을 통한 간접 확증으로 C8b 종결. 상세 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
-- C9 YAML 계획 확인: Grad-CAM·`layer4.1`, 4개 budget, uniform/front/entropy/structure-matched 대조군, deletion ΔNLL·keep-only와 3종 fill, 동일 sample·달성 budget·fill random state, 쌍체 bootstrap 2,000·Holm 2검정·effect·95% CI·조정 p·eligible n 명시.
 - C8r-b·c: 세 학습 로그에서 patience 5, 종료 epoch 18/10/16, seed별 checkpoint 경로·SHA-256을 직접 확인했다. 로그에는 전체 명령·epochs-max 30·초기화·batch 인자 자체가 출력되지 않아 그 항목의 로그 직접 확증은 없다. provenance 명령과 summary 검증 결과가 나머지 근거다.
 - YAML 17,431은 중복 제외 전 test 악성 수: split manifest·raster index 모두 17,431, 중복 raster 제외 24건 후 검증기 17,407. 정상 test도 12,740에서 중복 1건 제외 후 12,739. YAML 미수정. 기존·재학습 best.pt 가중치 텐서 동일성용 사용자 Python 한 줄 명령은 C8r 판정 문서에 기록했으며 결과는 미확인.
 - C9p: YAML에 원 분할 counts 유지, 중복 제외 139087/29933/30146 병기, test 악성 17407·제외 24건 주석, ImageNet 고정, 재학습 validation AUROC 0.9868352431/0.9873733953/0.9871156021 대 metadata 0.95(서로 다른 평가 분할) 기록.
@@ -49,12 +48,13 @@
 - era 학습 명령(사용자 `.venv` 창, 위 두 줄 실행 후): `foreach ($seed in 42,43,44) { & .\.venv\Scripts\python.exe -u scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --split-manifest $eraManifest --out-dir $eraRuns --batch-size 512 --init imagenet --seed $seed --epochs-max 30 --patience 5 --workers 4 2>&1 | Tee-Object -FilePath (Join-Path $eraRuns "seed${seed}_train.log"); if ($LASTEXITCODE -ne 0) { throw "seed $seed failed" } }`. 각 seed best.pt·summary.json과 로그 생성, 로그의 `splits`로 중복 제외 건수 확정.
 - C9b-b era 판정: 유효 train/val/test 49593/10660/10652, 중복 제외 33; 세 seed sanity gate·방향 일치, test 미평가. 체크포인트 SHA-256 세 값과 train/verify 스크립트 해시 직접 일치, provenance HEAD 8323ab75. 세 best.pt를 동결 후 era test 모델로 지정. Era metadata AUROC 0.90–0.91, JSON의 0.95는 main용. Main 대비 validation AUROC 차이는 서로 다른 분할의 기술 통계. 상세 `audit/ERA_TRAINING_2026-09-24.md`; JSON 복사본 `runs/psa-orchestration/era_training_verify_20260924.json`.
 - C9c-a: main/era test census는 30146/10652건, agreement 30104/10651, fallback 42(40 directory-count+2 section_count)/1(directory-count), unattributable 0. 두 summary·audit_plan을 `audit/{main,era}_test_structure_census_20260924/`에 각각 복사하고 원본과 SHA-256 일치 확인. D: ledger SHA-256 main 53bc25ecf7b144cb5d1599fba9052b0eb9d52ef973947672fdbc720ecbd85c7b, era bf538e933bfd87a19a0e5ed47bdf2a40344e3bbd602215b61586d00072473b16. 모델 평가·gate 판정 없음. C9c-b1: main fallback 42건 전부 악성, imphash 10그룹, fallback 최대 16건, 40/2 reason; 구조 비교 H1·H2 예상 eligible_n 17365(17407-42), 표본은 유지. C9c-b2: era fallback sample 64884 1건 악성·1 imphash 그룹, 예상 eligible_n 5331(5332-1). 두 audit_plan의 `test_payload_access=true`, 원본 생성 시각 era 19:01:05·main 19:02:47 KST는 근사 시작 시각이며 정확한 첫 읽기 시각은 없음. 상세 `audit/C9_TEST_STRUCTURE_ADJUDICATION_2026-09-24.md`, `audit/PROTOCOL_FREEZE_2026-09-24.md`.
+- C9x-1: `scripts/psa_gradcam.py`가 동결 YAML의 layer·upsampling·budget·representation을 읽고 checkpoint/구조 ledger/래스터 metadata SHA-256 검증 뒤 악성 test의 악성 logit hook CAM, interval 고유 byte budget·overshoot·empty flag, 구조별 mass를 JSONL에 기록하도록 구현. `tests/test_psa_gradcam.py` 합성 회귀 Anaconda Python 2 passed·torch 부재로 hook 1 skipped; py_compile 통과. main/era 3 seed 실행 명령은 `audit/C9X1_GRADCAM_COMMANDS_2026-09-24.md`에만 기록, 실제 test Grad-CAM 미실행.
 
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인. C9 새 구조 audit 합성 회귀는 이 세션 `.venv` base Python 접근 오류로 미실행; C9v에서 사용자 창 결과 확인. Era 학습·검증 판정 완료. local_median은 후속 XAI 단계에서 YAML의 5×5를 따른다.
 - C8r 가중치 동일성은 사용자 보고로 기록했고 독립 재실행은 하지 않았다. 동결 승인 후 C9부터 test 접근 가능하며 1회 평가 규칙을 지킨다.
-- Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
+- Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). C9x-1 hook 합성 테스트 1건은 사용자 `.venv` 창 확인 필요; 실제 test Grad-CAM 미실행.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
 - PROGRESS.md 한글이 C6 세션에서 `?`로 손상되어 2026-09-24 복원했다. 이 파일을 고친 뒤에는 한글이 정상인지 확인한다.
