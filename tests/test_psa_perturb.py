@@ -3,7 +3,8 @@ import numpy as np
 import pytest
 
 from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values, nll,
-                                 offsets, pair_seed, perturbed_raster, region_ids)
+                                 local_median_grid, offsets, pair_seed, perturbed_raster,
+                                 offset_seed, raster_cache, region_ids)
 from ua_sahi_mal.kisa_xai.representation import encode_interval_binned
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
@@ -104,3 +105,55 @@ def test_vectorized_perturbation_matches_original_byte_loop_bitwise():
             actual = perturbed_raster(data, selected, mode, fill, np.random.default_rng(19),
                                       regions, (5, 5), side)
             assert actual.tobytes() == original_raster(mode, fill, 19).tobytes()
+
+
+def test_incremental_raster_matches_full_reencoding_for_random_bytes():
+    rng = np.random.default_rng(6102)
+    side = 8
+    for size in (1, 17, 63, 64, 65, 71, 129, 513):
+        data = rng.integers(0, 256, size=size, dtype=np.uint8).tobytes()
+        cache = raster_cache(data, side)
+        regions = np.zeros(size, dtype=np.int16)
+        selected = np.sort(rng.choice(size, size=max(1, size // 7), replace=False))
+        for mode in ("deletion", "keep_only"):
+            for fill in ("zero", "local_median", "structure_conditioned_resampling"):
+                seed = 719
+                mask = np.zeros(size, dtype=bool)
+                mask[selected] = True
+                change = selected if mode == "deletion" else np.flatnonzero(~mask)
+                values = fill_values(data, change, fill, np.random.default_rng(seed),
+                                     regions, (5, 5), side)
+                modified = np.frombuffer(data, dtype=np.uint8).copy()
+                modified[change] = values
+                expected = encode_interval_binned(modified.tobytes(), side=side)[0]
+                actual = perturbed_raster(data, selected, mode, fill, np.random.default_rng(seed),
+                                          regions, (5, 5), side, cache=cache)
+                assert actual.tobytes() == expected.tobytes()
+
+
+def test_local_median_grid_random_bytes_and_partial_last_row():
+    rng = np.random.default_rng(318)
+    side = 8
+    for size in (1, 7, 8, 9, 17, 31, 55, 57, 63, 64, 65):
+        raw = rng.integers(0, 256, size=size, dtype=np.uint8)
+        actual = local_median_grid(raw.tobytes(), side, (5, 5))
+        expected = []
+        for pos in range(size):
+            row, col = divmod(pos, side)
+            neighbors = [raw[r * side + c] for r in range(max(0, row - 2), row + 3)
+                         for c in range(max(0, col - 2), min(side, col + 3))
+                         if r * side + c < size]
+            expected.append(int(np.median(neighbors)))
+        assert actual.tobytes() == np.asarray(expected, dtype=np.uint8).tobytes()
+
+
+def test_control_offsets_share_seed_across_fills():
+    data = synthetic()
+    chosen = np.array([0, 3, 16, 500, 520], dtype=np.int64)
+    seed = offset_seed(42, "synthetic", .1, "uniform_random_20_repeats", 7)
+    offsets_by_fill = [control_offsets("uniform_random_20_repeats", data, len(chosen),
+                                     np.random.default_rng(seed), chosen)
+                       for _ in ("zero", "local_median", "structure_conditioned_resampling")]
+    assert all(np.array_equal(offsets_by_fill[0], item) for item in offsets_by_fill[1:])
+    assert pair_seed(42, "synthetic", .1, "zero", "uniform_random_20_repeats", 7) != pair_seed(
+        42, "synthetic", .1, "local_median", "uniform_random_20_repeats", 7)

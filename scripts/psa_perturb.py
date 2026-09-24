@@ -10,9 +10,13 @@ import csv
 import hashlib
 import json
 import math
+import os
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor
-from itertools import groupby, islice
+from collections import deque
+from itertools import groupby
+from multiprocessing import shared_memory
 from pathlib import Path
 
 import numpy as np
@@ -20,8 +24,9 @@ from scipy.ndimage import median_filter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256  # noqa: E402
-from scripts.psa_gradcam import FROZEN, load_protocol, sha256  # noqa: E402
+sys.path.insert(0, str(ROOT / "scripts"))
+from ua_sahi_mal.kisa_xai.representation import POLICY_MEAN_POOL, encode_interval_binned, raster_sha256  # noqa: E402
+from psa_gradcam import FROZEN, load_protocol, sha256  # noqa: E402
 
 
 def offsets(intervals: list[list[int]], size: int) -> np.ndarray:
@@ -66,8 +71,8 @@ def control_offsets(control: str, data: bytes, budget: int, rng: np.random.Gener
     if control == "front_position":
         return np.arange(budget, dtype=np.int64)
     if control == "entropy":
-        scores = entropy if entropy is not None else entropy_scores(data)
-        return np.sort(np.argsort(-scores, kind="stable")[:budget])
+        ranked = entropy if entropy is not None else np.argsort(-entropy_scores(data), kind="stable")
+        return np.sort(ranked[:budget])
     if control == "uniform_random_20_repeats":
         return np.sort(rng.choice(size, size=budget, replace=False))
     if control == "structure_matched_random_20_repeats":
@@ -103,7 +108,7 @@ def local_median_grid(data: bytes, side: int, window: tuple[int, int]) -> np.nda
     medians = median_filter(grid, size=window, mode="constant", cval=256).ravel()[:size].astype(np.uint8)
     positions = np.arange(size)
     rows, cols = divmod(positions, side)
-    edge = (rows < 2) | (rows >= height - 2) | (cols < 2) | (cols >= side - 2)
+    edge = (rows < 2) | (rows >= height - 3) | (cols < 2) | (cols >= side - 2)
     boundary = positions[edge]
     if len(boundary):
         rr = rows[edge, None] + np.repeat(np.arange(-2, 3), 5)[None, :]
@@ -136,18 +141,40 @@ def fill_values(data: bytes, selected: np.ndarray, fill: str, rng: np.random.Gen
 def perturbed_raster(data: bytes, selected: np.ndarray, mode: str, fill: str,
                      rng: np.random.Generator, regions: np.ndarray | None,
                      window: tuple[int, int], side: int,
-                     medians: np.ndarray | None = None) -> np.ndarray:
+                     medians: np.ndarray | None = None, cache=None) -> np.ndarray:
+    raw, imap, sums, counts = cache if cache is not None else raster_cache(data, side)
     mask = np.zeros(len(data), dtype=bool)
     mask[selected] = True
     change = selected if mode == "deletion" else np.flatnonzero(~mask)
-    modified = np.frombuffer(data, dtype=np.uint8).copy()
-    modified[change] = fill_values(data, change, fill, rng, regions, window, side, medians)
-    raster, _ = encode_interval_binned(modified.tobytes(), side=side)
-    return raster
+    values = fill_values(data, change, fill, rng, regions, window, side, medians)
+    delta = values.astype(np.int64) - raw[change].astype(np.int64)
+    if imap.policy == POLICY_MEAN_POOL:
+        pixels = np.searchsorted(imap.ends, change, side="right")
+        updates = np.bincount(pixels, weights=delta, minlength=side * side).astype(np.int64)
+        updated = sums + updates
+    else:
+        byte_delta = np.zeros(len(raw), dtype=np.int64)
+        byte_delta[change] = delta
+        updated = sums + byte_delta[imap.starts]
+    return (updated / counts).astype(np.float32).reshape(side, side)
+
+
+def raster_cache(data: bytes, side: int, imap=None):
+    raw = np.frombuffer(data, dtype=np.uint8)
+    if imap is None:
+        _, imap = encode_interval_binned(data, side=side)
+    sums = (np.add.reduceat(raw.astype(np.int64), imap.starts) if imap.policy == POLICY_MEAN_POOL
+            else raw[imap.starts].astype(np.int64))
+    return raw, imap, sums, imap.ends - imap.starts
 
 
 def pair_seed(base: int, sample: str, budget: float, fill: str, control: str, repeat: int) -> int:
     key = f"{base}|{sample}|{budget:.8g}|{fill}|{control}|{repeat}".encode("utf-8")
+    return int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
+
+
+def offset_seed(base: int, sample: str, budget: float, control: str, repeat: int) -> int:
+    key = f"{base}|{sample}|{budget:.8g}|{control}|{repeat}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
 
 
@@ -183,8 +210,9 @@ def prepare_sample(task):
     if raster_sha256(materialised.reshape(side, side)) != index_row["raster_sha256"]:
         raise ValueError(f"materialised raster mismatch: {sid}")
     regions = region_ids(structure["structure"]["spans"], len(data)) if structure["status"] == "agreement" else None
-    entropy = entropy_scores(data)
+    entropy = np.argsort(-entropy_scores(data), kind="stable")
     medians = local_median_grid(data, side, window)
+    cache = raster_cache(data, side, imap)
     rows, rasters, targets = [], [], []
     ineligible = 0
     for entry in entries:
@@ -193,11 +221,17 @@ def prepare_sample(task):
         selected = offsets(budget["intervals"], len(data))
         if len(selected) != budget["achieved_bytes"] or entry["file_size"] != len(data):
             raise ValueError(f"achieved budget mismatch: {sid}")
-        for fill in fills:
-            for control in controls:
+        for control in controls:
+            for repeat in range(repeats if control.endswith("_20_repeats") else 1):
                 eligible = control != "structure_matched_random_20_repeats" or regions is not None
-                times = repeats if control.endswith("_20_repeats") else 1
-                for repeat in range(times):
+                matched = None
+                if eligible:
+                    matched = control_offsets(control, data, len(selected),
+                        np.random.default_rng(offset_seed(seed_base, sid, budget["requested_fraction"], control, repeat)),
+                        selected, regions, entropy)
+                    if len(matched) != len(selected):
+                        raise AssertionError("control byte budget mismatch")
+                for fill in fills:
                     result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": seed_base,
                               "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
                               "fill": fill, "control": control, "repeat": repeat, "eligible": eligible,
@@ -207,16 +241,24 @@ def prepare_sample(task):
                         ineligible += 1
                     else:
                         seed = pair_seed(seed_base, sid, budget["requested_fraction"], fill, control, repeat)
-                        matched = control_offsets(control, data, len(selected), np.random.default_rng(seed), selected, regions, entropy)
-                        if len(matched) != len(selected):
-                            raise AssertionError("control byte budget mismatch")
                         result.update(pair_seed=seed, gradcam_intervals=budget["intervals"], control_intervals=compress_offsets(matched))
                         for name, chosen in (("gradcam", selected), ("control", matched)):
                             for mode in ("deletion", "keep_only"):
-                                rasters.append(perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side, medians))
+                                rasters.append(perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side, medians, cache))
                                 targets.append((len(rows), name, mode, original_nll))
                     rows.append(result)
-    return rows, rasters, targets, ineligible
+    shape = (len(rasters), side, side)
+    shm = shared_memory.SharedMemory(create=True, size=max(1, int(np.prod(shape)) * np.dtype(np.float32).itemsize))
+    try:
+        shared = np.ndarray(shape, dtype=np.float32, buffer=shm.buf)
+        for i, raster in enumerate(rasters):
+            shared[i] = raster
+        return rows, shm.name, shape, targets, ineligible
+    except BaseException:
+        shm.unlink()
+        raise
+    finally:
+        shm.close()
 
 
 def completed_samples(output: Path, expected_rows: dict[str, int]) -> tuple[set[str], dict[str, int]]:
@@ -281,7 +323,7 @@ def main() -> int:
     ap.add_argument("--rasters-dir", type=Path, required=True)
     ap.add_argument("--outdir", type=Path, required=True)
     ap.add_argument("--device", default="auto")
-    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 1) - 4))
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit-samples", type=int)
     args = ap.parse_args()
@@ -354,22 +396,59 @@ def main() -> int:
             yield (entries, args.samples_dir / sid, manifest[sid], index[sid], structures[sid],
                    np.asarray(rasters[int(index[sid]["row"])], dtype=np.float32), side, fills, controls,
                    repeats, window, checkpoint["seed"], malicious)
+    started = time.monotonic()
+    initial_samples = counts["samples"]
     with ProcessPoolExecutor(max_workers=args.workers) as pool, output.open("a" if args.resume else "x", encoding="utf-8") as out:
         task_iter = iter(tasks())
-        while batch := list(islice(task_iter, args.workers)):
-            for rows, prepared, targets, ineligible in pool.map(prepare_sample, batch):
-                for (row_number, name, mode, original_nll), (value_nll, malicious_score) in zip(
-                        targets, score_batch(model, prepared, device, malicious), strict=True):
-                    if mode == "deletion":
-                        rows[row_number][f"{name}_deletion_delta_nll"] = value_nll - original_nll
-                    else:
-                        rows[row_number][f"{name}_keep_only_malicious_score"] = malicious_score
-                out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
-                out.flush()
-                counts["samples"] += 1
-                counts["rows"] += len(rows)
-                counts["forward_passes"] += len(prepared)
-                counts["structure_ineligible_rows"] += ineligible
+        pending = deque()
+
+        def submit_next():
+            task = next(task_iter, None)
+            if task is not None:
+                pending.append(pool.submit(prepare_sample, task))
+
+        for _ in range(min(args.workers, 3)):
+            submit_next()
+        try:
+            while pending:
+                future = pending.popleft()
+                rows, name, shape, targets, ineligible = future.result()
+                submit_next()  # CPU preparation continues during this sample's GPU inference.
+                shm = shared_memory.SharedMemory(name=name)
+                try:
+                    prepared = np.ndarray(shape, dtype=np.float32, buffer=shm.buf)
+                    for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
+                            targets, score_batch(model, prepared, device, malicious), strict=True):
+                        if mode == "deletion":
+                            rows[row_number][f"{target_name}_deletion_delta_nll"] = value_nll - original_nll
+                        else:
+                            rows[row_number][f"{target_name}_keep_only_malicious_score"] = malicious_score
+                    out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
+                    out.flush()
+                    counts["samples"] += 1
+                    counts["rows"] += len(rows)
+                    counts["forward_passes"] += shape[0]
+                    counts["structure_ineligible_rows"] += ineligible
+                    elapsed = time.monotonic() - started
+                    processed = counts["samples"] - initial_samples
+                    per_sample = elapsed / processed
+                    remaining = per_sample * (len(grouped) - counts["samples"])
+                    print(f"samples={counts['samples']}/{len(grouped)} elapsed={elapsed:.1f}s "
+                          f"seconds_per_sample={per_sample:.1f} eta={remaining:.1f}s", file=sys.stderr, flush=True)
+                finally:
+                    shm.close()
+                    shm.unlink()
+        finally:
+            for future in pending:
+                if future.cancel():
+                    continue
+                try:
+                    _, name, _, _, _ = future.result()
+                    orphan = shared_memory.SharedMemory(name=name)
+                    orphan.close()
+                    orphan.unlink()
+                except Exception:
+                    pass
     (args.outdir / "perturb_summary.json").write_text(json.dumps({"protocol_sha256": sha256(FROZEN),
         "inputs": {str(p): v for p, v in expected.items()}, "checkpoint_seed": checkpoint["seed"],
         "counts": counts, "ledger_sha256": sha256(output)}, indent=2) + "\n", encoding="utf-8")

@@ -43,7 +43,7 @@ foreach ($seed in 42,43,44) {
 | era | 5,331 / 1 | 10,748,352 | 32,245,056 |
 | 합계 | 22,696 / 43 | 45,800,544 | **137,401,632** |
 
-GPU 1개에서 순차 실행 시 forward 1회가 실제로 10/50 ms라면 모델 forward만 약 **15.9/79.5일**이다. PE 읽기, fill, 재래스터화, JSONL 쓰기 및 Grad-CAM backward 시간은 별도라 실제 시간은 더 길다. 실제 환경의 계측값은 없으며 이는 시나리오다. 이 비용은 실행 전 재검토가 필요하다.
+GPU 1개에서 순차 실행 시 forward 1회가 10/50 ms라면 모델 forward만 약 **15.9/79.5일**이다. PE 읽기, fill, 재래스터화, JSONL 쓰기 및 Grad-CAM backward 시간은 별도다. C9x-2b 사용자 20건 smoke 실측은 521초, 표본당 약 26초, 초당 약 77 forward pass였고 GPU 사용률은 매우 낮았다. 전체 환산 약 20.5일은 이 작은 표본의 단순 외삽이며 새 구현의 실측값이 아니다.
 
 가정: YAML에는 entropy 구간 크기와 local median의 좌표계가 수치로 지정되지 않았다. 구현은 entropy를 원본 256바이트 고정 구간의 Shannon entropy로 순위화하고, local median 5×5는 원본 바이트를 raster side 폭의 행 우선 격자로 놓아 해석했다. 구조 fallback에서는 structure-matched 행을 eligible=false로 유지하고, 구조 조건 resampling에는 파일 전체를 pool로 쓴다. 이는 동결 정책의 추가 해석이므로 분석 시 명시한다.
 
@@ -65,3 +65,12 @@ $elapsed = Measure-Command {
 ```
 
 재개에는 같은 명령에 `--resume`을 추가한다. 파일당 ledger를 flush하며 마지막 불완전 sample_id의 행은 재개 시 제거하고 다시 계산한다. CPU 워커가 바이트 수정과 재래스터화를 준비하고 주 프로세스가 512개씩 GPU 추론한다. 학습과 동일하게 CUDA autocast를 사용한다. 합성 회귀 테스트는 코드에 추가했으며 이 세션에서는 실행하지 않았다.
+
+## C9x-2c 구현 결정 (미실행)
+
+- `python scripts\psa_perturb.py` 직접 실행을 위해 같은 `scripts` 폴더의 `psa_gradcam`을 import한다.
+- Entropy 정렬은 원본 파일당 한 번 캐시한다. 대조군 offset은 `(sample, budget, control, repeat)`별 한 번만 선택하고 fill 3종에 공유한다. offset 난수 seed에는 fill을 넣지 않는다. ledger의 `pair_seed`와 fill 난수 상태는 `(sample, budget, fill, control, repeat)`별로 분리한다. 출력 필드와 결과 정의는 유지한다.
+- 원본 파일의 pixel별 정수 바이트 합·개수를 캐시하고 바뀐 바이트의 delta를 `np.bincount`로 pixel에 모아 float32 래스터를 만든다. nearest-byte 정책에는 같은 delta를 해당 pixel들에 직접 전파한다.
+- 워커는 래스터를 `multiprocessing.shared_memory`에 쓰고 이름·shape만 반환한다. 주 프로세스가 GPU 점수화를 마치면 공유 메모리를 해제한다. 최대 3개 준비 작업을 미리 제출해 CPU 준비와 GPU 소비를 겹친다. `--workers` 기본값은 `max(1, (os.cpu_count() or 1)-4)`다.
+- 5×5 local median의 부분 마지막 행 주변을 `rows >= height-3`에서 직접 재계산한다. 매 표본 완료마다 stderr에 경과 시간, 표본당 초, 예상 잔여 시간을 출력한다. 예상 잔여 시간은 이 실행에서 완료한 표본의 평균에 근거한다.
+- 합성 무작위 바이트, 비배수 길이, partial last row 테스트를 추가했다. 기존 테스트 4건은 유지했다. 기존 `.venv` Python 런처가 사라진 base Python을 가리켜 pytest 실행은 실패했다. 전체 perturb 실행과 새 smoke는 하지 않았다.
