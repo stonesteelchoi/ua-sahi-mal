@@ -220,7 +220,8 @@ def main() -> int:
         for row in rows:
             sid = row["sample_id"]
             record = structures[sid]
-            if record["split"] != "test":
+            # The structure ledger's split field carries the main split; era test membership is fixed by the manifest.
+            if args.split_manifest is None and record["split"] != "test":
                 raise ValueError(f"structure/index mismatch for {sid}")
             structure = restored_structure(record, int(row["file_size"]))
             raster = np.asarray(rasters[int(row["row"])], dtype=np.float32).reshape(side, side)
