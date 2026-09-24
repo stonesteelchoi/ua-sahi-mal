@@ -156,6 +156,7 @@ split:
   manifest: split_manifest.csv
   split_sha256: 843bcb8033205a5b37b420b93cdf940ed69dce58d73e5f3eaf942d7cc318099b
   counts: {train: 139192, validation: 29953, internal_test: 30171}
+  counts_after_raster_dedup: {train: 139087, validation: 29933, internal_test: 30146}  # C8r-c; excludes 150 later raster duplicates
   stratum_deviation_note: malicious_pe32plus_n979_is_66_15_19_all_other_strata_within_0_5_points
   test_access: once_after_protocol_freeze
   external_adaptation: forbidden
@@ -219,7 +220,7 @@ metadata_shortcut_audit:
 model:
   primary: resnet18
   reference_required: false
-  initialization: select_on_validation_then_freeze
+  initialization: imagenet  # selected on validation by 2026-09-20; retained for 2026-09-24 C8 retraining
   optimizer: adamw
   epochs_max: 30
   early_stopping_patience: 5
@@ -227,7 +228,10 @@ model:
   amp: true
   batch_size: 512   # pilot 6070.7 MiB; max training 6072.7 / 8123.4 MiB (74.76%)
   selection_metric: validation_macro_f1
-  required_comparison: cnn_val_auroc_vs_metadata_only_auroc_0.95
+  required_comparison:
+    metadata_only_auroc_group_disjoint: 0.95
+    retrain_validation_auroc: {seed42: 0.9868352431439574, seed43: 0.9873733952823303, seed44: 0.9871156021426235}
+    interpretation: all_three_above_0_95_descriptive_only_different_evaluation_splits
   baselines: [majority, metadata_logistic, byte_histogram_logistic]
 
 classification_sanity:
@@ -272,7 +276,7 @@ statistics:
   effect_definition: paired_mean_difference_gradcam_minus_structure_matched_random
   primary_population: all_malicious_test_files
   secondary_population: correctly_detected_malicious_files
-  internal_test_malicious_n: 17431
+  internal_test_malicious_n: 17407  # C8r-c: pre-dedup 17431 minus 24 raster duplicates; benign 12740 minus 1 = 12739
 
 structure_regions:
   - dos_and_pe_headers

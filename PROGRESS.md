@@ -1,10 +1,10 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a, C8b-b, C8b-c(C8b 종결), C8p(YAML 보완), C8r-a
-다음: C8r-b — seed별 학습 로그 3개 인자 직접 대조 / provenance와 일치 확인
-남은 청크: C8r-b 로그 증거; C8r-c 가중치 명령·YAML count 원인·최종 판정; C9 승인 후 XAI; C10 통계·결과 문서
+완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a, C8b-b, C8b-c(C8b 종결), C8p(YAML 보완), C8r-a, C8r-b, C8r-c(C8r 종결), C9p(동결 준비)
+다음: C9a — 두 정책 선택·사용자 검증 출력 판정 / 선택 고정·해시 대조
+남은 청크: C9a 선택·해시 판정; C9 동결 승인 후 XAI; C10 통계·결과 문서
 
 확정 규칙·결정(형식·기준 포함):
-- 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하.
+- 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 기본 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하. C9p는 사용자 지정 동결 준비 청크로 새 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
 - 오류 표본을 제외하지 않고 모든 예외를 ledger에 유지한다. 매핑 정책 변경은 버전과 합성 회귀 fixture를 먼저 갖춘다.
 - P2-MALFORMED-HEADER-V1: directory-count 초과와 선언 optional-header 결손/절단을 고정 reason으로 남기고 비어 있지 않은 파일 전체를 unknown으로 매핑한다. parser 비교 상태는 parse error로 남긴다.
@@ -15,7 +15,7 @@
 - 전체 프로토콜 동결(`protocol_freeze_authorized=true`)은 C8 완료 후 C9 전에 사용자가 승인하며, 그 전까지 test payload는 열지 않는다.
 - 장시간 실행(census, 학습)은 사용자가 별도 `.venv` 창에서 한다. Codex는 명령만 기록하고 직접 실행하지 않으며, 결과 판정은 다음 청크에서 한다.
 - C8 사전 등록: ImageNet 초기화, seed 42·43·44, batch 512, train/validation만 사용. 세 seed 모두 validation macro-F1 > majority macro-F1+0.10, balanced accuracy ≥0.70, 양 class recall ≥0.60, seed 방향 일치일 때 sanity gate 통과. 하나라도 실패하면 XAI 중단.
-- 기존 run의 C8 gate 시점: 기준은 검증기 출력 열람 전에 기록했으나 해당 학습 완료 후 정했다(사용자 진술). 기존 run에 대해 학습 전 사전 등록으로 표현하지 않는다. Validation은 초기화·checkpoint 선택에 사용됐으므로 성능 보고는 전체 동결 후 held-out test 1회 평가로 한다.
+- `classification_sanity` 네 기준은 첫 YAML 커밋 c1262f09(2026-09-15 22:07:22 +09:00)에 이미 있었고 2026-09-24 재학습 전이다. 기존 run의 학습 시작 전 등록 여부는 커밋만으로 확정하지 않으며 사용자 진술상 기존 run의 C8 gate 판정 기준은 완료 후 정했다. 기존 run을 학습 전 C8 사전 등록으로 표현하지 않는다. Validation은 초기화·checkpoint 선택에 사용됐으므로 성능 보고는 전체 동결 후 held-out test 1회 평가로 한다.
 - C8b-c 결정: epoch 상한 30·patience 5는 run 당시 인자 기록이 없어 종료 양상과 run 이후 코드 기본값 경유의 **간접 확증**으로 판정하고 C8b를 종결한다. 전체 프로토콜 동결 승인은 하지 않는다.
 - C8p 결정: YAML에 동일 sample·달성 budget·fill random state 쌍체 규칙과 effect·95% CI·Holm 조정 p·eligible n 보고 필드를 명시했다. P2 교차검사·fallback blocker는 `audit/P2_CENSUS_ADJUDICATION_2026-09-24.md` 근거로 해소했다. 전체 프로토콜 동결은 미승인.
 
@@ -41,11 +41,16 @@
 - C8b-c: 현재 `scripts/psa_train.py` 기본값은 epochs_max 30·patience 5. run 직전 커밋 2075df27(2026-09-15 22:12:34 +09:00)에 이 파일이 없고 run 이후 커밋 661db79f(2026-09-21 07:47:04 +09:00)에서 기본값 30/5로 처음 추가되어 전후 동일성 비교 불가. 세 run 폴더는 각각 best.pt·summary.json만 있고 args·config·log 파일 없음. 종료 양상과 사후 코드 기본값을 통한 간접 확증으로 C8b 종결. 상세 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
 - C9 YAML 계획 확인: Grad-CAM·`layer4.1`, 4개 budget, uniform/front/entropy/structure-matched 대조군, deletion ΔNLL·keep-only와 3종 fill, 동일 sample·달성 budget·fill random state, 쌍체 bootstrap 2,000·Holm 2검정·effect·95% CI·조정 p·eligible n 명시.
 - C8r-a: 기존·재학습 검증 JSON의 공통 validation 지표·gate·방향은 seed 42/43/44에서 정확히 일치한다. 새 JSON의 AUROC·시간·경로·해시는 달라 JSON 전체 동일은 아니다. 재학습 provenance에 커밋 `62a15542f14b94b16271dbac8defbe99ee57b3ca`와 batch 512·ImageNet·epochs 30·patience 5·3 seed 명령이 직접 기록돼 있다. C8 gate는 이 재학습 전 등록 기준이고 검증 결과상 통과했다. C9 후보는 `D:\secure-malware-data\psa\runs\c8_retrain_20260924\seed{42,43,44}_imagenet_bs512\best.pt`이며 SHA-256은 `291af0bd…`, `4156f2b8…`, `62c0d8b0…`; 이전 runs 체크포인트를 대체한다. 근거 `audit/C8R_RETRAIN_ADJUDICATION_2026-09-24.md`.
+- C8r-b·c: 세 학습 로그에서 patience 5, 종료 epoch 18/10/16, seed별 checkpoint 경로·SHA-256을 직접 확인했다. 로그에는 전체 명령·epochs-max 30·초기화·batch 인자 자체가 출력되지 않아 그 항목의 로그 직접 확증은 없다. provenance 명령과 summary 검증 결과가 나머지 근거다.
+- YAML 17,431은 중복 제외 전 test 악성 수: split manifest·raster index 모두 17,431, 중복 raster 제외 24건 후 검증기 17,407. 정상 test도 12,740에서 중복 1건 제외 후 12,739. YAML 미수정. 기존·재학습 best.pt 가중치 텐서 동일성용 사용자 Python 한 줄 명령은 C8r 판정 문서에 기록했으며 결과는 미확인.
+- C8r 최종 판정: 재학습 validation sanity gate 통과, C8r 종결. C9 후보 모델은 C8r-a 지정 재학습 best.pt 3개. 근거 `audit/C8R_RETRAIN_ADJUDICATION_2026-09-24.md`.
+- C9p: YAML에 원 분할 counts 유지, 중복 제외 139087/29933/30146 병기, test 악성 17407·제외 24건 주석, ImageNet 고정, 재학습 validation AUROC 0.9868352431/0.9873733953/0.9871156021 대 metadata 0.95(서로 다른 평가 분할) 기록. `statistics.unit`, `fills.robustness`는 결정 대기. 사용자 `.venv` 실행 명령·해시 기준·verifier 범위는 `audit/C9_FREEZE_PREP_2026-09-24.md`; 미실행.
 
 미해결·주의:
 - 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
+- 정책 선택 필요: `statistics.unit`는 `file` 또는 `imphash_group` 중 하나, `fills.robustness`는 `local_median` 또는 `blur` 중 하나로 고정한다. 사용자 결정 전 YAML의 `or`는 유지한다.
 - C8b는 간접 확증으로 종결. epoch 상한·patience의 run 당시 직접 증거는 없으며 이를 직접 확증으로 인용하지 않는다.
-- C8r-a에서 재학습 검증 JSON·provenance·체크포인트 존재를 확인했다. 최종 판정 전 C8r-b에서 로그 인자, C8r-c에서 가중치 비교 명령과 YAML `17431` 대 검증기 `17407` 원인을 확인한다. YAML은 수정하지 않는다. C9·전체 프로토콜 동결로 넘어가지 않는다.
+- C8r은 종결했지만 가중치 텐서 동일성은 사용자 명령 실행 전 미확인이다. C9·test payload 접근은 전체 프로토콜 동결 승인 전 금지.
 - Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
