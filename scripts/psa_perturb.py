@@ -392,6 +392,7 @@ def main() -> int:
     ap.add_argument("--outdir", type=Path, required=True)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 1) - 4))
+    ap.add_argument("--prefetch", type=int, default=8)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit-samples", type=int)
     args = ap.parse_args()
@@ -440,8 +441,8 @@ def main() -> int:
     if structures.keys() != wanted:
         raise ValueError("structure ledger lacks sample IDs")
     rasters = np.load(args.rasters_dir / protocol["representation"]["materialised"]["file"], mmap_mode="r")
-    if args.workers < 1 or (args.limit_samples is not None and args.limit_samples < 1):
-        raise ValueError("workers and limit-samples must be positive")
+    if args.workers < 1 or args.prefetch < 1 or (args.limit_samples is not None and args.limit_samples < 1):
+        raise ValueError("workers, prefetch and limit-samples must be positive")
     args.outdir.mkdir(parents=True, exist_ok=args.resume)
     output = args.outdir / "perturb_ledger.jsonl"
     malicious = max(protocol["eligibility"]["labels"])
@@ -466,6 +467,7 @@ def main() -> int:
                    repeats, window, checkpoint["seed"], malicious)
     started = time.monotonic()
     initial_samples = counts["samples"]
+    gpu_wait_seconds = 0.0
     with ProcessPoolExecutor(max_workers=args.workers) as pool, output.open("a" if args.resume else "x", encoding="utf-8") as out:
         task_iter = iter(tasks())
         pending = deque()
@@ -475,12 +477,15 @@ def main() -> int:
             if task is not None:
                 pending.append(pool.submit(prepare_sample, task))
 
-        for _ in range(min(args.workers, 3)):
+        for _ in range(args.prefetch):
             submit_next()
         try:
             while pending:
-                future = pending.popleft()
+                future = pending[0]
+                wait_started = time.monotonic()
                 rows, prepared, targets, ineligible = future.result()
+                gpu_wait_seconds += time.monotonic() - wait_started
+                pending.popleft()
                 submit_next()  # CPU preparation continues during this sample's GPU inference.
                 for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
                         targets, score_batch(model, prepared, device, malicious), strict=True):
@@ -499,7 +504,8 @@ def main() -> int:
                 per_sample = elapsed / processed
                 remaining = per_sample * (len(grouped) - counts["samples"])
                 print(f"samples={counts['samples']}/{len(grouped)} elapsed={elapsed:.1f}s "
-                      f"seconds_per_sample={per_sample:.1f} eta={remaining:.1f}s", file=sys.stderr, flush=True)
+                      f"seconds_per_sample={per_sample:.1f} eta={remaining:.1f}s "
+                      f"gpu_wait={gpu_wait_seconds:.1f}s", file=sys.stderr, flush=True)
         finally:
             for future in pending:
                 if future.cancel():
