@@ -13,8 +13,7 @@ import math
 import os
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor
-from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from itertools import groupby
 from pathlib import Path
 
@@ -205,14 +204,26 @@ def replacement_sums(replacements: np.ndarray, cache) -> np.ndarray:
             if imap.policy == POLICY_MEAN_POOL else replacements[imap.starts].astype(np.int64))
 
 
+def selected_pixel_map(cache, selected: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Map selected source bytes to affected pixels once for a position set."""
+    imap = cache[1]
+    if imap.policy == POLICY_MEAN_POOL:
+        return np.searchsorted(imap.ends, selected, side="right"), np.arange(len(selected))
+    pixel = np.searchsorted(imap.starts, selected)
+    valid = pixel < len(imap.starts)
+    valid[valid] = imap.starts[pixel[valid]] == selected[valid]
+    return pixel[valid], np.flatnonzero(valid)
+
+
 def paired_rasters(cache, selected: np.ndarray, replacements: np.ndarray,
-                   side: int, fill_sums: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    raw = cache[0]
-    deletion = raster_delta(cache, selected,
-                            replacements[selected].astype(np.int64) - raw[selected].astype(np.int64), side)
-    keep_only = raster_delta(cache, selected,
-                             raw[selected].astype(np.int64) - replacements[selected].astype(np.int64),
-                             side, fill_sums)
+                   side: int, fill_sums: np.ndarray,
+                   pixel_map: tuple[np.ndarray, np.ndarray] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    raw, _, raw_sums, counts = cache
+    pixels, byte_indices = pixel_map if pixel_map is not None else selected_pixel_map(cache, selected)
+    delta = replacements[selected].astype(np.int64) - raw[selected].astype(np.int64)
+    updates = np.bincount(pixels, weights=delta[byte_indices], minlength=side * side).astype(np.int64)
+    deletion = ((raw_sums + updates) / counts).astype(np.float32).reshape(side, side)
+    keep_only = ((fill_sums - updates) / counts).astype(np.float32).reshape(side, side)
     return deletion, keep_only
 
 
@@ -286,12 +297,19 @@ def prepare_sample(task):
     fixed_sums = {name: replacement_sums(values, cache) for name, values in fixed_fills.items()}
     rows, rasters, targets = [], [], []
     ineligible = 0
+    pixel_maps = {}
+    def pixels_for(chosen):
+        key = chosen.tobytes()
+        if key not in pixel_maps:
+            pixel_maps[key] = selected_pixel_map(cache, chosen)
+        return pixel_maps[key]
     for entry in entries:
         budget = entry["budget"]
         original_nll = nll(np.asarray([entry["benign_logit"], entry["malicious_logit"]]), malicious)
         selected = offsets(budget["intervals"], len(data))
         if len(selected) != budget["achieved_bytes"] or entry["file_size"] != len(data):
             raise ValueError(f"achieved budget mismatch: {sid}")
+        selected_map = pixels_for(selected)
         for control in controls:
             for repeat in range(repeats if control.endswith("_20_repeats") else 1):
                 eligible = control != "structure_matched_random_20_repeats" or regions is not None
@@ -302,6 +320,7 @@ def prepare_sample(task):
                         selected, regions, entropy)
                     if len(matched) != len(selected):
                         raise AssertionError("control byte budget mismatch")
+                    matched_map = pixels_for(matched)
                 for fill in fills:
                     result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": seed_base,
                               "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
@@ -319,9 +338,11 @@ def prepare_sample(task):
                         else:
                             replacements = full_fill(raw, fill, np.random.default_rng(seed), regions, medians)
                             fill_sums = replacement_sums(replacements, cache)
-                        for name, chosen in (("gradcam", selected), ("control", matched)):
+                        for name, chosen, pixel_map in (("gradcam", selected, selected_map),
+                                                        ("control", matched, matched_map)):
                             for mode, raster in zip(("deletion", "keep_only"),
-                                                    paired_rasters(cache, chosen, replacements, side, fill_sums)):
+                                                    paired_rasters(cache, chosen, replacements, side, fill_sums,
+                                                                   pixel_map)):
                                 rasters.append(raster)
                                 targets.append((len(rows), name, mode, original_nll))
                     rows.append(result)
@@ -470,22 +491,23 @@ def main() -> int:
     gpu_wait_seconds = 0.0
     with ProcessPoolExecutor(max_workers=args.workers) as pool, output.open("a" if args.resume else "x", encoding="utf-8") as out:
         task_iter = iter(tasks())
-        pending = deque()
+        pending = set()
 
         def submit_next():
             task = next(task_iter, None)
             if task is not None:
-                pending.append(pool.submit(prepare_sample, task))
+                pending.add(pool.submit(prepare_sample, task))
 
         for _ in range(args.prefetch):
             submit_next()
         try:
             while pending:
-                future = pending[0]
                 wait_started = time.monotonic()
-                rows, prepared, targets, ineligible = future.result()
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
                 gpu_wait_seconds += time.monotonic() - wait_started
-                pending.popleft()
+                future = next(iter(done))
+                pending.update(done - {future})
+                rows, prepared, targets, ineligible = future.result()
                 submit_next()  # CPU preparation continues during this sample's GPU inference.
                 for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
                         targets, score_batch(model, prepared, device, malicious), strict=True):

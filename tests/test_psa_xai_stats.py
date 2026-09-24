@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from psa_xai_stats import build, holm, render  # noqa: E402
+from psa_xai_stats import FROZEN, build, collect, holm, protocol_settings, render  # noqa: E402
 
 
 def ledgers(directory, seed, effect):
@@ -73,3 +73,16 @@ def test_holm_order_and_monotonicity():
     holm(values)
     assert values["h2"]["holm_adjusted_p"] == pytest.approx(0.02)
     assert values["h1"]["holm_adjusted_p"] == pytest.approx(0.04)
+
+
+def test_collect_accepts_out_of_order_complete_sample_blocks(tmp_path):
+    perturb, cam = ledgers(tmp_path / "ledgers", 42, 1.5)
+    protocol = protocol_settings(FROZEN)
+    expected = collect(perturb, cam, protocol, 42)
+    blocks = {}
+    for line in perturb.read_text(encoding="utf-8").splitlines(keepends=True):
+        blocks.setdefault(json.loads(line)["sample_id"], []).append(line)
+    perturb.write_text("".join(line for sid in reversed(list(blocks)) for line in blocks[sid]), encoding="utf-8")
+    actual = collect(perturb, cam, protocol, 42)
+    assert actual["counts"] == expected["counts"]
+    assert actual["files"] == expected["files"]

@@ -1,5 +1,6 @@
 """Synthetic PE checks; no held-out payload is opened."""
 import hashlib
+import json
 
 import numpy as np
 import pytest
@@ -8,7 +9,8 @@ from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values,
                                  local_median_grid, offsets, pair_seed, perturbed_raster,
                                  offset_seed, prepare_sample, raster_cache, region_ids,
                                  full_fill, replacement_sums, paired_rasters,
-                                 control_offsets_sha256, verify_control_offsets)
+                                 control_offsets_sha256, verify_control_offsets,
+                                 completed_samples, raster_delta, selected_pixel_map)
 from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
@@ -226,6 +228,35 @@ def test_shared_full_file_fill_matches_full_reencoding_bitwise():
                 kept[chosen] = raw[chosen]
                 assert actual_deletion.tobytes() == encode_interval_binned(deleted.tobytes(), side=side)[0].tobytes()
                 assert actual_keep.tobytes() == encode_interval_binned(kept.tobytes(), side=side)[0].tobytes()
+
+
+def test_cached_pixel_map_pair_matches_previous_pair_bitwise():
+    rng = np.random.default_rng(9403)
+    side = 8
+    for size in (1, 17, 64, 65, 513):
+        raw = rng.integers(0, 256, size=size, dtype=np.uint8)
+        cache = raster_cache(raw.tobytes(), side)
+        for _ in range(4):
+            selected = np.sort(rng.choice(size, size=max(1, size // 5), replace=False))
+            pixel_map = selected_pixel_map(cache, selected)
+            for _ in range(3):
+                replacements = rng.integers(0, 256, size=size, dtype=np.uint8)
+                fill_sums = replacement_sums(replacements, cache)
+                delta = replacements[selected].astype(np.int64) - raw[selected].astype(np.int64)
+                previous = (raster_delta(cache, selected, delta, side),
+                            raster_delta(cache, selected, -delta, side, fill_sums))
+                actual = paired_rasters(cache, selected, replacements, side, fill_sums, pixel_map)
+                assert all(a.tobytes() == b.tobytes() for a, b in zip(actual, previous, strict=True))
+
+
+def test_completed_samples_accepts_non_sorted_contiguous_blocks(tmp_path):
+    output = tmp_path / "perturb.jsonl"
+    rows = [{"sample_id": sid, "eligible": True} for sid in ("z", "z", "a", "a", "m")]
+    output.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    complete, counts = completed_samples(output, {"a": 2, "m": 2, "z": 2})
+    assert complete == {"a", "z"}
+    assert counts["samples"] == 2
+    assert [json.loads(line)["sample_id"] for line in output.read_text(encoding="utf-8").splitlines()] == ["z", "z", "a", "a"]
 
 
 def test_control_offset_digest_is_sorted_int64_and_verifiable():
