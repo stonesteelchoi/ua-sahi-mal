@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완
-다음: C7 — 배치 크기·target layer 파일럿 확정 / train·validation만 사용, 실행 명령은 기록하고 실행은 사용자
-남은 청크: C7 배치·target layer 파일럿; C8 3개 seed 학습과 sanity gate; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
+완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7
+다음: C8 — 3개 seed 학습·sanity gate / train·validation만 사용, 실행은 사용자 .venv 창
+남은 청크: C8 3개 seed 학습·sanity gate; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
 
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하.
@@ -11,6 +11,7 @@
 - P2-SECTION-DISAGREEMENT-V1: section 수 차이는 `section_count_disagreement`, 정규화 raw 경계 차이는 `raw_section_boundary_disagreement`로 기록하고 전체 unknown으로 매핑한다. 기타 raw field 차이는 fallback 없이 disagreement; native overlay 차이는 진단값이다.
 - P2 gate: fallback reason counts가 62/1/10과 일치하고 미분류 parse error·hash/size 오류·기타 disagreement 0건 및 새 reason 부재일 때만 통과. `p2_structure_gate_passed`만으로 동결을 승인하지 않는다.
 - C6 결정: P2 구조 매핑 정책 `conservative_unknown_v1`(위 두 정책 버전)을 이번 census의 모집단·구현 해시 기준으로 동결한다. 전체 프로토콜 동결은 미승인(`protocol_freeze_authorized=false`). 근거 `paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md`.
+- C7 결정: 기존 파일럿·합성 CUDA 확인 기록에 따라 batch size 512와 Grad-CAM target layer `layer4.1`을 유지한다. C7은 재실행 없이 train/validation 범위에서만 판정했다. 근거 `paper/v5-kisa-xai/audit/C7_BATCH_TARGET_LAYER_2026-09-24.md`.
 - 전체 프로토콜 동결(`protocol_freeze_authorized=true`)은 C8 완료 후 C9 전에 사용자가 승인하며, 그 전까지 test payload는 열지 않는다.
 - 장시간 실행(census, 학습)은 사용자가 별도 `.venv` 창에서 한다. Codex는 명령만 기록하고 직접 실행하지 않으며, 결과 판정은 다음 청크에서 한다.
 
@@ -25,6 +26,7 @@
 - 코드: 커밋 ff57e250d0d58b0ae3e2bfa1b638b521c7573885; `structure.py` 6d79fa79…, `psa_structure_audit.py` fdc5ce7d…; manifest 3dc0bd7f…. 전체 해시와 실행 명령은 판정 문서에 있다. 환경: `.venv` Python 3.12.10, pefile 2024.8.26.
 - 문서: 판정 `audit/P2_CENSUS_ADJUDICATION_2026-09-24.md`; 정책 `protocol/P2_MALFORMED_HEADER_POLICY_V1.md`, `protocol/P2_SECTION_DISAGREEMENT_POLICY_V1.md`; 이전 근거 `audit/P2_POSTRESTORE_2026-09-23.md`.
 - 테스트: 구조·audit 합성 테스트 23 passed(C4). pefile이 필요한 4건은 `.venv`에서만 실행 가능.
+- C7 근거: pilot peak 6,070.7/8,123.4 MiB(74.73%), 학습 최대 6,072.7 MiB(74.76%); `layer4.1` BasicBlock, 합성 CUDA activation/gradient `[1,512,7,7]`. 기존 아티팩트 존재와 SHA-256 확인, 재실행 없음.
 
 미해결·주의:
 - 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
