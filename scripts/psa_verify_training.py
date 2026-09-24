@@ -22,7 +22,7 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def dataset_counts(rasters):
+def dataset_counts(rasters, split_manifest=None):
     seen, drop = set(), set()
     with (rasters / "raster_duplicate_groups.csv").open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
@@ -31,14 +31,34 @@ def dataset_counts(rasters):
                 drop.add(row["sample_id"])
             seen.add(key)
     counts = {s: {"n": 0, "benign": 0, "malicious": 0} for s in ("train", "val", "test")}
+    assignments = None
+    if split_manifest is not None:
+        assignments = {}
+        with Path(split_manifest).open(newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                sample_id = row["sample_id"]
+                require(sample_id not in assignments and row["split"] in counts,
+                        "duplicate sample ID or invalid split in manifest")
+                assignments[sample_id] = (row["split"], row["label"], row["group"])
+    matched = set()
     with (rasters / "raster_index.csv").open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
+            if assignments is not None:
+                assignment = assignments.get(row["sample_id"])
+                if assignment is None:
+                    continue
+                require((row["label"], row["group"]) == assignment[1:], "manifest/index mismatch")
+                matched.add(row["sample_id"])
+                selected_split = assignment[0]
+            else:
+                selected_split = row["split"]
             if row["sample_id"] in drop:
                 continue
             require(row["label"] in ("0", "1"), "invalid label")
-            count = counts[row["split"]]
+            count = counts[selected_split]
             count["n"] += 1
             count["malicious" if row["label"] == "1" else "benign"] += 1
+    require(assignments is None or len(matched) == len(assignments), "manifest IDs absent from raster index")
     return counts
 
 
@@ -85,11 +105,13 @@ def verify_summary(summary, counts, seed, init="imagenet", batch=512):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rasters-dir", type=Path, required=True)
+    parser.add_argument("--split-manifest", type=Path, default=None,
+                        help="optional split assignment CSV; default uses raster_index.csv")
     parser.add_argument("--runs-dir", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     require(not args.out.exists(), "output already exists")
-    counts = dataset_counts(args.rasters_dir)
+    counts = dataset_counts(args.rasters_dir, args.split_manifest)
     results = []
     for seed in (42, 43, 44):
         run = args.runs_dir / f"seed{seed}_imagenet_bs512"

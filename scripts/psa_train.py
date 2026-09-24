@@ -68,7 +68,20 @@ class RasterDataset(Dataset):
         return x, int(self.labels[i])
 
 
-def load_index(rasters_dir: str, split: str):
+def split_assignments(split_manifest: str | None):
+    if split_manifest is None:
+        return None
+    assignments = {}
+    with open(split_manifest, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            sample_id = row["sample_id"]
+            if sample_id in assignments or row["split"] not in ("train", "val", "test"):
+                raise ValueError("duplicate sample ID or invalid split in manifest")
+            assignments[sample_id] = (row["split"], row["label"], row["group"])
+    return assignments
+
+
+def load_index(rasters_dir: str, split: str, assignments=None):
     """Return (rows, labels, groups) for one split, dropping raster duplicates."""
     idx = os.path.join(rasters_dir, "raster_index.csv")
     dup_file = os.path.join(rasters_dir, "raster_duplicate_groups.csv")
@@ -83,13 +96,27 @@ def load_index(rasters_dir: str, split: str):
                 else:
                     seen.add(h)
     rows, labels, groups = [], [], []
+    matched = set()
     with open(idx, newline="", encoding="utf-8") as fh:
         for r in csv.DictReader(fh):
-            if r["split"] != split or r["sample_id"] in drop:
+            sample_id = r["sample_id"]
+            if assignments is not None:
+                assignment = assignments.get(sample_id)
+                if assignment is None:
+                    continue
+                if (r["label"], r["group"]) != assignment[1:]:
+                    raise ValueError(f"manifest/index mismatch for {sample_id}")
+                matched.add(sample_id)
+                selected_split = assignment[0]
+            else:
+                selected_split = r["split"]
+            if selected_split != split or sample_id in drop:
                 continue
             rows.append(int(r["row"]))
             labels.append(int(r["label"]))
             groups.append(r["group"])
+    if assignments is not None and len(matched) != len(assignments):
+        raise ValueError("manifest contains sample IDs absent from raster index")
     return rows, labels, groups
 
 
@@ -164,12 +191,13 @@ def evaluate(model, loader, device):
             "n": int(len(y))}
 
 
-def make_loaders(rasters_dir, batch_size, workers):
+def make_loaders(rasters_dir, batch_size, workers, split_manifest=None):
     npy = os.path.join(rasters_dir, "rasters.npy")
+    assignments = split_assignments(split_manifest)
     out = {}
     counts = {}
     for split in ("train", "val", "test"):
-        rows, labels, _ = load_index(rasters_dir, split)
+        rows, labels, _ = load_index(rasters_dir, split, assignments)
         ds = RasterDataset(npy, rows, labels)
         out[split] = DataLoader(ds, batch_size=batch_size, shuffle=(split == "train"),
                                 num_workers=workers, pin_memory=True, drop_last=False,
@@ -249,7 +277,7 @@ def set_seed(seed: int):
 def cmd_train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     set_seed(args.seed)
-    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers)
+    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers, args.split_manifest)
     print(f"splits: {counts}")
     # class weights from train (protocol lists a balanced baseline; imbalance ~1:1.35)
     nb = counts["train"]["benign"]
@@ -341,7 +369,7 @@ def cmd_eval(args):
     The whole study hinges on CNN val AUROC vs the metadata-only baseline (0.95); the
     early runs were trained before AUROC was reported, so this recomputes it from best.pt."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers)
+    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers, args.split_manifest)
     loader = loaders[args.split]
     ckpts = []
     if args.checkpoint:
@@ -391,6 +419,7 @@ def main() -> int:
 
     tp = sub.add_parser("train")
     tp.add_argument("--rasters-dir", required=True)
+    tp.add_argument("--split-manifest", default=None, help="optional split assignment CSV; default uses raster_index.csv")
     tp.add_argument("--out-dir", required=True)
     tp.add_argument("--batch-size", type=int, required=True)
     tp.add_argument("--init", choices=("imagenet", "random"), default="imagenet")
@@ -404,6 +433,7 @@ def main() -> int:
 
     ep = sub.add_parser("eval")
     ep.add_argument("--rasters-dir", required=True)
+    ep.add_argument("--split-manifest", default=None, help="optional split assignment CSV; default uses raster_index.csv")
     ep.add_argument("--runs-dir", help="scan every <run>/best.pt under here")
     ep.add_argument("--checkpoint", help="score a single best.pt instead")
     ep.add_argument("--split", choices=("val", "test", "train"), default="val")

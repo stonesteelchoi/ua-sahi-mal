@@ -15,3 +15,13 @@ Status: preregistered policy for the P2 train/validation structure audit. This d
 On the complete deduplicated train/validation population, require `fallback_reason_counts` to equal the previous audit's observed breakdown: `directory_count_exceeds_optional_header_capacity: 62`, `declared_optional_header_missing_or_truncated: 1`, `section_count_disagreement: 10`, and `raw_section_boundary_disagreement: 0`. Require zero unclassified parse errors, zero hash/size errors, zero remaining disagreements, and zero new reason codes. Verify complete ledger coverage and retain `protocol_freeze_authorized=false` pending C6 evidence review.
 
 Only when these checks hold may the work proceed to C6. If any differs, document the cause and then adjudicate it; do not silently accept a changed count or mapping. The 1,854 prior native overlay differences are diagnostic and have no required equality count.
+
+## Main test and era test scope
+
+After full protocol freeze, apply the same reason codes and
+`conservative_unknown_v1` whole-file fallback to main test and era test
+structure mapping. Retain unclassified parse errors and non-target
+disagreements as samples, mark structure attribution unavailable, and report
+their counts. The train/validation 62/1/10 gate counts are not acceptance
+targets for either test population; their observed reason counts are descriptive.
+No policy change is permitted after full protocol freeze.

@@ -174,6 +174,24 @@ split:
     stratum_deviation_note: malicious_PE32plus_mean_pool_n434_train_67_97pct_test_17_05pct_and_nearest_repetition_n32_train_62_5pct_test_21_875pct_vs_70_15_15_target
     existing_main_models_can_evaluate_full_era_test_as_unseen: false
     main_model_era_test_overlap_warning: {main_train_groups: 5774, main_validation: 3212, main_test_intersection: 1668}
+    era_models:
+      purpose: matched_era_robustness_replication
+      architecture: resnet18
+      initialization: imagenet
+      batch_size: 512
+      epochs_max: 30
+      early_stopping_patience: 5
+      seeds: [42, 43, 44]
+      selection_metric: validation_macro_f1
+      train_split: train
+      selection_split: val
+      evaluation_split: era_test_once_after_full_protocol_freeze
+      classification_sanity: same_as_main_classification_sanity
+      deduplicated_effective_counts: determine_from_training_logs
+      h1_h2: robustness_replication_report_direction_and_ci
+      primary_hypothesis_family_additions: 0
+      unseen_for_era_models: true
+      unseen_for_main_models_claim: false
 
 representation:
   id: interval-binned-v1
@@ -258,7 +276,7 @@ xai:
   empty_positive_cam_policy: retain_and_flag
   controls: [uniform_random_20_repeats, front_position, entropy, structure_matched_random_20_repeats]
   primary_comparator: structure_matched_random
-  fills: {primary: structure_conditioned_resampling, robustness: local_median, diagnostic: zero}  # local_median window size pending implementation decision
+  fills: {primary: structure_conditioned_resampling, robustness: local_median, local_median_window: [5, 5], diagnostic: zero}
   paired_comparison:
     sample: same_sample_for_gradcam_and_control
     budget: same_achieved_unique_source_byte_budget
@@ -292,6 +310,16 @@ structure_regions:
   - certificate_table
   - overlay
   - unknown
+
+structure_mapping_policy:
+  scope: [train, val, main_test, era_test]
+  policies: [P2-MALFORMED-HEADER-V1, P2-SECTION-DISAGREEMENT-V1]
+  fallback: conservative_unknown_v1
+  reason_codes: [directory_count_exceeds_optional_header_capacity, declared_optional_header_missing_or_truncated, section_count_disagreement, raw_section_boundary_disagreement]
+  other_parse_error_or_disagreement: retain_sample_mark_structure_unattributable_report_count
+  policy_change_after_freeze: forbidden
+  train_val_gate_reason_counts: {directory_count_exceeds_optional_header_capacity: 62, declared_optional_header_missing_or_truncated: 1, section_count_disagreement: 10, raw_section_boundary_disagreement: 0}
+  test_and_era_test_gate: descriptive_counts_only_no_train_val_count_targets
 
 external_replication:
   required_for_cross_year_title: true

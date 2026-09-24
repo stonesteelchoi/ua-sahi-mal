@@ -2,7 +2,7 @@
 
 ## Decision
 
-Apply this rule to a train/validation source only when the PeAtlas parser reports
+Apply this rule to a train/validation, main test, or era test source when the PeAtlas parser reports
 one of the two malformed optional-header conditions below. Keep the source in
 the selected population and in the census ledger. Do not infer header,
 directory, section, certificate, or overlay ownership from bytes outside the
@@ -49,8 +49,15 @@ they do not claim to test parser detection or establish cross-parser agreement.
 
 Policy ID: `P2-MALFORMED-HEADER-V1`  
 Mapping fallback: `conservative_unknown_v1`  
-Effective scope: P2 train/validation only  
+Effective scope: P2 train/validation and, after full protocol freeze, main test and era test structure mapping
 Freeze state: not authorized by this decision alone.
+
+The same reason codes and `conservative_unknown_v1` fallback apply to both test
+populations. Retain any unclassified parse error or non-target disagreement in
+the sample population, mark its structure attribution unavailable, and report
+its count. The train/validation 62/1/10 gate counts do not apply to either test
+population; report their observed counts as descriptive statistics. No policy
+change is permitted after full protocol freeze.
 
 Any change to the triggers, reason codes, map, or warning format requires a new
 policy version and updated synthetic expected values before another full P2
