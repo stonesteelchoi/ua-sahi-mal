@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
 완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-2f(prefetch·GPU 대기); C9x-2g(완료 순서·pixel 캐시 코드); C9x-3(통계·합성 검증)
-다음: C9v — 합성 회귀 / Grad-CAM·perturb·통계 연결 검증
-남은 청크: C9v 합성 회귀; C10 평가·문서
+다음: C9x-2h — 반복 바이트 픽셀 매핑 수정·assertion 추가 / 두 실패 테스트 재검증(실행 보류)
+남은 청크: C9x-2h 반복 픽셀 수정; C9v 합성 회귀; C10 평가·문서
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -55,6 +55,6 @@
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인; C9 구조 audit 합성 회귀는 C9v에서 확인. Era 학습 판정 완료. C8r 가중치 동일성은 사용자 보고이며 독립 재실행 없음. 동결 후 test 1회 평가 규칙 유지.
-- Codex 세션 `.venv` base Python 경로 오류로 C9x-2c 합성 pytest 미실행; C9x-2d~2g도 사용자 요청에 따라 테스트·파이프라인 미실행. C9x-2g 수정 뒤 실제 속도·메모리·비트 동일성 및 기존 테스트 17건은 미확인; 기존 출력 ledger에는 옛 intervals 필드가 있으므로 새 형식 결과와 섞지 않는다. C9x-2 entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세에 대한 구현 가정. 재개는 같은 입력·checkpoint·outdir 전제.
+- Codex 세션 `.venv` base Python 경로 오류로 C9x-2c 합성 pytest 미실행; C9x-2d~2g도 사용자 요청에 따라 테스트·파이프라인 미실행. 사용자 `.venv`에서 `test_shared_full_file_fill_matches_full_reencoding_bitwise`와 `test_cached_pixel_map_pair_matches_previous_pair_bitwise` 실패(크기 1·17·63 등 nearest_byte_repetition). C9x-2h 원인: `selected_pixel_map` 비mean_pool의 `searchsorted(imap.starts, selected)`가 반복 바이트의 첫 픽셀만 선택. `np.isin(imap.starts, selected)`와 `np.flatnonzero(mask)`로 모든 픽셀을 잡고 `np.searchsorted(selected, imap.starts[pixels])`로 delta 인덱스를 만든다. 크기 17·side 8의 반복 픽셀 assertion 추가, `paired_rasters` 유지. 이번 세션 잔여 14% 게이트로 코드 수정·테스트 실행 없음. 기존 출력 ledger에는 옛 intervals 필드가 있으므로 새 형식 결과와 섞지 않는다. C9x-2 entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세에 대한 구현 가정. 재개는 같은 입력·checkpoint·outdir 전제.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
 - PROGRESS.md 한글이 C6 세션에서 `?`로 손상되어 2026-09-24 복원했다. 이 파일을 고친 뒤에는 한글이 정상인지 확인한다.

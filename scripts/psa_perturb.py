@@ -209,10 +209,11 @@ def selected_pixel_map(cache, selected: np.ndarray) -> tuple[np.ndarray, np.ndar
     imap = cache[1]
     if imap.policy == POLICY_MEAN_POOL:
         return np.searchsorted(imap.ends, selected, side="right"), np.arange(len(selected))
-    pixel = np.searchsorted(imap.starts, selected)
-    valid = pixel < len(imap.starts)
-    valid[valid] = imap.starts[pixel[valid]] == selected[valid]
-    return pixel[valid], np.flatnonzero(valid)
+    # Short files repeat one source byte across several pixels; take every pixel that uses a selected byte.
+    pixels = np.flatnonzero(np.isin(imap.starts, selected))
+    sorter = np.argsort(selected, kind="stable")
+    byte_indices = sorter[np.searchsorted(selected, imap.starts[pixels], sorter=sorter)]
+    return pixels, byte_indices
 
 
 def paired_rasters(cache, selected: np.ndarray, replacements: np.ndarray,
