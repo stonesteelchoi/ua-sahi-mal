@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a
-다음: C9b-a — 사전 등록·CLI 변경의 합성 테스트 출력 확인 / 기본 main 경로 불변 확정
-남은 청크: C9b-a 합성 확인; C9b-b era 출력 판정; C9 동결 승인 후 XAI; C10 문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결)
+다음: C9 — main test 구조 매핑 준비 / 동결 정책·입력·출력·CLI 합성 확인
+남은 청크: C9 main test 매핑 준비; C10 1회 평가·문서
 
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
@@ -12,7 +12,7 @@
 - P2 gate: fallback reason counts가 62/1/10과 일치하고 미분류 parse error·hash/size 오류·기타 disagreement 0건 및 새 reason 부재일 때만 통과. `p2_structure_gate_passed`만으로 동결을 승인하지 않는다.
 - C6 결정: P2 구조 매핑 정책 `conservative_unknown_v1`(위 두 정책 버전)을 이번 census의 모집단·구현 해시 기준으로 동결한다. 전체 프로토콜 동결은 미승인(`protocol_freeze_authorized=false`). 근거 `paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md`.
 - C7 결정: 기존 파일럿·합성 CUDA 확인 기록에 따라 batch size 512와 Grad-CAM target layer `layer4.1`을 유지한다. C7은 재실행 없이 train/validation 범위에서만 판정했다. 근거 `paper/v5-kisa-xai/audit/C7_BATCH_TARGET_LAYER_2026-09-24.md`.
-- 전체 프로토콜 동결(`protocol_freeze_authorized=true`)은 C8 완료 후 C9 전에 사용자가 승인하며, 그 전까지 test payload는 열지 않는다.
+- 전체 프로토콜 동결은 사용자 승인일 2026-09-24에 완료했다(`protocol_freeze_authorized=true`). 고정 근거와 YAML SHA-256은 `audit/PROTOCOL_FREEZE_2026-09-24.md`; main test·era test 각 1회 접근 허용.
 - 장시간 실행(census, 학습)은 사용자가 별도 `.venv` 창에서 한다. Codex는 명령만 기록하고 직접 실행하지 않으며, 결과 판정은 다음 청크에서 한다.
 - C8 사전 등록: ImageNet 초기화, seed 42·43·44, batch 512, train/validation만 사용. 세 seed 모두 validation macro-F1 > majority macro-F1+0.10, balanced accuracy ≥0.70, 양 class recall ≥0.60, seed 방향 일치일 때 sanity gate 통과. 하나라도 실패하면 XAI 중단.
 - C8 gate 기준은 09-15 초안 커밋 c1262f09에 등록, 최종 main 모델은 09-24 provenance 커밋 62a15542f14b94b16271dbac8defbe99ee57b3ca 재학습. 기존 run에 소급하지 않는다. Validation은 초기화·checkpoint 선택에 사용; 성능 보고는 동결 후 held-out test 1회.
@@ -48,12 +48,12 @@
 - era 명령 준비: `$eraManifest='D:\secure-malware-data\psa\audit\era_stratified_freeze_20260924\split_manifest_era.csv'; $eraRuns='D:\secure-malware-data\psa\runs\era_20260924'; if ((Get-FileHash -LiteralPath $eraManifest -Algorithm SHA256).Hash.ToLower() -ne 'fd0a99000b05785ecf3fc01108529b37e08bb31f162b6defc3f3621459d2d91a') { throw 'era manifest hash mismatch' }; New-Item -ItemType Directory -Path $eraRuns -Force | Out-Null`.
 - provenance 명령: `$prov=@('main_retrain_commit=62a15542f14b94b16271dbac8defbe99ee57b3ca', ('era_code_head='+ (git rev-parse HEAD)), ('train_script_sha256='+ (Get-FileHash scripts/psa_train.py -Algorithm SHA256).Hash), ('verify_script_sha256='+ (Get-FileHash scripts/psa_verify_training.py -Algorithm SHA256).Hash), 'era_manifest_sha256=fd0a99000b05785ecf3fc01108529b37e08bb31f162b6defc3f3621459d2d91a', 'architecture=resnet18; init=imagenet; batch=512; epochs_max=30; patience=5; seeds=42,43,44; selection=validation_macro_f1; workers=4') -join "`n"; .\.venv\Scripts\python.exe -c "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text(sys.argv[2]+chr(10),encoding='utf-8')" (Join-Path $eraRuns 'run_provenance.txt') $prov`.
 - era 학습 명령(사용자 `.venv` 창, 위 두 줄 실행 후): `foreach ($seed in 42,43,44) { & .\.venv\Scripts\python.exe -u scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --split-manifest $eraManifest --out-dir $eraRuns --batch-size 512 --init imagenet --seed $seed --epochs-max 30 --patience 5 --workers 4 2>&1 | Tee-Object -FilePath (Join-Path $eraRuns "seed${seed}_train.log"); if ($LASTEXITCODE -ne 0) { throw "seed $seed failed" } }`. 각 seed best.pt·summary.json과 로그 생성, 로그의 `splits`로 중복 제외 건수 확정.
-- era 완료 검증 명령: `& .\.venv\Scripts\python.exe scripts\psa_verify_training.py --rasters-dir D:\secure-malware-data\psa\rasters --split-manifest $eraManifest --runs-dir $eraRuns --out (Join-Path $eraRuns 'training_verify.json'); Get-Content -Encoding utf8 (Join-Path $eraRuns 'training_verify.json')`. 실행 전 `cd C:\research\ua-sahi-mal`; 학습·동결 승인·test 접근은 Codex 세션에서 하지 않았다.
+- C9b-b era 판정: 유효 train/val/test 49593/10660/10652, 중복 제외 33; 세 seed sanity gate·방향 일치, test 미평가. 체크포인트 SHA-256 세 값과 train/verify 스크립트 해시 직접 일치, provenance HEAD 8323ab75. 세 best.pt를 동결 후 era test 모델로 지정. Era metadata AUROC 0.90–0.91, JSON의 0.95는 main용. Main 대비 validation AUROC 차이는 서로 다른 분할의 기술 통계. 상세 `audit/ERA_TRAINING_2026-09-24.md`; JSON 복사본 `runs/psa-orchestration/era_training_verify_20260924.json`.
 
 미해결·주의:
-- 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
-- C9b-a의 합성 테스트와 era 학습·검증은 사용자 `.venv` 출력 대기. local_median 구현은 후속 XAI 단계에서 YAML의 5×5를 따라야 한다.
-- C8r 가중치 동일성은 사용자 보고로 기록했고 독립 재실행은 하지 않았다. C9·test payload 접근은 전체 프로토콜 동결 승인 전 금지.
+- V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
+- C9b-a 합성 CLI 회귀 테스트 출력은 미확인. Era 학습·검증 판정 완료. local_median 구현은 후속 XAI 단계에서 YAML의 5×5를 따라야 한다.
+- C8r 가중치 동일성은 사용자 보고로 기록했고 독립 재실행은 하지 않았다. 동결 승인 후 C9부터 test 접근 가능하며 1회 평가 규칙을 지킨다.
 - Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.

@@ -4,16 +4,34 @@
 # Every number below was measured on the acquired data; nothing is projected.
 
 protocol:
-  id: PSA-XAI-V1.0-DRAFT
-  status: p0_data_gates_passed_pre_freeze
+  id: PSA-XAI-V1.1-FROZEN
+  status: frozen
   created: 2026-09-15
+  frozen: 2026-09-24
   parent: KISA-XAI-V5.0-DRAFT
   branch: research/kisa-xai-v5
   task: static_windows_pe_binary_malware_detection
   paper_type: classifier_and_xai_evaluation
-  freeze_blockers:
-    - full_protocol_freeze_authorization_pending  # P2 crosscheck and fallback policy resolved
+  freeze_blockers: []
   p2_resolution: paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md
+  freeze_evidence:
+    user_approval_date: 2026-09-24
+    protocol_freeze_authorized: true
+    p2_census_adjudication: paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md
+    freeze_prereqs_recheck: runs/psa-orchestration/freeze_prereqs_recheck_20260924b.json
+    era_training_verify: runs/psa-orchestration/era_training_verify_20260924.json
+    main_model_commit: 62a15542f14b94b16271dbac8defbe99ee57b3ca
+    main_checkpoint_sha256:
+      seed_42: 291af0bd0b2133f3c501fe3efdae0f5503b6de7d4e095a5fc2b1c27a7561f48f
+      seed_43: 4156f2b8bf8c7995c8d62e4132102b28430d9fc69de49b293ec561af68bcaf56
+      seed_44: 62c0d8b002586676d61c7488099e362b4c15777a9406424c324c1f4fbec5639c
+    era_model_commit: 8323ab7501ad4763fb0436121a9466bf50720016
+    era_checkpoint_sha256:
+      seed_42: a1121de1a69992c9032d2278f2a43b6560ada3e5d03716097c145bc5c23dc2b6
+      seed_43: f031295be823c37158411180f63c64a4eee5189e6077cc744aa69d408b6ee7bf
+      seed_44: da30a11b32904116a83f3b408e37e7508bb6d4969fee8336fa8392a1caa729f1
+    sha256_recalculation: six_checkpoints_match_recorded_values_2026-09-24
+    freeze_record: paper/v5-kisa-xai/audit/PROTOCOL_FREEZE_2026-09-24.md
 
 # Section 5 of the experiment protocol tripped (metadata-only AUROC >= 0.90) and the
 # rule was kept unchanged by decision on 2026-09-15. Section 14 therefore limits the
