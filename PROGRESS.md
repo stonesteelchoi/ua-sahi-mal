@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM)
-다음: C9x-2 — 대조군·perturb 구현 / 달성 byte budget 쌍체 규칙 합성 검증
-남은 청크: C9x-2 대조군·perturb; C9x-3 통계·명령; C9v 합성 회귀; C10 평가·문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb)
+다음: C9x-3 — 통계·실행 비용 검토 / 쌍체 효과·CI·명령 검증
+남은 청크: C9x-3 통계·비용 검토; C9v 합성 회귀; C10 평가·문서
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -48,13 +48,13 @@
 - era 학습 명령(사용자 `.venv` 창, 위 두 줄 실행 후): `foreach ($seed in 42,43,44) { & .\.venv\Scripts\python.exe -u scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --split-manifest $eraManifest --out-dir $eraRuns --batch-size 512 --init imagenet --seed $seed --epochs-max 30 --patience 5 --workers 4 2>&1 | Tee-Object -FilePath (Join-Path $eraRuns "seed${seed}_train.log"); if ($LASTEXITCODE -ne 0) { throw "seed $seed failed" } }`. 각 seed best.pt·summary.json과 로그 생성, 로그의 `splits`로 중복 제외 건수 확정.
 - C9b-b era 판정: 유효 train/val/test 49593/10660/10652, 중복 제외 33; 세 seed sanity gate·방향 일치, test 미평가. 체크포인트 SHA-256 세 값과 train/verify 스크립트 해시 직접 일치, provenance HEAD 8323ab75. 세 best.pt를 동결 후 era test 모델로 지정. Era metadata AUROC 0.90–0.91, JSON의 0.95는 main용. Main 대비 validation AUROC 차이는 서로 다른 분할의 기술 통계. 상세 `audit/ERA_TRAINING_2026-09-24.md`; JSON 복사본 `runs/psa-orchestration/era_training_verify_20260924.json`.
 - C9c-a: main/era test census는 30146/10652건, agreement 30104/10651, fallback 42(40 directory-count+2 section_count)/1(directory-count), unattributable 0. 두 summary·audit_plan을 `audit/{main,era}_test_structure_census_20260924/`에 각각 복사하고 원본과 SHA-256 일치 확인. D: ledger SHA-256 main 53bc25ecf7b144cb5d1599fba9052b0eb9d52ef973947672fdbc720ecbd85c7b, era bf538e933bfd87a19a0e5ed47bdf2a40344e3bbd602215b61586d00072473b16. 모델 평가·gate 판정 없음. C9c-b1: main fallback 42건 전부 악성, imphash 10그룹, fallback 최대 16건, 40/2 reason; 구조 비교 H1·H2 예상 eligible_n 17365(17407-42), 표본은 유지. C9c-b2: era fallback sample 64884 1건 악성·1 imphash 그룹, 예상 eligible_n 5331(5332-1). 두 audit_plan의 `test_payload_access=true`, 원본 생성 시각 era 19:01:05·main 19:02:47 KST는 근사 시작 시각이며 정확한 첫 읽기 시각은 없음. 상세 `audit/C9_TEST_STRUCTURE_ADJUDICATION_2026-09-24.md`, `audit/PROTOCOL_FREEZE_2026-09-24.md`.
-- C9x-1: `scripts/psa_gradcam.py`가 동결 YAML의 layer·upsampling·budget·representation을 읽고 checkpoint/구조 ledger/래스터 metadata SHA-256 검증 뒤 악성 test의 악성 logit hook CAM, interval 고유 byte budget·overshoot·empty flag, 구조별 mass를 JSONL에 기록하도록 구현. `tests/test_psa_gradcam.py` 합성 회귀 Anaconda Python 2 passed·torch 부재로 hook 1 skipped; py_compile 통과. main/era 3 seed 실행 명령은 `audit/C9X1_GRADCAM_COMMANDS_2026-09-24.md`에만 기록, 실제 test Grad-CAM 미실행.
+- C9x-1/2: Grad-CAM은 `psa_train.build_model("random", device)`+checkpoint 및 공용 `preprocess_raster`를 사용한다. `psa_perturb.py`는 달성 고유 byte budget 대조군 4종, fill 3종, deletion ΔNLL·keep-only 악성 logit, 구조 fallback eligible=false, 원본 SHA·래스터 재구성 검증 및 JSONL 기록을 구현. 합성 PE pytest 4 passed, torch 필요 2 skipped; py_compile 통과. 명령은 `audit/C9X{1,2}_*COMMANDS_2026-09-24.md`에 기록, 실제 test 미실행. Forward: agreement 2,016/file, fallback 1,056/file; main 35,052,192/seed, era 10,748,352/seed, 3 seed 총 137,401,632. 10/50 ms/pass 가정시 forward만 15.9/79.5일, 실측 아님.
 
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인. C9 새 구조 audit 합성 회귀는 이 세션 `.venv` base Python 접근 오류로 미실행; C9v에서 사용자 창 결과 확인. Era 학습·검증 판정 완료. local_median은 후속 XAI 단계에서 YAML의 5×5를 따른다.
 - C8r 가중치 동일성은 사용자 보고로 기록했고 독립 재실행은 하지 않았다. 동결 승인 후 C9부터 test 접근 가능하며 1회 평가 규칙을 지킨다.
-- Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). C9x-1 hook 합성 테스트 1건은 사용자 `.venv` 창 확인 필요; 실제 test Grad-CAM 미실행.
+- Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). C9x-1 hook 및 C9x-2 공용 전처리 합성 테스트 2건은 사용자 `.venv` 창 확인 필요; 실제 test XAI 미실행. C9x-2 entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세에 대한 구현 가정; 상세 명령 문서 참고.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
 - PROGRESS.md 한글이 C6 세션에서 `?`로 손상되어 2026-09-24 복원했다. 이 파일을 고친 뒤에는 한글이 정상인지 확인한다.

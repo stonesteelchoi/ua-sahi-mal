@@ -63,9 +63,14 @@ class RasterDataset(Dataset):
 
     def __getitem__(self, i: int):
         row = int(self.rows[i])
-        vec = np.asarray(self._mmap()[row], dtype=np.float32) / 255.0
-        x = torch.from_numpy(vec).view(1, SIDE, SIDE)
+        x = preprocess_raster(self._mmap()[row])
         return x, int(self.labels[i])
+
+
+def preprocess_raster(raster):
+    """The frozen, augmentation-free model input transform for one raster."""
+    vec = np.asarray(raster, dtype=np.float32) / 255.0
+    return torch.from_numpy(vec).view(1, SIDE, SIDE)
 
 
 def split_assignments(split_manifest: str | None):

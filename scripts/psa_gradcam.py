@@ -188,16 +188,13 @@ def main() -> int:
         if sha256(path) != digest:
             raise ValueError(f"SHA-256 mismatch: {path}")
     import torch
-    from torchvision.models import resnet18
-    from torch import nn
+    from psa_train import build_model, preprocess_raster
 
     device = ("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device
     side = protocol["representation"]["shape"][1]
     if protocol["representation"]["shape"] != [1, side, side] or protocol["model"]["primary"] != "resnet18":
         raise ValueError("unsupported model or raster shape")
-    model = resnet18(weights=None)
-    model.conv1 = nn.Conv2d(1, 64, 7, 2, 3, bias=False)
-    model.fc = nn.Linear(model.fc.in_features, len(protocol["eligibility"]["labels"]))
+    model = build_model("random", device)
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
     if (checkpoint["arch"] != protocol["model"]["primary"] or checkpoint["input"] != [1, side, side]
             or checkpoint["init"] != protocol["model"]["initialization"]
@@ -231,7 +228,7 @@ def main() -> int:
                 raise ValueError(f"raster SHA-256 mismatch for {sid}")
             if build_interval_map(int(row["file_size"]), side=side).map_sha256() != row["map_sha256"]:
                 raise ValueError(f"interval map SHA-256 mismatch for {sid}")
-            image = torch.from_numpy(raster.copy()).view(1, 1, side, side).to(device) / 255.0
+            image = preprocess_raster(raster).unsqueeze(0).to(device)
             logits, scores = gradcam(model, layer, image, malicious_label, (side, side), protocol["xai"]["upsampling"])
             sample_rows = list(ledger_rows(sid, row, record, logits, scores, structure, protocol))
             counts["samples"] += 1
