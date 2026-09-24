@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a
-다음: C8b-b — 3개 run summary에서 설정 원자료 대조 / C8b 최종 판정
-남은 청크: C8b-b run 설정 확인; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
+완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비), C8b-a, C8b-b
+다음: C8b-c — epoch 상한·patience 실행 설정 근거 확인 / C8b 최종 판정
+남은 청크: C8b-c 설정 근거·최종 판정; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
 
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하.
@@ -33,13 +33,14 @@
 - 기존 ImageNet seed 42·43·44 학습 결과는 `D:\secure-malware-data\psa\runs`에 있으며, 51개 복원은 래스터와 일치해 재학습이 필요하지 않음(`P2_POSTRESTORE_2026-09-23.md`). C8b는 우선 기존 결과 검증.
 - C8b 사용자 PowerShell(.venv) 확인 명령: `cd C:\research\ua-sahi-mal`; `$c8Runs = 'D:\secure-malware-data\psa\runs'`; `.\.venv\Scripts\python.exe scripts\psa_verify_training.py --rasters-dir D:\secure-malware-data\psa\rasters --runs-dir $c8Runs --out runs\psa-orchestration\c8_training_verify_20260924.json`; `Get-Content -Encoding utf8 runs\psa-orchestration\c8_training_verify_20260924.json`에서 `all_seeds_passed`, `direction_agreement`, 각 seed의 `sanity_gate_passed` 확인. 검증기는 체크포인트 SHA-256·counts도 대조하고 test payload는 읽지 않음.
 - C8b-a 판정: 검증 JSON은 `all_seeds_passed=true`, `direction_agreement=true`, `test_evaluation_performed=false`; seed 42/43/44 validation macro-F1 0.953395/0.946615/0.952926, balanced accuracy 0.952678/0.945863/0.953281, 양 class recall 모두 ≥0.932271. 보고서 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
-- C8b-b 확인 대상: 3개 D: run summary의 seed·init·batch·epochs_max=30·early_stopping_patience=5 원자료. 검증 JSON은 init과 실행 epoch(19/11/17), best epoch(13/5/11), 경로 batch 표기만 제공하며 설정 전체를 증명하지 않음.
+- C8b-b: D: run summary 3개에서 seed 42/43/44, init imagenet, batch 512 직접 확인. history epoch은 0 기준, 마지막 번호 18/10/16. `epochs_ran-best.epoch`은 모두 6이나 최적 뒤 실행은 `(epochs_ran-1)-best.epoch=5`; 각 후속 5 epoch에 macro-F1 최고값 갱신 없음. patience 5 동작과 부합. 판정 문서의 C8b-a 산술 오류 정정.
+- 세 summary에 `epochs_max`, `early_stopping_patience` 설정 필드가 없어 값 자체는 미확증. C8b-c에서 실행 설정 근거 확인 필요. 판정 `audit/C8B_TRAINING_VERIFY_2026-09-24.md`.
 - 재학습이 실제 필요한 경우에만 새 출력 폴더로 사용자 실행: `$c8Runs = 'D:\secure-malware-data\psa\runs\c8_retrain_20260924'`; `foreach ($s in 42,43,44) { .\.venv\Scripts\python.exe scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --out-dir $c8Runs --batch-size 512 --init imagenet --seed $s }`; 완료 후 위 검증 명령의 `--runs-dir`에 `$c8Runs` 사용. 기존 `runs`에 다시 학습하면 기존 체크포인트를 덮어씀.
 - C9 YAML 계획 확인: Grad-CAM·`layer4.1`, 4개 budget, uniform/front/entropy/structure-matched 대조군, deletion ΔNLL·keep-only와 3종 fill, 쌍체 bootstrap 2,000·Holm 2검정·95% CI가 명시됨.
 
 미해결·주의:
 - 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
-- C8b-a는 사용자 실행 검증기 결과의 부분 판정만 완료. C8b 전체 판정은 run 설정 원자료 확인까지 보류.
+- C8b-a/b는 검증기와 run summary 확인까지 완료. C8b 전체 판정은 epoch 상한·patience 실행 설정 근거 확인까지 보류.
 - C9 YAML에는 대조군과 Grad-CAM이 동일 sample·budget·fill random state를 공유한다는 규칙과 effect·95% CI·Holm 조정 p·eligible n의 명시적 보고 항목이 빠져 있다(인수 문서 §5에는 기록됨). C9 전 YAML에 반영·검토 필요.
 - Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
