@@ -65,3 +65,42 @@ def test_training_transform_is_shared_with_gradcam_input(tmp_path):
     assert label == 1
     assert torch.equal(trained, inferred)
     assert trained.shape == (1, 224, 224)
+
+
+def test_vectorized_perturbation_matches_original_byte_loop_bitwise():
+    data = synthetic()
+    side = 16
+    regions = region_ids([{"start": 0, "end": 0x200, "region": "headers"},
+                          {"start": 0x200, "end": len(data), "region": "section"}], len(data))
+    selected = np.array([0, 1, 15, 16, 31, 511, 512, len(data) - 1], dtype=np.int64)
+
+    def original_raster(mode, fill, seed):
+        mask = np.zeros(len(data), dtype=bool)
+        mask[selected] = True
+        change = selected if mode == "deletion" else np.flatnonzero(~mask)
+        raw = np.frombuffer(data, dtype=np.uint8)
+        values = np.empty(len(change), dtype=np.uint8)
+        if fill == "zero":
+            values.fill(0)
+        elif fill == "structure_conditioned_resampling":
+            rng = np.random.default_rng(seed)
+            for rid in np.unique(regions[change]):
+                destination = np.flatnonzero(regions[change] == rid)
+                pool = np.flatnonzero(regions == rid)
+                values[destination] = raw[rng.choice(pool, size=len(destination), replace=True)]
+        else:
+            for j, pos in enumerate(change):
+                row, col = divmod(int(pos), side)
+                neighbors = [raw[r * side + c] for r in range(max(0, row - 2), row + 3)
+                             for c in range(max(0, col - 2), min(side, col + 3)) if r * side + c < len(raw)]
+                values[j] = int(np.median(neighbors))
+        modified = bytearray(data)
+        for pos, value in zip(change, values, strict=True):
+            modified[int(pos)] = int(value)
+        return encode_interval_binned(modified, side=side)[0]
+
+    for fill in ("zero", "local_median", "structure_conditioned_resampling"):
+        for mode in ("deletion", "keep_only"):
+            actual = perturbed_raster(data, selected, mode, fill, np.random.default_rng(19),
+                                      regions, (5, 5), side)
+            assert actual.tobytes() == original_raster(mode, fill, 19).tobytes()

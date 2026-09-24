@@ -46,3 +46,22 @@ foreach ($seed in 42,43,44) {
 GPU 1개에서 순차 실행 시 forward 1회가 실제로 10/50 ms라면 모델 forward만 약 **15.9/79.5일**이다. PE 읽기, fill, 재래스터화, JSONL 쓰기 및 Grad-CAM backward 시간은 별도라 실제 시간은 더 길다. 실제 환경의 계측값은 없으며 이는 시나리오다. 이 비용은 실행 전 재검토가 필요하다.
 
 가정: YAML에는 entropy 구간 크기와 local median의 좌표계가 수치로 지정되지 않았다. 구현은 entropy를 원본 256바이트 고정 구간의 Shannon entropy로 순위화하고, local median 5×5는 원본 바이트를 raster side 폭의 행 우선 격자로 놓아 해석했다. 구조 fallback에서는 structure-matched 행을 eligible=false로 유지하고, 구조 조건 resampling에는 파일 전체를 pool로 쓴다. 이는 동결 정책의 추가 해석이므로 분석 시 명시한다.
+
+## C9x-2b 20건 smoke 계측 (미실행)
+
+위 코드 블록의 변수 설정을 실행하고, 갱신된 Grad-CAM ledger가 있는 main seed 42에 대해 아래 명령을 실행한다. 처음 실행에는 빈 outdir를 쓰고, 중단 후 같은 outdir에 `--resume`을 붙여 재개한다. `--limit-samples 20`은 ledger 순서의 앞 20개 sample_id를 택한다.
+
+```powershell
+$seed = 42
+$checkpoint = Join-Path $runs 'c8_retrain_20260924\seed42_imagenet_bs512\best.pt'
+$cam = Join-Path $runs 'xai_v1_1\main_seed42_gradcam\gradcam_ledger.jsonl'
+$camSha = (Get-FileHash -LiteralPath $cam -Algorithm SHA256).Hash.ToLower()
+$out = Join-Path $runs 'xai_v1_1\main_seed42_perturb_smoke20'
+$elapsed = Measure-Command {
+    & $py scripts\psa_perturb.py --checkpoint $checkpoint --checkpoint-sha256 $mainHashes[$seed] --gradcam-ledger $cam --gradcam-ledger-sha256 $camSha --structure-ledger $mainLedger --structure-ledger-sha256 $mainLedgerSha --stage2-manifest $stage2 --samples-dir $samples --rasters-dir $rasters --outdir $out --limit-samples 20 --workers 2
+    if ($LASTEXITCODE -ne 0) { throw 'perturb smoke failed' }
+}
+"smoke20 elapsed seconds: $([math]::Round($elapsed.TotalSeconds, 2))"
+```
+
+재개에는 같은 명령에 `--resume`을 추가한다. 파일당 ledger를 flush하며 마지막 불완전 sample_id의 행은 재개 시 제거하고 다시 계산한다. CPU 워커가 바이트 수정과 재래스터화를 준비하고 주 프로세스가 512개씩 GPU 추론한다. 학습과 동일하게 CUDA autocast를 사용한다. 합성 회귀 테스트는 코드에 추가했으며 이 세션에서는 실행하지 않았다.

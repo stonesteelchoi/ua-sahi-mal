@@ -11,9 +11,12 @@ import hashlib
 import json
 import math
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from itertools import groupby, islice
 from pathlib import Path
 
 import numpy as np
+from scipy.ndimage import median_filter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -55,14 +58,15 @@ def entropy_scores(data: bytes, window: int = 256) -> np.ndarray:
 
 
 def control_offsets(control: str, data: bytes, budget: int, rng: np.random.Generator,
-                    cam_offsets: np.ndarray, regions: np.ndarray | None = None) -> np.ndarray:
+                    cam_offsets: np.ndarray, regions: np.ndarray | None = None,
+                    entropy: np.ndarray | None = None) -> np.ndarray:
     size = len(data)
     if not 0 <= budget <= size:
         raise ValueError("budget outside source")
     if control == "front_position":
         return np.arange(budget, dtype=np.int64)
     if control == "entropy":
-        scores = entropy_scores(data)
+        scores = entropy if entropy is not None else entropy_scores(data)
         return np.sort(np.argsort(-scores, kind="stable")[:budget])
     if control == "uniform_random_20_repeats":
         return np.sort(rng.choice(size, size=budget, replace=False))
@@ -83,23 +87,41 @@ def local_median(data: bytes, selected: np.ndarray, side: int, window: tuple[int
     """5x5 neighbourhood on a row-major source-byte grid, clipped at the edge."""
     if window != (5, 5):
         raise ValueError("frozen local median window must be 5x5")
-    raw = np.frombuffer(data, dtype=np.uint8)
-    out = np.empty(len(selected), dtype=np.uint8)
-    for j, pos in enumerate(selected):
-        row, col = divmod(int(pos), side)
-        neighbors = [raw[r * side + c] for r in range(max(0, row - 2), row + 3)
-                     for c in range(max(0, col - 2), min(side, col + 3)) if r * side + c < len(raw)]
-        out[j] = int(np.median(neighbors))
-    return out
+    return local_median_grid(data, side, window)[selected]
+
+
+def local_median_grid(data: bytes, side: int, window: tuple[int, int]) -> np.ndarray:
+    """Cache exact clipped-neighbour medians on the source-byte grid."""
+    if window != (5, 5):
+        raise ValueError("frozen local median window must be 5x5")
+    size = len(data)
+    if not size:
+        return np.empty(0, dtype=np.uint8)
+    height = (size + side - 1) // side
+    grid = np.full((height, side), 256, dtype=np.uint16)
+    grid.flat[:size] = np.frombuffer(data, dtype=np.uint8)
+    medians = median_filter(grid, size=window, mode="constant", cval=256).ravel()[:size].astype(np.uint8)
+    positions = np.arange(size)
+    rows, cols = divmod(positions, side)
+    edge = (rows < 2) | (rows >= height - 2) | (cols < 2) | (cols >= side - 2)
+    boundary = positions[edge]
+    if len(boundary):
+        rr = rows[edge, None] + np.repeat(np.arange(-2, 3), 5)[None, :]
+        cc = cols[edge, None] + np.tile(np.arange(-2, 3), 5)[None, :]
+        valid = (rr >= 0) & (rr < height) & (cc >= 0) & (cc < side) & (rr * side + cc < size)
+        neighbors = grid[np.clip(rr, 0, height - 1), np.clip(cc, 0, side - 1)].astype(np.float32)
+        medians[boundary] = np.nanmedian(np.where(valid, neighbors, np.nan), axis=1).astype(np.uint8)
+    return medians
 
 
 def fill_values(data: bytes, selected: np.ndarray, fill: str, rng: np.random.Generator,
-                regions: np.ndarray | None, window: tuple[int, int], side: int) -> np.ndarray:
+                regions: np.ndarray | None, window: tuple[int, int], side: int,
+                medians: np.ndarray | None = None) -> np.ndarray:
     raw = np.frombuffer(data, dtype=np.uint8)
     if fill == "zero":
         return np.zeros(len(selected), dtype=np.uint8)
     if fill == "local_median":
-        return local_median(data, selected, side, window)
+        return (medians if medians is not None else local_median_grid(data, side, window))[selected]
     if fill == "structure_conditioned_resampling":
         result = np.empty(len(selected), dtype=np.uint8)
         labels = regions if regions is not None else np.zeros(len(data), dtype=np.int16)
@@ -113,15 +135,14 @@ def fill_values(data: bytes, selected: np.ndarray, fill: str, rng: np.random.Gen
 
 def perturbed_raster(data: bytes, selected: np.ndarray, mode: str, fill: str,
                      rng: np.random.Generator, regions: np.ndarray | None,
-                     window: tuple[int, int], side: int) -> np.ndarray:
+                     window: tuple[int, int], side: int,
+                     medians: np.ndarray | None = None) -> np.ndarray:
     mask = np.zeros(len(data), dtype=bool)
     mask[selected] = True
     change = selected if mode == "deletion" else np.flatnonzero(~mask)
-    modified = bytearray(data)
-    modified_values = fill_values(data, change, fill, rng, regions, window, side)
-    for pos, value in zip(change, modified_values, strict=True):
-        modified[int(pos)] = int(value)
-    raster, _ = encode_interval_binned(modified, side=side)
+    modified = np.frombuffer(data, dtype=np.uint8).copy()
+    modified[change] = fill_values(data, change, fill, rng, regions, window, side, medians)
+    raster, _ = encode_interval_binned(modified.tobytes(), side=side)
     return raster
 
 
@@ -135,12 +156,105 @@ def nll(logits: np.ndarray, label: int) -> float:
     return maximum + math.log(float(np.exp(logits - maximum).sum())) - float(logits[label])
 
 
-def score(model, raster: np.ndarray, device: str, malicious: int) -> tuple[float, float]:
+def score_batch(model, rasters: list[np.ndarray], device: str, malicious: int,
+                batch_size: int = 512) -> list[tuple[float, float]]:
     import torch
     from psa_train import preprocess_raster
-    with torch.no_grad():
-        logits = model(preprocess_raster(raster).unsqueeze(0).to(device))[0].detach().cpu().numpy()
-    return nll(logits, malicious), float(logits[malicious])
+    scores = []
+    with torch.inference_mode():
+        for start in range(0, len(rasters), batch_size):
+            inputs = torch.stack([preprocess_raster(r) for r in rasters[start:start + batch_size]]).to(device)
+            with torch.amp.autocast("cuda", enabled=device == "cuda"):
+                logits = model(inputs).float().cpu().numpy()
+            scores.extend((nll(row, malicious), float(row[malicious])) for row in logits)
+    return scores
+
+
+def prepare_sample(task):
+    entries, sample_path, manifest_row, index_row, structure, materialised, side, fills, controls, repeats, window, seed_base, malicious = task
+    sid = entries[0]["sample_id"]
+    data = sample_path.read_bytes()
+    source_sha = hashlib.sha256(data).hexdigest()
+    if len(data) != int(index_row["file_size"]) or source_sha != manifest_row["sha256"]:
+        raise ValueError(f"source integrity mismatch: {sid}")
+    original, imap = encode_interval_binned(data, side=side)
+    if raster_sha256(original) != index_row["raster_sha256"] or imap.map_sha256() != index_row["map_sha256"]:
+        raise ValueError(f"source/raster mismatch: {sid}")
+    if raster_sha256(materialised.reshape(side, side)) != index_row["raster_sha256"]:
+        raise ValueError(f"materialised raster mismatch: {sid}")
+    regions = region_ids(structure["structure"]["spans"], len(data)) if structure["status"] == "agreement" else None
+    entropy = entropy_scores(data)
+    medians = local_median_grid(data, side, window)
+    rows, rasters, targets = [], [], []
+    ineligible = 0
+    for entry in entries:
+        budget = entry["budget"]
+        original_nll = nll(np.asarray([entry["benign_logit"], entry["malicious_logit"]]), malicious)
+        selected = offsets(budget["intervals"], len(data))
+        if len(selected) != budget["achieved_bytes"] or entry["file_size"] != len(data):
+            raise ValueError(f"achieved budget mismatch: {sid}")
+        for fill in fills:
+            for control in controls:
+                eligible = control != "structure_matched_random_20_repeats" or regions is not None
+                times = repeats if control.endswith("_20_repeats") else 1
+                for repeat in range(times):
+                    result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": seed_base,
+                              "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
+                              "fill": fill, "control": control, "repeat": repeat, "eligible": eligible,
+                              "structure_status": entry["structure_status"]}
+                    if not eligible:
+                        result["reason"] = "structure_status_not_agreement"
+                        ineligible += 1
+                    else:
+                        seed = pair_seed(seed_base, sid, budget["requested_fraction"], fill, control, repeat)
+                        matched = control_offsets(control, data, len(selected), np.random.default_rng(seed), selected, regions, entropy)
+                        if len(matched) != len(selected):
+                            raise AssertionError("control byte budget mismatch")
+                        result.update(pair_seed=seed, gradcam_intervals=budget["intervals"], control_intervals=compress_offsets(matched))
+                        for name, chosen in (("gradcam", selected), ("control", matched)):
+                            for mode in ("deletion", "keep_only"):
+                                rasters.append(perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side, medians))
+                                targets.append((len(rows), name, mode, original_nll))
+                    rows.append(result)
+    return rows, rasters, targets, ineligible
+
+
+def completed_samples(output: Path, expected_rows: dict[str, int]) -> tuple[set[str], dict[str, int]]:
+    """Truncate a partial final file; only complete contiguous sample groups resume."""
+    complete = set()
+    counts = {"samples": 0, "rows": 0, "forward_passes": 0, "structure_ineligible_rows": 0}
+    with output.open("rb+") as stream:
+        group_start, last_valid_end, sid, group_rows, group_forward, group_ineligible = 0, 0, None, 0, 0, 0
+        while line := stream.readline():
+            try:
+                row = json.loads(line)
+                current = row["sample_id"]
+            except (ValueError, KeyError):
+                break
+            if current != sid:
+                if sid is not None:
+                    if group_rows != expected_rows.get(sid) or sid in complete:
+                        break
+                    complete.add(sid)
+                    counts["samples"] += 1
+                    counts["rows"] += group_rows
+                    counts["forward_passes"] += group_forward
+                    counts["structure_ineligible_rows"] += group_ineligible
+                group_start = stream.tell() - len(line)
+                sid, group_rows, group_forward, group_ineligible = current, 0, 0, 0
+            group_rows += 1
+            group_forward += 4 if row["eligible"] else 0
+            group_ineligible += not row["eligible"]
+            last_valid_end = stream.tell()
+        if sid is not None and group_rows == expected_rows.get(sid) and sid not in complete:
+            complete.add(sid)
+            counts["samples"] += 1
+            counts["rows"] += group_rows
+            counts["forward_passes"] += group_forward
+            counts["structure_ineligible_rows"] += group_ineligible
+            group_start = last_valid_end
+        stream.truncate(group_start)
+    return complete, counts
 
 
 def manifest_records(path: Path, wanted: set[str]) -> dict[str, dict]:
@@ -167,6 +281,9 @@ def main() -> int:
     ap.add_argument("--rasters-dir", type=Path, required=True)
     ap.add_argument("--outdir", type=Path, required=True)
     ap.add_argument("--device", default="auto")
+    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--limit-samples", type=int)
     args = ap.parse_args()
     protocol = load_protocol(FROZEN)
     xai = protocol["xai"]
@@ -213,67 +330,46 @@ def main() -> int:
     if structures.keys() != wanted:
         raise ValueError("structure ledger lacks sample IDs")
     rasters = np.load(args.rasters_dir / protocol["representation"]["materialised"]["file"], mmap_mode="r")
-    args.outdir.mkdir(parents=True, exist_ok=False)
+    if args.workers < 1 or (args.limit_samples is not None and args.limit_samples < 1):
+        raise ValueError("workers and limit-samples must be positive")
+    args.outdir.mkdir(parents=True, exist_ok=args.resume)
     output = args.outdir / "perturb_ledger.jsonl"
-    counts = {"samples": 0, "rows": 0, "forward_passes": 0, "structure_ineligible_rows": 0}
-    cached_id, data, regions, original_nll, source_sha = None, None, None, None, None
     malicious = max(protocol["eligibility"]["labels"])
-    with output.open("x", encoding="utf-8") as out:
-        for entry in ledger:
-            sid, budget = entry["sample_id"], entry["budget"]
-            if sid != cached_id:
-                data = (args.samples_dir / sid).read_bytes()
-                source_sha = hashlib.sha256(data).hexdigest()
-                if len(data) != int(index[sid]["file_size"]) or source_sha != manifest[sid]["sha256"]:
-                    raise ValueError(f"source integrity mismatch: {sid}")
-                original, imap = encode_interval_binned(data, side=side)
-                if raster_sha256(original) != index[sid]["raster_sha256"] or imap.map_sha256() != index[sid]["map_sha256"]:
-                    raise ValueError(f"source/raster mismatch: {sid}")
-                if raster_sha256(np.asarray(rasters[int(index[sid]["row"])], dtype=np.float32).reshape(side, side)) != index[sid]["raster_sha256"]:
-                    raise ValueError(f"materialised raster mismatch: {sid}")
-                structure = structures[sid]
-                regions = region_ids(structure["structure"]["spans"], len(data)) if structure["status"] == "agreement" else None
-                original_nll = nll(np.asarray([entry["benign_logit"], entry["malicious_logit"]]), malicious)
-                cached_id = sid
+    grouped = [(sid, list(entries)) for sid, entries in groupby(ledger, key=lambda row: row["sample_id"])]
+    if len({sid for sid, _ in grouped}) != len(grouped):
+        raise ValueError("Grad-CAM ledger sample IDs must be contiguous")
+    if args.limit_samples is not None:
+        grouped = grouped[:args.limit_samples]
+    expected_rows = {sid: len(entries) * len(fills) * sum(repeats if c.endswith("_20_repeats") else 1 for c in controls)
+                     for sid, entries in grouped}
+    if args.resume and output.exists():
+        complete, counts = completed_samples(output, expected_rows)
+    else:
+        complete = set()
+        counts = {"samples": 0, "rows": 0, "forward_passes": 0, "structure_ineligible_rows": 0}
+    def tasks():
+        for sid, entries in grouped:
+            if sid in complete:
+                continue
+            yield (entries, args.samples_dir / sid, manifest[sid], index[sid], structures[sid],
+                   np.asarray(rasters[int(index[sid]["row"])], dtype=np.float32), side, fills, controls,
+                   repeats, window, checkpoint["seed"], malicious)
+    with ProcessPoolExecutor(max_workers=args.workers) as pool, output.open("a" if args.resume else "x", encoding="utf-8") as out:
+        task_iter = iter(tasks())
+        while batch := list(islice(task_iter, args.workers)):
+            for rows, prepared, targets, ineligible in pool.map(prepare_sample, batch):
+                for (row_number, name, mode, original_nll), (value_nll, malicious_score) in zip(
+                        targets, score_batch(model, prepared, device, malicious), strict=True):
+                    if mode == "deletion":
+                        rows[row_number][f"{name}_deletion_delta_nll"] = value_nll - original_nll
+                    else:
+                        rows[row_number][f"{name}_keep_only_malicious_score"] = malicious_score
+                out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
+                out.flush()
                 counts["samples"] += 1
-            selected = offsets(budget["intervals"], len(data))
-            if len(selected) != budget["achieved_bytes"] or entry["file_size"] != len(data):
-                raise ValueError(f"achieved budget mismatch: {sid}")
-            for fill in fills:
-                for control in controls:
-                    eligible = control != "structure_matched_random_20_repeats" or regions is not None
-                    times = repeats if control.endswith("_20_repeats") else 1
-                    for repeat in range(times):
-                        if not eligible:
-                            result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": checkpoint["seed"],
-                                      "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
-                                      "fill": fill, "control": control, "repeat": repeat, "eligible": False,
-                                      "structure_status": entry["structure_status"], "reason": "structure_status_not_agreement"}
-                            counts["structure_ineligible_rows"] += 1
-                        else:
-                            seed = pair_seed(checkpoint["seed"], sid, budget["requested_fraction"], fill, control, repeat)
-                            selection_rng = np.random.default_rng(seed)
-                            matched = control_offsets(control, data, len(selected), selection_rng, selected, regions)
-                            if len(matched) != len(selected):
-                                raise AssertionError("control byte budget mismatch")
-                            result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": checkpoint["seed"],
-                                      "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
-                                      "fill": fill, "control": control, "repeat": repeat, "eligible": True,
-                                      "structure_status": entry["structure_status"], "pair_seed": seed,
-                                      "gradcam_intervals": budget["intervals"], "control_intervals": compress_offsets(matched)}
-                            for name, chosen in (("gradcam", selected), ("control", matched)):
-                                # Reset the same random state for both arms and each metric.
-                                for mode in ("deletion", "keep_only"):
-                                    raster = perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side)
-                                    value_nll, malicious_score = score(model, raster, device, malicious)
-                                    counts["forward_passes"] += 1
-                                    if mode == "deletion":
-                                        result[f"{name}_deletion_delta_nll"] = value_nll - original_nll
-                                    else:
-                                        result[f"{name}_keep_only_malicious_score"] = malicious_score
-                        out.write(json.dumps(result, allow_nan=False, ensure_ascii=True) + "\n")
-                        counts["rows"] += 1
-            out.flush()
+                counts["rows"] += len(rows)
+                counts["forward_passes"] += len(prepared)
+                counts["structure_ineligible_rows"] += ineligible
     (args.outdir / "perturb_summary.json").write_text(json.dumps({"protocol_sha256": sha256(FROZEN),
         "inputs": {str(p): v for p, v in expected.items()}, "checkpoint_seed": checkpoint["seed"],
         "counts": counts, "ledger_sha256": sha256(output)}, indent=2) + "\n", encoding="utf-8")
