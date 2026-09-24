@@ -12,8 +12,8 @@ protocol:
   task: static_windows_pe_binary_malware_detection
   paper_type: classifier_and_xai_evaluation
   freeze_blockers:
-    - source_integrity_restore_required_before_p2
-    - independent_pefile_crosscheck_not_yet_passed  # P2 diagnostic blocked by unstable source tree
+    - independent_pefile_crosscheck_not_yet_passed  # Post-restore P2: 63 parser errors, 10 section-policy differences
+    - malformed_pe_structure_fallback_policy_not_yet_pinned
 
 # Section 5 of the experiment protocol tripped (metadata-only AUROC >= 0.90) and the
 # rule was kept unchanged by decision on 2026-09-15. Section 14 therefore limits the
@@ -306,7 +306,8 @@ tooling:
   era_split_regeneration: scripts/psa_regenerate_era_split.py
   structure_mapping: src/ua_sahi_mal/kisa_xai/structure.py
   structure_crosscheck: scripts/psa_structure_audit.py
-  p2_integrity_blocker: paper/v5-kisa-xai/audit/P2_SOURCE_INTEGRITY_BLOCKER_2026-09-21.md
+  p2_integrity_blocker: paper/v5-kisa-xai/audit/P2_SOURCE_INTEGRITY_BLOCKER_2026-09-21.md  # historical
+  p2_postrestore_audit: paper/v5-kisa-xai/audit/P2_POSTRESTORE_2026-09-23.md
   manifest_stage2_sha256: 3dc0bd7fb42935692462013f716bbd8ccd339b20bb436289aa93e78852b17414
 
 revision_rules:
