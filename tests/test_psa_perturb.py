@@ -6,7 +6,9 @@ import pytest
 
 from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values, nll,
                                  local_median_grid, offsets, pair_seed, perturbed_raster,
-                                 offset_seed, prepare_sample, raster_cache, region_ids)
+                                 offset_seed, prepare_sample, raster_cache, region_ids,
+                                 full_fill, replacement_sums, paired_rasters,
+                                 control_offsets_sha256, verify_control_offsets)
 from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
@@ -47,6 +49,13 @@ def test_prepare_sample_returns_contiguous_rasters_for_synthetic_pe(
     assert len(targets) == expected_passes
     assert ineligible == expected_ineligible
     assert sum(not row["eligible"] for row in rows) == expected_ineligible
+    for row in rows:
+        assert "control_intervals" not in row and "gradcam_intervals" not in row
+        if row["eligible"]:
+            assert row["control_offsets_n"] == 2
+            assert verify_control_offsets(row, data, np.array([0, 1]),
+                                          region_ids(structure["structure"]["spans"], len(data))
+                                          if status == "agreement" else None)
 
 
 def test_matched_budget_and_structure_on_synthetic_pe():
@@ -193,3 +202,43 @@ def test_control_offsets_share_seed_across_fills():
     assert all(np.array_equal(offsets_by_fill[0], item) for item in offsets_by_fill[1:])
     assert pair_seed(42, "synthetic", .1, "zero", "uniform_random_20_repeats", 7) != pair_seed(
         42, "synthetic", .1, "local_median", "uniform_random_20_repeats", 7)
+
+
+def test_shared_full_file_fill_matches_full_reencoding_bitwise():
+    rng = np.random.default_rng(9317)
+    side = 8
+    for size in (1, 17, 63, 64, 65, 129, 513):
+        raw = rng.integers(0, 256, size=size, dtype=np.uint8)
+        data = raw.tobytes()
+        cache = raster_cache(data, side)
+        regions = np.arange(size, dtype=np.int16) % 3
+        medians = local_median_grid(data, side, (5, 5))
+        selected = [np.sort(rng.choice(size, size=max(1, size // 7), replace=False))
+                    for _ in range(2)]
+        for fill in ("zero", "local_median", "structure_conditioned_resampling"):
+            replacements = full_fill(raw, fill, np.random.default_rng(45), regions, medians)
+            fill_sums = replacement_sums(replacements, cache)
+            for chosen in selected:
+                actual_deletion, actual_keep = paired_rasters(cache, chosen, replacements, side, fill_sums)
+                deleted = raw.copy()
+                deleted[chosen] = replacements[chosen]
+                kept = replacements.copy()
+                kept[chosen] = raw[chosen]
+                assert actual_deletion.tobytes() == encode_interval_binned(deleted.tobytes(), side=side)[0].tobytes()
+                assert actual_keep.tobytes() == encode_interval_binned(kept.tobytes(), side=side)[0].tobytes()
+
+
+def test_control_offset_digest_is_sorted_int64_and_verifiable():
+    data = bytes(range(64))
+    chosen = np.array([1, 3, 7], dtype=np.int64)
+    row = {"eligible": True, "control": "uniform_random_20_repeats", "achieved_bytes": 3,
+           "checkpoint_seed": 42, "sample_id": "synthetic", "budget": .1, "repeat": 2}
+    positions = control_offsets(row["control"], data, 3,
+        np.random.default_rng(offset_seed(42, "synthetic", .1, row["control"], 2)), chosen)
+    row["control_offsets_n"] = len(positions)
+    row["control_offsets_sha256"] = control_offsets_sha256(positions[::-1])
+    assert row["control_offsets_sha256"] == hashlib.sha256(
+        np.sort(positions).astype("<i8").tobytes()).hexdigest()
+    assert verify_control_offsets(row, data, chosen)
+    row["control_offsets_sha256"] = "0" * 64
+    assert not verify_control_offsets(row, data, chosen)

@@ -167,6 +167,75 @@ def raster_cache(data: bytes, side: int, imap=None):
     return raw, imap, sums, imap.ends - imap.starts
 
 
+def full_fill(raw: np.ndarray, fill: str, rng: np.random.Generator,
+              regions: np.ndarray | None, medians: np.ndarray) -> np.ndarray:
+    """Draw one replacement byte per source position for a paired pass seed."""
+    if fill == "zero":
+        return np.zeros_like(raw)
+    if fill == "local_median":
+        return medians
+    if fill == "structure_conditioned_resampling":
+        result = np.empty_like(raw)
+        labels = regions if regions is not None else np.zeros(len(raw), dtype=np.int16)
+        for rid in np.unique(labels):
+            positions = np.flatnonzero(labels == rid)
+            result[positions] = raw[rng.choice(positions, size=len(positions), replace=True)]
+        return result
+    raise ValueError(f"unsupported fill: {fill}")
+
+
+def raster_delta(cache, positions: np.ndarray, delta: np.ndarray, side: int,
+                 base_sums: np.ndarray | None = None) -> np.ndarray:
+    _, imap, sums, counts = cache
+    if base_sums is None:
+        base_sums = sums
+    if imap.policy == POLICY_MEAN_POOL:
+        pixels = np.searchsorted(imap.ends, positions, side="right")
+        updates = np.bincount(pixels, weights=delta, minlength=side * side).astype(np.int64)
+    else:
+        changes = np.zeros(len(cache[0]), dtype=np.int64)
+        changes[positions] = delta
+        updates = changes[imap.starts]
+    return ((base_sums + updates) / counts).astype(np.float32).reshape(side, side)
+
+
+def replacement_sums(replacements: np.ndarray, cache) -> np.ndarray:
+    imap = cache[1]
+    return (np.add.reduceat(replacements.astype(np.int64), imap.starts)
+            if imap.policy == POLICY_MEAN_POOL else replacements[imap.starts].astype(np.int64))
+
+
+def paired_rasters(cache, selected: np.ndarray, replacements: np.ndarray,
+                   side: int, fill_sums: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    raw = cache[0]
+    deletion = raster_delta(cache, selected,
+                            replacements[selected].astype(np.int64) - raw[selected].astype(np.int64), side)
+    keep_only = raster_delta(cache, selected,
+                             raw[selected].astype(np.int64) - replacements[selected].astype(np.int64),
+                             side, fill_sums)
+    return deletion, keep_only
+
+
+def control_offsets_sha256(selected: np.ndarray) -> str:
+    """Hash sorted offsets as canonical little-endian signed int64 bytes."""
+    ordered = np.sort(np.asarray(selected, dtype=np.int64))
+    return hashlib.sha256(ordered.astype("<i8", copy=False).tobytes()).hexdigest()
+
+
+def verify_control_offsets(row: dict, data: bytes, cam_offsets: np.ndarray,
+                           regions: np.ndarray | None = None,
+                           entropy: np.ndarray | None = None) -> bool:
+    """Regenerate ledger control positions and check their count and digest."""
+    if not row["eligible"]:
+        raise ValueError("ineligible row has no control offsets")
+    generated = control_offsets(row["control"], data, int(row["achieved_bytes"]),
+        np.random.default_rng(offset_seed(int(row["checkpoint_seed"]), row["sample_id"],
+                                   float(row["budget"]), row["control"], int(row["repeat"]))),
+        cam_offsets, regions, entropy)
+    return (len(generated) == int(row["control_offsets_n"])
+            and control_offsets_sha256(generated) == row["control_offsets_sha256"])
+
+
 def pair_seed(base: int, sample: str, budget: float, fill: str, control: str, repeat: int) -> int:
     key = f"{base}|{sample}|{budget:.8g}|{fill}|{control}|{repeat}".encode("utf-8")
     return int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
@@ -212,6 +281,9 @@ def prepare_sample(task):
     entropy = np.argsort(-entropy_scores(data), kind="stable")
     medians = local_median_grid(data, side, window)
     cache = raster_cache(data, side, imap)
+    raw = cache[0]
+    fixed_fills = {"zero": np.zeros_like(raw), "local_median": medians}
+    fixed_sums = {name: replacement_sums(values, cache) for name, values in fixed_fills.items()}
     rows, rasters, targets = [], [], []
     ineligible = 0
     for entry in entries:
@@ -240,10 +312,17 @@ def prepare_sample(task):
                         ineligible += 1
                     else:
                         seed = pair_seed(seed_base, sid, budget["requested_fraction"], fill, control, repeat)
-                        result.update(pair_seed=seed, gradcam_intervals=budget["intervals"], control_intervals=compress_offsets(matched))
+                        result.update(pair_seed=seed, control_offsets_sha256=control_offsets_sha256(matched),
+                                      control_offsets_n=len(matched))
+                        if fill in fixed_fills:
+                            replacements, fill_sums = fixed_fills[fill], fixed_sums[fill]
+                        else:
+                            replacements = full_fill(raw, fill, np.random.default_rng(seed), regions, medians)
+                            fill_sums = replacement_sums(replacements, cache)
                         for name, chosen in (("gradcam", selected), ("control", matched)):
-                            for mode in ("deletion", "keep_only"):
-                                rasters.append(perturbed_raster(data, chosen, mode, fill, np.random.default_rng(seed), regions, window, side, medians, cache))
+                            for mode, raster in zip(("deletion", "keep_only"),
+                                                    paired_rasters(cache, chosen, replacements, side, fill_sums)):
+                                rasters.append(raster)
                                 targets.append((len(rows), name, mode, original_nll))
                     rows.append(result)
     prepared = np.ascontiguousarray(np.stack(rasters)) if rasters else np.empty((0, side, side), dtype=np.float32)

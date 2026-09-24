@@ -1,5 +1,5 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-3(통계·합성 검증)
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-3(통계·합성 검증)
 다음: C9v — 합성 회귀 / Grad-CAM·perturb·통계 연결 검증
 남은 청크: C9v 합성 회귀; C10 평가·문서
 확정 규칙·결정(형식·기준 포함):
@@ -21,7 +21,6 @@
 가정:
 - C7~C10은 동결된 P2 매핑 정책 위에서 진행한다. 매핑 정책을 바꾸면 새 버전·fixture·census가 필요하다.
 - 저장소 증거와 합성 fixture로 판정하며 외부 조사 없이 진행한다.
-
 후속 청크에 필요한 요약·수치:
 - 기대 파일 201,549개 모두 길이·SHA-256 검증 통과. P2 train/validation 169,020개(train 139,087, validation 29,933).
 - P2 census 2026-09-24(policy v1): agreement 168,947; accepted_unknown_fallback 73 = directory-count 62 / optional-header 1 / section_count_disagreement 10; raw_section_boundary_disagreement 0; mismatch_fields section_count 10, raw_section_overlay_boundary 5; error·disagreement 0; gate passed; `protocol_freeze_authorized=false`.
@@ -51,10 +50,11 @@
 - C9x-1/2: Grad-CAM은 `psa_train.build_model("random", device)`+checkpoint 및 공용 `preprocess_raster`를 사용한다. `psa_perturb.py`는 달성 고유 byte budget 대조군 4종, fill 3종, deletion ΔNLL·keep-only 악성 logit, 구조 fallback eligible=false, 원본 SHA·래스터 재구성 검증 및 JSONL 기록을 구현. 합성 PE pytest 4 passed, torch 필요 2 skipped; py_compile 통과. 명령은 `audit/C9X{1,2}_*COMMANDS_2026-09-24.md`에 기록, 실제 test 미실행. Forward: agreement 2,016/file, fallback 1,056/file; main 35,052,192/seed, era 10,748,352/seed, 3 seed 총 137,401,632. 10/50 ms/pass 가정시 forward만 15.9/79.5일, 실측 아님.
 - C9x-2b: NumPy 바이트 수정, 파일당 entropy·median 캐시, CPU 워커/GPU 배치, resume·limit 구현. 기존 합성 PE 테스트 4건. 사용자 20건 smoke 521초(26초/표본, 약 77 pass/초), GPU 사용률 낮음, 전체 단순 환산 약 20.5일.
 - C9x-2c/2d: 같은 폴더 import, 파일당 entropy argsort, fill 공용 control offset·fill별 난수, pixel 정수 합·개수와 bincount delta 증분 래스터, CPU/GPU 파이프라인, 기본 workers=cpu_count-4, median 마지막 행 보정, 표본별 stderr ETA 구현. C9x-2d에서 Windows shared_memory 실패를 수정해 워커가 연속 float32 `(n,side,side)` 배열을 반환하고 메인은 512개씩 점수화한다; 선제 제출 3개·resume·출력 유지. 합성 prepare_sample end-to-end 테스트 2경우 추가, 기존 7건 유지. 결정은 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md`. `git diff --check` 통과; 요청대로 pytest·전체 perturb 미실행. C9x-3: `scripts/psa_xai_stats.py`는 6 ledger 쌍에서 그룹 평균 효과·2,000 bootstrap CI·단측 p·Holm, 파일 sensitivity, seed 평균, repr·정탐 subset, 기술 표·CAM mass와 SHA를 JSON/MD로 출력한다. 합성 효과/무효·Holm pytest 3 passed(Anaconda Python), py_compile·diff check 통과. 명령·비용은 `audit/C9X3_STATS_COMMANDS_2026-09-24.md`; 실제 ledger 미열람.
+- C9x-2c/2d: 같은 폴더 import, 파일당 entropy argsort, fill 공용 control offset·fill별 난수, pixel 정수 합·개수와 bincount delta 증분 래스터, CPU/GPU 파이프라인, 기본 workers=cpu_count-4, median 마지막 행 보정, 표본별 stderr ETA 구현. C9x-2d에서 Windows shared_memory 실패를 수정해 워커가 연속 float32 `(n,side,side)` 배열을 반환하고 메인은 512개씩 점수화한다; 선제 제출 3개·resume·출력 유지. 합성 prepare_sample end-to-end 테스트 2경우 추가, 기존 7건 유지. 결정은 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md`. `git diff --check` 통과; 요청대로 pytest·전체 perturb 미실행. C9x-2e: 사용자 3건 smoke 225초/표본·6048 pass 정상 완료. ledger intervals 두 필드를 제거하고 sorted little-endian int64 control offset SHA-256·건수와 재생성 검증 함수 추가. pass seed별 전체 fill R·기본 래스터 공유, 구조 resampling 전체 처리 2016→168회/표본 예상. 무작위 바이트 전체 재인코딩 비트 동일성 테스트 추가, `psa_xai_stats.py` 입력 필드 불변 확인; diff check 통과, 실행 없음. C9x-3: `scripts/psa_xai_stats.py`는 6 ledger 쌍에서 그룹 평균 효과·2,000 bootstrap CI·단측 p·Holm, 파일 sensitivity, seed 평균, repr·정탐 subset, 기술 표·CAM mass와 SHA를 JSON/MD로 출력한다. 합성 효과/무효·Holm pytest 3 passed(Anaconda Python), py_compile·diff check 통과. 명령·비용은 `audit/C9X3_STATS_COMMANDS_2026-09-24.md`; 실제 ledger 미열람.
 
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인; C9 구조 audit 합성 회귀는 C9v에서 확인. Era 학습 판정 완료. C8r 가중치 동일성은 사용자 보고이며 독립 재실행 없음. 동결 후 test 1회 평가 규칙 유지.
-- Codex 세션 `.venv` base Python 경로 오류로 C9x-2c 합성 pytest 미실행; C9x-2d도 사용자 요청에 따라 테스트·파이프라인 미실행. 배열 전달/GPU 파이프라인의 실제 속도·메모리·수치 일치 미확인. C9x-2 entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세에 대한 구현 가정. 재개는 같은 입력·checkpoint·outdir 전제.
+- Codex 세션 `.venv` base Python 경로 오류로 C9x-2c 합성 pytest 미실행; C9x-2d/2e도 사용자 요청에 따라 테스트·파이프라인 미실행. C9x-2e 수정 뒤 실제 속도·메모리·비트 동일성 미확인; 기존 출력 ledger에는 옛 intervals 필드가 있으므로 새 형식 결과와 섞지 않는다. C9x-2 entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세에 대한 구현 가정. 재개는 같은 입력·checkpoint·outdir 전제.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
 - PROGRESS.md 한글이 C6 세션에서 `?`로 손상되어 2026-09-24 복원했다. 이 파일을 고친 뒤에는 한글이 정상인지 확인한다.

@@ -74,3 +74,12 @@ $elapsed = Measure-Command {
 - C9x-2d Windows 긴급 수정: 워커는 래스터를 하나의 연속 float32 ndarray `(n, side, side)`로 쌓아 행·점수화 대상과 함께 반환한다. 주 프로세스는 배열을 512개씩 나눠 GPU 점수화한다. Windows에서 마지막 열린 핸들이 닫히면 세그먼트가 해제되는 문제 때문에 공유 메모리 전달은 제거했다. 최대 3개 준비 작업을 미리 제출해 CPU 준비와 GPU 소비를 겹친다. `--workers` 기본값은 `max(1, (os.cpu_count() or 1)-4)`다.
 - 5×5 local median의 부분 마지막 행 주변을 `rows >= height-3`에서 직접 재계산한다. 매 표본 완료마다 stderr에 경과 시간, 표본당 초, 예상 잔여 시간을 출력한다. 예상 잔여 시간은 이 실행에서 완료한 표본의 평균에 근거한다.
 - 합성 무작위 바이트, 비배수 길이, partial last row 테스트를 추가했다. 기존 테스트 4건은 유지했다. 기존 `.venv` Python 런처가 사라진 base Python을 가리켜 pytest 실행은 실패했다. 전체 perturb 실행과 새 smoke는 하지 않았다.
+
+## C9x-2e 3차 성능 수정 (미실행)
+
+- 사용자 기능 smoke 3건은 표본당 225초, 파이프라인 정상 완료(6,048 pass)로 보고되었다. 이 수정 뒤의 성능은 아직 측정하지 않았다.
+- 각 eligible ledger 행은 `control_intervals`와 `gradcam_intervals` 대신 `control_offsets_sha256`과 `control_offsets_n`을 기록한다. SHA-256 입력은 선택한 byte offset을 오름차순 정렬한 little-endian signed int64 배열이다. Grad-CAM 위치의 원본은 입력 Grad-CAM ledger의 `budget.intervals`다.
+- 대조군 위치는 같은 원본 바이트, Grad-CAM 위치, 구조 상태, entropy 순위와 `offset_seed(checkpoint_seed, sample_id, budget, control, repeat)`로 결정론적으로 재생성한다. 코드의 `verify_control_offsets`는 재생성한 위치의 건수와 SHA-256을 행과 대조한다. `pair_seed`는 기존대로 `(seed, sample, budget, fill, control, repeat)`에서 계산해 행에 유지한다.
+- pass seed마다 파일 길이의 fill 배열 `R`을 공유한다. 구조 조건 resampling은 region마다 그 region 길이만큼 같은 region의 원본 바이트에서 복원 추출한다. local median은 파일당 캐시한 격자, zero는 0을 사용한다. Grad-CAM·control 양쪽의 deletion은 원본에서 선택 byte만 `R`로 바꾸고, keep-only는 `R`을 기본으로 선택 byte만 원본으로 복원한다. 두 모드 모두 선택 byte의 정수 합 차이만 증분 적용한다. 이는 동결 규칙 **동일 fill random state 공유**의 구현이다.
+- 구조 조건 fill의 파일 전체 추출·기본 래스터 계산 횟수는 agreement 표본에서 4 budget × 42 control/repeat = 168회다. 이전 네 경우별 처리 4 × 42 × 3 fill × 4 = 2,016회 대비 예상 감소이며 실측값은 아니다. zero와 local median의 기본 래스터는 파일당 한 번만 계산한다.
+- `deletion_delta_nll`, `keep_only_malicious_score`, `pair_seed`의 정의와 필드는 유지했다. `psa_xai_stats.py`는 두 intervals 필드를 읽지 않으므로 입력 계약은 바뀌지 않는다. 무작위 바이트 합성 데이터에서 공유 `R` 방식과 전체 재인코딩을 바이트 단위로 비교하는 테스트, 대조군 digest 재생성 검증을 추가했다. 요청대로 실행하지 않았다.
