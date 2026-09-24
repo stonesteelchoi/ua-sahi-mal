@@ -16,7 +16,37 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from ua_sahi_mal.kisa_xai.structure import STRUCTURE_VERSION, build_structure_map, compare_pefile
+from ua_sahi_mal.kisa_xai.structure import (
+    STRUCTURE_VERSION,
+    UNKNOWN_FALLBACK_POLICY,
+    P2_SECTION_DISAGREEMENT_POLICY,
+    build_structure_map,
+    build_unknown_structure_map,
+    compare_pefile,
+    p2_malformed_header_reason,
+    p2_section_disagreement_reason,
+)
+
+
+POLICY_STRICT = "strict"
+POLICY_UNKNOWN = UNKNOWN_FALLBACK_POLICY
+P2_EXPECTED_FALLBACK_REASONS = {
+    "directory_count_exceeds_optional_header_capacity": 62,
+    "declared_optional_header_missing_or_truncated": 1,
+    "section_count_disagreement": 10,
+}
+
+
+def _unknown_adjudication(reason: str, detail: dict | None = None,
+                          policy_version: str = "P2-MALFORMED-HEADER-V1") -> dict:
+    return {
+        "policy": POLICY_UNKNOWN,
+        "policy_version": policy_version,
+        "action": "map_entire_file_as_unknown",
+        "reason": reason,
+        "detail": detail or {},
+        "claim": "sample_retained_without_fabricated_structure_labels",
+    }
 
 
 def digest(path):
@@ -25,7 +55,7 @@ def digest(path):
 
 
 def audit_one(job):
-    root, sid, split, expected_size, expected_hash = job
+    root, sid, split, expected_size, expected_hash, adjudication_policy = job
     record = {"sample_id": sid, "split": split, "status": "error"}
     try:
         if not sid.isdecimal():
@@ -41,15 +71,66 @@ def audit_one(job):
         if sha != expected_hash:
             raise ValueError("source SHA256 differs from manifest")
         record["source_sha256"] = sha
-        structure = build_structure_map(data)
+        try:
+            structure = build_structure_map(data)
+        except Exception as exc:
+            reason = p2_malformed_header_reason(exc)
+            if reason is not None:
+                record["p2_reason"] = reason
+            if adjudication_policy == POLICY_UNKNOWN and reason is not None:
+                record["structure"] = build_unknown_structure_map(data, reason).to_dict()
+                record["crosscheck"] = {
+                    "raw_fields_agree": False,
+                    "mismatches": [],
+                    "fields_compared": 0,
+                    "comparison_available": False,
+                    "status": "parse_error",
+                    "comparison_blocked_by": str(exc),
+                }
+                record["adjudication"] = _unknown_adjudication(
+                    reason,
+                    {"error_type": type(exc).__name__, "error": str(exc)},
+                )
+                record["status"] = "accepted_unknown_fallback"
+                return record
+            raise
         record["structure"] = structure.to_dict()
         comparison = compare_pefile(data)
         record["crosscheck"] = comparison
-        record["status"] = "agreement" if comparison["raw_fields_agree"] else "disagreement"
+        if comparison["raw_fields_agree"]:
+            record["status"] = "agreement"
+        else:
+            reason = p2_section_disagreement_reason(comparison)
+            if adjudication_policy == POLICY_UNKNOWN and reason is not None:
+                fields = {m["field"] for m in comparison["mismatches"]}
+                record["pre_adjudication_region_bytes"] = record["structure"]["region_bytes"]
+                record["structure"] = build_unknown_structure_map(data, reason).to_dict()
+                record["p2_reason"] = reason
+                record["adjudication"] = _unknown_adjudication(
+                    reason,
+                    {"mismatch_fields": sorted(fields), "mismatches": comparison["mismatches"]},
+                    P2_SECTION_DISAGREEMENT_POLICY,
+                )
+                record["status"] = "accepted_unknown_fallback"
+            else:
+                record["status"] = "disagreement"
     except Exception as exc:  # Preserve parse/missing-file failures in the ledger, never skip.
         record["error_type"] = type(exc).__name__
         record["error"] = str(exc)
     return record
+
+
+def count_ledger_record(record, counts):
+    """Count only fields persisted in the ledger, including adjudication reasons."""
+    counts["status"][record["status"]] += 1
+    comparison = record.get("crosscheck", {})
+    counts["mismatch_fields"].update(m["field"] for m in comparison.get("mismatches", []))
+    counts["native_overlay_disagreements"] += int(comparison.get("native_overlay", {}).get("agrees") is False)
+    counts["warnings"].update(record.get("structure", {}).get("warnings", []))
+    if record.get("p2_reason") is not None:
+        counts["p2_reason"][record["p2_reason"]] += 1
+    if record["status"] == "accepted_unknown_fallback":
+        counts["fallback_reason"][record["adjudication"]["reason"]] += 1
 
 
 def main():
@@ -61,6 +142,7 @@ def main():
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0, help="0 = full train/val census; positive = diagnostic subset")
     ap.add_argument("--static-only", action="store_true", required=True)
+    ap.add_argument("--adjudication-policy", choices=[POLICY_STRICT, POLICY_UNKNOWN], default=POLICY_STRICT)
     args = ap.parse_args()
     if args.limit < 0 or not 1 <= args.workers <= 8 or args.outdir.exists():
         raise ValueError("invalid worker/limit setting or output already exists")
@@ -95,7 +177,8 @@ def main():
         hashes = {r["sample_id"]: r["sha256"] for r in csv.DictReader(fh) if r["sample_id"] in wanted}
     if hashes.keys() != wanted:
         raise ValueError("missing source hashes")
-    jobs = [(str(args.samples_dir), r["sample_id"], r["split"], int(r["file_size"]), hashes[r["sample_id"]])
+    jobs = [(str(args.samples_dir), r["sample_id"], r["split"], int(r["file_size"]), hashes[r["sample_id"]],
+             args.adjudication_policy)
             for r in rows]
     args.outdir.mkdir(parents=True)
     plan = {"version": STRUCTURE_VERSION, "population": "deduplicated_train_and_validation_only",
@@ -106,35 +189,54 @@ def main():
             "implementation_sha256": digest(Path(__file__)),
             "structure_source_sha256": digest(Path(__file__).resolve().parents[1] /
                                                "src/ua_sahi_mal/kisa_xai/structure.py"),
-            "freeze_policy": "No automatic freeze: retain every disagreement/error and review boundary semantics."}
+            "adjudication_policy": args.adjudication_policy,
+            "section_disagreement_policy_version": P2_SECTION_DISAGREEMENT_POLICY,
+            "p2_expected_fallback_reason_counts": (P2_EXPECTED_FALLBACK_REASONS
+                                                   if args.adjudication_policy == POLICY_UNKNOWN else None),
+            "freeze_policy": ("Strict crosscheck: retain every disagreement/error for review."
+                              if args.adjudication_policy == POLICY_STRICT
+                              else "Conservative P2 adjudication: retain every selected file; map hash-valid malformed-header or isolated section disagreements entirely as unknown.")}
     with (args.outdir / "audit_plan.json").open("x", encoding="utf-8") as fh:
         json.dump(plan, fh, indent=2)
-    statuses, mismatch_fields, warnings = Counter(), Counter(), Counter()
-    native_overlay_disagreements = 0
+    counts = {"status": Counter(), "mismatch_fields": Counter(), "warnings": Counter(),
+              "p2_reason": Counter(), "fallback_reason": Counter(),
+              "native_overlay_disagreements": 0}
     start = time.monotonic()
     print(f"selected {len(rows)} / {population_n} train/val files; test payloads locked", flush=True)
     with (args.outdir / "structure_ledger.jsonl").open("x", encoding="utf-8") as ledger:
         with ProcessPoolExecutor(max_workers=args.workers) as pool:
             for index, record in enumerate(pool.map(audit_one, jobs, chunksize=16), start=1):
                 ledger.write(json.dumps(record, ensure_ascii=True, allow_nan=False) + "\n")
-                statuses[record["status"]] += 1
-                comparison = record.get("crosscheck", {})
-                mismatch_fields.update(m["field"] for m in comparison.get("mismatches", []))
-                native_overlay_disagreements += int(comparison.get("native_overlay", {}).get("agrees") is False)
-                warnings.update(record.get("structure", {}).get("warnings", []))
+                count_ledger_record(record, counts)
                 if index % 1000 == 0 or index == len(rows):
                     ledger.flush()
-                    print(f"{index}/{len(rows)} {dict(statuses)} elapsed={time.monotonic()-start:.1f}s", flush=True)
+                    print(f"{index}/{len(rows)} {dict(counts['status'])} elapsed={time.monotonic()-start:.1f}s", flush=True)
+    statuses = counts["status"]
+    p2_gate_passed = (
+        args.limit == 0
+        and sum(statuses.values()) == len(rows)
+        and statuses["error"] == 0
+        and statuses["disagreement"] == 0
+        and args.adjudication_policy == POLICY_UNKNOWN
+        and dict(counts["fallback_reason"]) == P2_EXPECTED_FALLBACK_REASONS
+        and dict(counts["p2_reason"]) == P2_EXPECTED_FALLBACK_REASONS
+    )
     report = {**plan, "complete": sum(statuses.values()) == len(rows), "status_counts": dict(statuses),
-              "mismatch_fields": dict(mismatch_fields), "structure_warnings": dict(warnings),
-              "native_overlay_disagreements": native_overlay_disagreements,
+              "mismatch_fields": dict(counts["mismatch_fields"]),
+              "structure_warnings": dict(counts["warnings"]),
+              "p2_reason_counts": dict(counts["p2_reason"]),
+              "fallback_count": sum(counts["fallback_reason"].values()),
+              "fallback_reason_counts": dict(counts["fallback_reason"]),
+              "native_overlay_disagreements": counts["native_overlay_disagreements"],
               "elapsed_seconds": round(time.monotonic() - start, 3),
               "ledger_sha256": digest(args.outdir / "structure_ledger.jsonl"),
+              "p2_structure_gate_passed": p2_gate_passed,
               "protocol_freeze_authorized": False}
     with (args.outdir / "structure_audit_summary.json").open("x", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2, allow_nan=False)
     print(json.dumps({k: v for k, v in report.items() if k not in ("structure_warnings", "inputs")}, indent=2))
-    return 0 if not statuses["error"] and not statuses["disagreement"] else 2
+    return 0 if (p2_gate_passed or (args.limit > 0 and not statuses["error"]
+                                   and not statuses["disagreement"])) else 2
 
 
 if __name__ == "__main__":
