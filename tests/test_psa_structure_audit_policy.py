@@ -1,13 +1,15 @@
 """Synthetic-only checks for P2 structure-audit adjudication policy."""
 
 import hashlib
+import csv
 import json
 import struct
 from collections import Counter
 
 import pytest
 
-from scripts.psa_structure_audit import POLICY_STRICT, POLICY_UNKNOWN, audit_one, count_ledger_record
+from scripts.psa_structure_audit import (POLICY_STRICT, POLICY_UNKNOWN, audit_one,
+                                         count_ledger_record, mark_test_attribution, select_rows)
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
 
@@ -94,3 +96,42 @@ def test_unknown_policy_does_not_mask_source_hash_mismatch(tmp_path):
 
     assert record["status"] == "error"
     assert record["error"] == "source SHA256 differs from manifest"
+
+
+def _csv(path, columns, rows):
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.writer(fh)
+        writer.writerow(columns)
+        writer.writerows(rows)
+
+
+def test_main_and_era_test_selection_preserves_train_val_default(tmp_path):
+    _csv(tmp_path / "raster_duplicate_groups.csv", ["sample_id", "raster_sha256"],
+         [["1", "a"], ["2", "b"], ["3", "c"], ["4", "d"], ["5", "d"]])
+    _csv(tmp_path / "raster_index.csv", ["sample_id", "split", "file_size"],
+         [["1", "train", 1], ["2", "val", 1], ["3", "test", 1],
+          ["4", "test", 1], ["5", "test", 1]])
+    era = tmp_path / "era.csv"
+    _csv(era, ["sample_id", "split"],
+         [["1", "test"], ["2", "train"], ["3", "val"],
+          ["4", "test"], ["5", "test"]])
+    assert [r["sample_id"] for r in select_rows(tmp_path, "train-val")[0]] == ["1", "2"]
+    assert [r["sample_id"] for r in select_rows(tmp_path, "test")[0]] == ["3", "4"]
+    assert [r["sample_id"] for r in select_rows(tmp_path, "test", era)[0]] == ["1", "4"]
+
+
+def test_test_anomalies_remain_without_structure_attribution():
+    parse_error = {"status": "error", "source_sha256": "abc", "error_type": "PeFormatError"}
+    disagreement = {"status": "disagreement", "structure": {"region_bytes": {"header": 1}}}
+    valid = {"status": "accepted_unknown_fallback", "structure": {"region_bytes": {"unknown": 1}}}
+    assert mark_test_attribution(parse_error) == "unclassified_parse_error"
+    assert parse_error["structure_attribution_available"] is False
+    assert mark_test_attribution(disagreement) == "non_target_disagreement"
+    assert disagreement["structure"] is None
+    counts = {"status": Counter(), "mismatch_fields": Counter(), "warnings": Counter(),
+              "p2_reason": Counter(), "fallback_reason": Counter(),
+              "native_overlay_disagreements": 0}
+    count_ledger_record(disagreement, counts)
+    assert counts["status"] == {"disagreement": 1}
+    assert mark_test_attribution(valid) is None
+    assert valid["structure_attribution_available"] is True

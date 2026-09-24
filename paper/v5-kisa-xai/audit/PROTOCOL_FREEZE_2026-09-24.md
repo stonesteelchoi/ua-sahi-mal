@@ -35,6 +35,12 @@ All six recomputed checkpoint hashes match their recorded values. Both provenanc
 - **Forbidden within V1.1:** changing mapping policy, hypotheses, or statistical unit after test access. Any additional analysis belongs to `PSA-XAI-V1.2-EXPLORATORY` and must be labeled exploratory.
 - The next chunk is C9, preparation of main test structure mapping. This freeze did not access or evaluate held-out payloads.
 
+## C9 tool-only addendum
+
+- `scripts/psa_structure_audit.py` now has an explicit `--population test` mode. It selects only deduplicated test IDs from the main raster split or a SHA-256 checked era split manifest, and applies the already frozen structure policy, P2 reason codes, and whole-file unknown fallback unchanged.
+- Test output records reason counts as descriptive statistics. It omits the train/validation 62/1/10 gate and the `protocol_freeze_authorized` field. Unclassified parse errors and non-target disagreements stay in the ledger with `structure_attribution_available=false`; the summary counts them. This is an audit-tool change, not a mapping-policy change or a new freeze decision.
+- No test census or model evaluation was executed during this preparation. User-run commands and output checks are in `audit/C9_TEST_STRUCTURE_COMMANDS_2026-09-24.md`.
+
 ## User-run Git tag
 
 After committing the frozen YAML, this record, and `PROGRESS.md`, run from the repository root:
