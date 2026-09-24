@@ -94,6 +94,16 @@ train/val/test=49,622/10,662/10,654; 근거는 같은 폴더 `era_split_report.j
 상세는 `audit/SOURCE_INTEGRITY_2026-09-23.md`를 따른다. 신뢰 가능한 원본을 새 staging 경로에
 복원해 51개 전부 길이·SHA 일치를 확인하고, 명시적 승인 후 교체하기 전에는 P2/XAI를 재개하지 않는다.
 
+### 2026-09-24 갱신
+
+위 2026-09-23 차단 문구는 당시 상태의 이력으로만 남긴다. 51개 복원과 기존 래스터 일치는
+`audit/P2_POSTRESTORE_2026-09-23.md`에서 확인했고, 전체 원본 201,549개의 길이·SHA-256 검증도
+모두 통과했다. `audit/P2_CENSUS_ADJUDICATION_2026-09-24.md`의 train/validation 전체 census는
+사전 등록한 P2 gate를 통과했으며, P2 구조 매핑 정책 `conservative_unknown_v1`
+(`P2-MALFORMED-HEADER-V1`, `P2-SECTION-DISAGREEMENT-V1`)을 해당 모집단·구현 해시 기준으로 동결했다.
+전체 프로토콜 동결은 별도 결정이며 `protocol_freeze_authorized=false`이다. 승인 전에는
+held-out test payload에 접근하지 않는다.
+
 > 이 문서 전체가 지시문이다. 데이터·환경·P0 게이트는 모두 끝났다. 네 일은 **모델 학습 → Grad-CAM →
 > deletion/keep-only → 통계**를 프로토콜대로 실행하는 것이다. 사용자가 Windows에서 명령을 직접 돌리고
 > 결과 로그를 너에게 붙여넣는다. 너는 스크립트를 고치고 결과를 해석한다.

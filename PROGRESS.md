@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7
-다음: C8 — 3개 seed 학습·sanity gate / train·validation만 사용, 실행은 사용자 .venv 창
-남은 청크: C8 3개 seed 학습·sanity gate; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
+완료: C0, C1, C2a, C2b, C3, C4, C5(사용자 실행 완료), C6, C6 보완, C7, C8a(준비)
+다음: C8b — 사용자 .venv 창에서 기존 3개 seed 결과 검증 / 확인 보고서·sanity gate 판정
+남은 청크: C8b 학습 결과 검증; C9 Grad-CAM·대조군·perturbation; C10 통계 집계·결과 문서
 
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행하며 완료 전 다음 청크로 이동하지 않는다. 청크당 새 파일 3개, 웹 검색 2회, 수정·생성 파일 5개 이하.
@@ -14,6 +14,7 @@
 - C7 결정: 기존 파일럿·합성 CUDA 확인 기록에 따라 batch size 512와 Grad-CAM target layer `layer4.1`을 유지한다. C7은 재실행 없이 train/validation 범위에서만 판정했다. 근거 `paper/v5-kisa-xai/audit/C7_BATCH_TARGET_LAYER_2026-09-24.md`.
 - 전체 프로토콜 동결(`protocol_freeze_authorized=true`)은 C8 완료 후 C9 전에 사용자가 승인하며, 그 전까지 test payload는 열지 않는다.
 - 장시간 실행(census, 학습)은 사용자가 별도 `.venv` 창에서 한다. Codex는 명령만 기록하고 직접 실행하지 않으며, 결과 판정은 다음 청크에서 한다.
+- C8 사전 등록: ImageNet 초기화, seed 42·43·44, batch 512, train/validation만 사용. 세 seed 모두 validation macro-F1 > majority macro-F1+0.10, balanced accuracy ≥0.70, 양 class recall ≥0.60, seed 방향 일치일 때 sanity gate 통과. 하나라도 실패하면 XAI 중단.
 
 가정:
 - C7~C10은 동결된 P2 매핑 정책 위에서 진행한다. 매핑 정책을 바꾸면 새 버전·fixture·census가 필요하다.
@@ -27,9 +28,16 @@
 - 문서: 판정 `audit/P2_CENSUS_ADJUDICATION_2026-09-24.md`; 정책 `protocol/P2_MALFORMED_HEADER_POLICY_V1.md`, `protocol/P2_SECTION_DISAGREEMENT_POLICY_V1.md`; 이전 근거 `audit/P2_POSTRESTORE_2026-09-23.md`.
 - 테스트: 구조·audit 합성 테스트 23 passed(C4). pefile이 필요한 4건은 `.venv`에서만 실행 가능.
 - C7 근거: pilot peak 6,070.7/8,123.4 MiB(74.73%), 학습 최대 6,072.7 MiB(74.76%); `layer4.1` BasicBlock, 합성 CUDA activation/gradient `[1,512,7,7]`. 기존 아티팩트 존재와 SHA-256 확인, 재실행 없음.
+- C8a 대조: `runs/psa-orchestration/freeze_prereqs_20260921.json`의 batch 512, VRAM 8,123.4/6,070.7/6,072.7 MiB, 74.73%/74.76%, `layer4.1` BasicBlock, activation·gradient `[1,512,7,7]`, 출력 `[1,2]`, 악성 logit 1이 C7 판정 문서와 일치. JSON의 옛 `remaining_blocker`는 당시 이력.
+- 기존 ImageNet seed 42·43·44 학습 결과는 `D:\secure-malware-data\psa\runs`에 있으며, 51개 복원은 래스터와 일치해 재학습이 필요하지 않음(`P2_POSTRESTORE_2026-09-23.md`). C8b는 우선 기존 결과 검증.
+- C8b 사용자 PowerShell(.venv) 확인 명령: `cd C:\research\ua-sahi-mal`; `$c8Runs = 'D:\secure-malware-data\psa\runs'`; `.\.venv\Scripts\python.exe scripts\psa_verify_training.py --rasters-dir D:\secure-malware-data\psa\rasters --runs-dir $c8Runs --out runs\psa-orchestration\c8_training_verify_20260924.json`; `Get-Content -Encoding utf8 runs\psa-orchestration\c8_training_verify_20260924.json`에서 `all_seeds_passed`, `direction_agreement`, 각 seed의 `sanity_gate_passed` 확인. 검증기는 체크포인트 SHA-256·counts도 대조하고 test payload는 읽지 않음.
+- 재학습이 실제 필요한 경우에만 새 출력 폴더로 사용자 실행: `$c8Runs = 'D:\secure-malware-data\psa\runs\c8_retrain_20260924'`; `foreach ($s in 42,43,44) { .\.venv\Scripts\python.exe scripts\psa_train.py train --rasters-dir D:\secure-malware-data\psa\rasters --out-dir $c8Runs --batch-size 512 --init imagenet --seed $s }`; 완료 후 위 검증 명령의 `--runs-dir`에 `$c8Runs` 사용. 기존 `runs`에 다시 학습하면 기존 체크포인트를 덮어씀.
+- C9 YAML 계획 확인: Grad-CAM·`layer4.1`, 4개 budget, uniform/front/entropy/structure-matched 대조군, deletion ΔNLL·keep-only와 3종 fill, 쌍체 bootstrap 2,000·Holm 2검정·95% CI가 명시됨.
 
 미해결·주의:
 - 전체 프로토콜 동결 미승인. C8 완료 후 C9 전 사용자 승인.
+- C8a는 문서·명령 준비만 완료. 이번 세션에 학습·검증기를 실행하지 않았으며 C8b 결과 판정은 미완료.
+- C9 YAML에는 대조군과 Grad-CAM이 동일 sample·budget·fill random state를 공유한다는 규칙과 effect·95% CI·Holm 조정 p·eligible n의 명시적 보고 항목이 빠져 있다(인수 문서 §5에는 기록됨). C9 전 YAML에 반영·검토 필요.
 - Codex 세션에서는 `.venv` 런처가 base Python 경로 문제로 실행되지 않는다(사용자 창에서는 정상). 실행이 필요한 검증은 사용자가 `.venv` 창에서 한다.
 - pytest는 `.pytest_tmp` 접근 거부로 별도 `--basetemp`를 쓴다.
 - 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
