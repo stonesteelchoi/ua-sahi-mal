@@ -12,8 +12,8 @@ protocol:
   task: static_windows_pe_binary_malware_detection
   paper_type: classifier_and_xai_evaluation
   freeze_blockers:
-    - independent_pefile_crosscheck_not_yet_passed  # Post-restore P2: 63 parser errors, 10 section-policy differences
-    - malformed_pe_structure_fallback_policy_not_yet_pinned
+    - full_protocol_freeze_authorization_pending  # P2 crosscheck and fallback policy resolved
+  p2_resolution: paper/v5-kisa-xai/audit/P2_CENSUS_ADJUDICATION_2026-09-24.md
 
 # Section 5 of the experiment protocol tripped (metadata-only AUROC >= 0.90) and the
 # rule was kept unchanged by decision on 2026-09-15. Section 14 therefore limits the
@@ -143,7 +143,7 @@ eligibility:
     cross_label_groups: 0
     file: raster_duplicate_groups.csv
   near_duplicate_policy: group_split_by_imphash
-  independent_parser_crosscheck: pending_p2
+  independent_parser_crosscheck: passed_p2_conservative_unknown_v1
 
 split:
   type: group_disjoint_stratified
@@ -250,6 +250,10 @@ xai:
   controls: [uniform_random_20_repeats, front_position, entropy, structure_matched_random_20_repeats]
   primary_comparator: structure_matched_random
   fills: {primary: structure_conditioned_resampling, robustness: local_median_or_blur, diagnostic: zero}
+  paired_comparison:
+    sample: same_sample_for_gradcam_and_control
+    budget: same_achieved_unique_source_byte_budget
+    fill_random_state: shared_for_gradcam_and_control_per_sample_budget_fill_control_repeat
 
 primary_hypotheses:
   h1: gradcam_top10_deletion_delta_nll_gt_structure_matched_random
@@ -264,6 +268,8 @@ statistics:
   random_control_repeats_per_file: 20
   report_each_seed: true
   report_seed_average: true
+  primary_hypothesis_report_fields: [effect, ci_95_lower, ci_95_upper, holm_adjusted_p, eligible_n]
+  effect_definition: paired_mean_difference_gradcam_minus_structure_matched_random
   primary_population: all_malicious_test_files
   secondary_population: correctly_detected_malicious_files
   internal_test_malicious_n: 17431
