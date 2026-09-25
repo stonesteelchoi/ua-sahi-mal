@@ -298,12 +298,9 @@ def prepare_sample(task):
     fixed_sums = {name: replacement_sums(values, cache) for name, values in fixed_fills.items()}
     rows, rasters, targets = [], [], []
     ineligible = 0
-    pixel_maps = {}
     def pixels_for(chosen):
-        key = chosen.tobytes()
-        if key not in pixel_maps:
-            pixel_maps[key] = selected_pixel_map(cache, chosen)
-        return pixel_maps[key]
+        # Each position set is consumed once (per budget or per control/repeat), so no cache is kept.
+        return selected_pixel_map(cache, chosen)
     for entry in entries:
         budget = entry["budget"]
         original_nll = nll(np.asarray([entry["benign_logit"], entry["malicious_logit"]]), malicious)
