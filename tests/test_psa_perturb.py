@@ -10,7 +10,8 @@ from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values,
                                  offset_seed, prepare_sample, raster_cache, region_ids,
                                  full_fill, replacement_sums, paired_rasters,
                                  control_offsets_sha256, verify_control_offsets,
-                                 completed_samples, raster_delta, selected_pixel_map)
+                                 completed_samples, ordered_sample_blocks, raster_delta,
+                                 selected_pixel_map)
 from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
@@ -257,6 +258,25 @@ def test_completed_samples_accepts_non_sorted_contiguous_blocks(tmp_path):
     assert complete == {"a", "z"}
     assert counts["samples"] == 2
     assert [json.loads(line)["sample_id"] for line in output.read_text(encoding="utf-8").splitlines()] == ["z", "z", "a", "a"]
+
+
+def test_size_desc_submits_whole_blocks_and_resume_accepts_order_change(tmp_path):
+    ledger = [{"sample_id": sid, "file_size": size, "budget": budget}
+              for sid, size in (("b", 3), ("a", 12), ("c", 12)) for budget in (0.1, 0.2)]
+    assert [sid for sid, _ in ordered_sample_blocks(ledger, "sample_id")] == ["a", "b", "c"]
+    blocks = ordered_sample_blocks(ledger, "size-desc")
+    assert [sid for sid, _ in blocks] == ["a", "c", "b"]
+    assert all([row["budget"] for row in entries] == [0.1, 0.2] for _, entries in blocks)
+
+    output = tmp_path / "perturb.jsonl"
+    # A resumed file may begin in the old order and end with a partial block.
+    rows = [{"sample_id": sid, "eligible": True} for sid in ("b", "b", "a", "a", "c")]
+    output.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    complete, counts = completed_samples(output, {sid: 2 for sid, _ in blocks})
+    assert complete == {"a", "b"}
+    assert counts["samples"] == 2
+    assert [sid for sid, _ in blocks if sid not in complete] == ["c"]
+    assert [json.loads(line)["sample_id"] for line in output.read_text(encoding="utf-8").splitlines()] == ["b", "b", "a", "a"]
 
 
 def test_control_offset_digest_is_sorted_int64_and_verifiable():

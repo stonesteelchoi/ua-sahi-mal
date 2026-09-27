@@ -27,7 +27,7 @@ foreach ($seed in 42,43,44) {
         $cam = Join-Path $camDir 'gradcam_ledger.jsonl'
         $camSha = (Get-FileHash -LiteralPath $cam -Algorithm SHA256).Hash.ToLower()
         $out = Join-Path $runs "xai_v1_1\${population}_seed${seed}_perturb"
-        & $py scripts\psa_perturb.py --checkpoint $checkpoint --checkpoint-sha256 $checkpointSha --gradcam-ledger $cam --gradcam-ledger-sha256 $camSha --structure-ledger $ledger --structure-ledger-sha256 $ledgerSha --stage2-manifest $stage2 --samples-dir $samples --rasters-dir $rasters --outdir $out
+        & $py scripts\psa_perturb.py --checkpoint $checkpoint --checkpoint-sha256 $checkpointSha --gradcam-ledger $cam --gradcam-ledger-sha256 $camSha --structure-ledger $ledger --structure-ledger-sha256 $ledgerSha --stage2-manifest $stage2 --samples-dir $samples --rasters-dir $rasters --outdir $out --prefetch 16 --order size-desc
         if ($LASTEXITCODE -ne 0) { throw "$population seed $seed perturb failed" }
     }
 }
@@ -90,3 +90,10 @@ $elapsed = Measure-Command {
 - `--prefetch` 기본값은 8이며 양의 정수만 허용한다. 메인은 시작할 때 준비 작업을 최대 8개 제출하고, 제출 순서의 첫 결과를 소비한 즉시 다음 작업을 제출한다. 따라서 GPU 점수화 동안 후속 준비 작업을 최대 8개 유지한다. 결과 소비·ledger 기록 순서와 `--resume`의 완료 표본 판정은 기존대로다. `--workers`는 동시 CPU 프로세스 수, `--prefetch`는 제출 대기열 깊이다.
 - 준비된 표본 하나의 연속 float32 래스터는 약 405 MB(약 0.4 GB)다. 워커 반환값의 직렬화·프로세스 간 전달 복사본을 고려한 대기열 메모리 추정은 `깊이 × 약 0.4 GB × 2`이다. 깊이 3은 약 2.4 GB, 기본 깊이 8은 약 6.4 GB다. 모델, 원본·캐시, 실행 중 준비 작업 및 현재 GPU 점수화 표본의 메모리는 별도이며 실제 최대 사용량은 더 클 수 있다.
 - 표본별 stderr 진행 출력에 `gpu_wait=...s`를 추가했다. 현재 세션에서 제출 순서의 다음 준비 결과를 `future.result()`로 기다린 누적 벽시계 시간이다. 값이 크게 늘면 GPU에 전달할 래스터를 기다리는 병목을 의심할 수 있다. 결과 정의와 JSONL ledger 필드는 변경하지 않았다. 기존 테스트 17건과 perturb 파이프라인은 사용자 요청대로 실행하지 않았다.
+
+## C9x-2i 크기 우선 제출 (실행하지 않음)
+
+- `--order sample_id`가 기본이다. `--order size-desc`는 Grad-CAM ledger의 `file_size` 내림차순으로 표본 블록을 CPU 워커에 제출한다. 같은 크기는 sample_id 순이다. 각 표본의 모든 budget 행은 연속으로 유지되며, 완료된 블록 순서대로 perturb ledger에 기록한다. 출력 행의 필드·계산식은 동일하다.
+- 장시간 실행은 위 명령처럼 `--prefetch 16 --order size-desc`를 권장한다. 준비된 래스터의 이전 근사치(깊이 × 약 0.4 GB × 2)로 대기열만 약 12.8 GB이며 실제 메모리는 더 클 수 있다. 메모리 여유에 맞춰 prefetch를 줄인다.
+- 기존 outdir의 재개에는 같은 명령에 `--resume`을 붙인다. 완료된 sample_id 블록을 순서와 관계없이 건너뛰고 마지막 불완전 블록을 잘라 다시 계산한다. `--limit-samples`를 함께 쓰면 선택된 정렬 순서에서 앞의 N개를 고른다. `psa_xai_stats.py`는 완전한 연속 표본 블록의 순서에 의존하지 않는다.
+- 사용자 적용: C9x-2h 반복 픽셀 매핑 수정과 20 passed, era Grad-CAM 3개 완료, main seed42 perturb 13,483건 완료 후 재개 중. Grad-CAM era 구조 ledger의 main split 검사 생략은 d236d1f, pixel_maps 캐시 제거는 a9912d5. 남은 3,924건 5.87 GB, 앞의 13,483건 6.27 GB, 5 MB 초과 146건, GPU 대기 94%는 사용자 실측이다. 이 수정의 성능은 아직 측정하지 않았다.

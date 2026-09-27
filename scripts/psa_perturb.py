@@ -397,6 +397,18 @@ def manifest_records(path: Path, wanted: set[str]) -> dict[str, dict]:
     return found
 
 
+def ordered_sample_blocks(ledger: list[dict], order: str) -> list[tuple[str, list[dict]]]:
+    """Keep each Grad-CAM sample together while choosing CPU submission order."""
+    grouped = [(sid, list(entries)) for sid, entries in groupby(ledger, key=lambda row: row["sample_id"])]
+    if len({sid for sid, _ in grouped}) != len(grouped):
+        raise ValueError("Grad-CAM ledger sample IDs must be contiguous")
+    if order == "sample_id":
+        return sorted(grouped, key=lambda block: block[0])
+    if order == "size-desc":
+        return sorted(grouped, key=lambda block: (-int(block[1][0]["file_size"]), block[0]))
+    raise ValueError(f"unknown sample order: {order}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--checkpoint", type=Path, required=True)
@@ -412,6 +424,7 @@ def main() -> int:
     ap.add_argument("--device", default="auto")
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 1) - 4))
     ap.add_argument("--prefetch", type=int, default=8)
+    ap.add_argument("--order", choices=("sample_id", "size-desc"), default="sample_id")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit-samples", type=int)
     args = ap.parse_args()
@@ -465,9 +478,7 @@ def main() -> int:
     args.outdir.mkdir(parents=True, exist_ok=args.resume)
     output = args.outdir / "perturb_ledger.jsonl"
     malicious = max(protocol["eligibility"]["labels"])
-    grouped = [(sid, list(entries)) for sid, entries in groupby(ledger, key=lambda row: row["sample_id"])]
-    if len({sid for sid, _ in grouped}) != len(grouped):
-        raise ValueError("Grad-CAM ledger sample IDs must be contiguous")
+    grouped = ordered_sample_blocks(ledger, args.order)
     if args.limit_samples is not None:
         grouped = grouped[:args.limit_samples]
     expected_rows = {sid: len(entries) * len(fills) * sum(repeats if c.endswith("_20_repeats") else 1 for c in controls)
