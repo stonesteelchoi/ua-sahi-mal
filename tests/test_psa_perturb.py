@@ -1,6 +1,7 @@
 """Synthetic PE checks; no held-out payload is opened."""
 import hashlib
 import json
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import pytest
@@ -11,7 +12,7 @@ from scripts.psa_perturb import (compress_offsets, control_offsets, fill_values,
                                  full_fill, replacement_sums, paired_rasters,
                                  control_offsets_sha256, verify_control_offsets,
                                  completed_samples, ordered_sample_blocks, raster_delta,
-                                 selected_pixel_map)
+                                 selected_pixel_map, raster_slots)
 from ua_sahi_mal.kisa_xai.representation import encode_interval_binned, raster_sha256
 from ua_sahi_mal.peatlas.pebuild import SectionSpec, build_pe
 
@@ -20,12 +21,7 @@ def synthetic():
     return build_pe(sections=[SectionSpec(".text", 0x1000, 0x200, 0x200, 0x200)], overlay=b"SYNTHETIC")
 
 
-@pytest.mark.parametrize("status, expected_rows, expected_passes, expected_ineligible", [
-    ("agreement", 18, 72, 0),
-    ("accepted_unknown_fallback", 18, 48, 6),
-])
-def test_prepare_sample_returns_contiguous_rasters_for_synthetic_pe(
-        tmp_path, status, expected_rows, expected_passes, expected_ineligible):
+def synthetic_task(tmp_path, status):
     data = synthetic()
     sample_path = tmp_path / "synthetic.pe"
     sample_path.write_bytes(data)
@@ -44,11 +40,29 @@ def test_prepare_sample_returns_contiguous_rasters_for_synthetic_pe(
             ["zero", "local_median", "structure_conditioned_resampling"],
             ["uniform_random_20_repeats", "front_position", "entropy",
              "structure_matched_random_20_repeats"], 2, (5, 5), 42, 1)
-    rows, rasters, targets, ineligible = prepare_sample(task)
+    return task, data, structure
+
+
+@pytest.mark.parametrize("status, expected_rows, expected_passes, expected_ineligible", [
+    ("agreement", 18, 72, 0),
+    ("accepted_unknown_fallback", 18, 48, 6),
+])
+def test_prepare_sample_writes_slot_for_synthetic_pe(
+        tmp_path, status, expected_rows, expected_passes, expected_ineligible):
+    task, data, structure = synthetic_task(tmp_path, status)
+    side = task[6]
+    with raster_slots(1, side) as slots:
+        rows, targets, ineligible, used_passes = prepare_sample((*task, slots[0].name, 0))
+        rasters = np.ndarray((used_passes, side, side), dtype=np.float32, buffer=slots[0].buf)
+        assert rasters.shape == (expected_passes, side, side)
+        assert rasters.dtype == np.float32
+        assert rasters.flags.c_contiguous
+        assert rasters[0].tobytes() == perturbed_raster(
+            data, np.array([0, 1]), "deletion", "zero", np.random.default_rng(0),
+            region_ids(structure["structure"]["spans"], len(data)) if status == "agreement" else None,
+            (5, 5), side).tobytes()
+        del rasters
     assert len(rows) == expected_rows
-    assert rasters.shape == (expected_passes, side, side)
-    assert rasters.dtype == np.float32
-    assert rasters.flags.c_contiguous
     assert len(targets) == expected_passes
     assert ineligible == expected_ineligible
     assert sum(not row["eligible"] for row in rows) == expected_ineligible
@@ -59,6 +73,29 @@ def test_prepare_sample_returns_contiguous_rasters_for_synthetic_pe(
             assert verify_control_offsets(row, data, np.array([0, 1]),
                                           region_ids(structure["structure"]["spans"], len(data))
                                           if status == "agreement" else None)
+
+
+def test_worker_slot_roundtrip_is_bit_identical_for_synthetic_pe(tmp_path):
+    task, data, structure = synthetic_task(tmp_path, "agreement")
+    side = task[6]
+    with raster_slots(2, side) as slots:
+        with ProcessPoolExecutor(max_workers=1, max_tasks_per_child=32) as pool:
+            rows, targets, ineligible, used_passes = pool.submit(
+                prepare_sample, (*task, slots[0].name, 0)).result()
+        direct_rows, direct_targets, direct_ineligible, direct_passes = prepare_sample(
+            (*task, slots[1].name, 1))
+        actual = np.ndarray((used_passes, side, side), dtype=np.float32, buffer=slots[0].buf)
+        direct = np.ndarray((direct_passes, side, side), dtype=np.float32, buffer=slots[1].buf)
+        expected = perturbed_raster(data, np.array([0, 1]), "deletion", "zero",
+                                    np.random.default_rng(0),
+                                    region_ids(structure["structure"]["spans"], len(data)), (5, 5), side)
+        assert actual[0].tobytes() == expected.tobytes()
+        assert actual.tobytes() == direct.tobytes()
+        assert (rows, targets, ineligible, used_passes) == (
+            direct_rows, direct_targets, direct_ineligible, direct_passes)
+        assert len(rows) == 18 and len(targets) == used_passes == 72
+        assert ineligible == 0
+        del actual, direct
 
 
 def test_matched_budget_and_structure_on_synthetic_pe():

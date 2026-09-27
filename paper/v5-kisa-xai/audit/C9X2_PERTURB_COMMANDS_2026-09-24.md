@@ -98,6 +98,12 @@ $elapsed = Measure-Command {
 - 기존 outdir의 재개에는 같은 명령에 `--resume`을 붙인다. 완료된 sample_id 블록을 순서와 관계없이 건너뛰고 마지막 불완전 블록을 잘라 다시 계산한다. `--limit-samples`를 함께 쓰면 선택된 정렬 순서에서 앞의 N개를 고른다. `psa_xai_stats.py`는 완전한 연속 표본 블록의 순서에 의존하지 않는다.
 - 사용자 적용: C9x-2h 반복 픽셀 매핑 수정과 20 passed, era Grad-CAM 3개 완료, main seed42 perturb 13,483건 완료 후 재개 중. Grad-CAM era 구조 ledger의 main split 검사 생략은 d236d1f, pixel_maps 캐시 제거는 a9912d5. 남은 3,924건 5.87 GB, 앞의 13,483건 6.27 GB, 5 MB 초과 146건, GPU 대기 94%는 사용자 실측이다. 이 수정의 성능은 아직 측정하지 않았다.
 
+## C9x-2j 공유 메모리 IPC (실행하지 않음)
+
+- 사용자 실측: `--prefetch 24`에서 메인 `MemoryError`, `--prefetch 16` 재개 직후 워커 `result_queue.put`에서 WinError 1450. 위 C9x-2f/2i 메모리 추정과 prefetch 16 권장은 이전 pickle 전달 구조의 이력이며 현재 구현의 권장 설정이 아니다.
+- 메인은 prefetch 수만큼 `2016 × side × side × float32` 고정 슬롯을 생성·소유한다. 워커는 할당된 슬롯에 래스터를 직접 쓰고 rows·targets·ineligible·사용 pass 수만 반환한다. 메인은 해당 슬롯을 512개씩 점수화하고 ledger 출력 후 같은 슬롯에 다음 작업을 제출한다. 워커는 32개 작업마다 교체된다. 결과 정의·ledger 필드·resume·완료 순서·진행 출력은 그대로다.
+- 슬롯당 `2016 × 224 × 224 × 4 = 404,619,264`바이트(약 386 MiB); prefetch 16은 약 6.03 GiB, 24는 약 9.04 GiB의 슬롯을 메인이 고정 할당한다. 원본·캐시·GPU 입력 등은 별도다. 슬롯 수가 시스템 메모리 여유를 넘지 않도록 사용자가 설정한다. 합성 PE 슬롯 왕복·prepare_sample 테스트만 작성했으며 요청대로 실행하지 않았다.
+
 ## C9v-a 사용자 적용·실측 기록 (2026-09-27, 추가 실행·평가 없음)
 
 - C9x-2h 반복 픽셀 `selected_pixel_map` 수정은 사용자 적용 후 **20 passed**. `psa_gradcam.py`의 era split 검사 생략은 커밋 `d236d1f`, `pixel_maps` 캐시 제거는 커밋 `a9912d5`다. C9x-2i의 `--order size-desc`가 적용되었다. 위 C9x-2i 절의 13,483건은 당시 중간 상태이며 아래 완료 기록으로 대체한다.

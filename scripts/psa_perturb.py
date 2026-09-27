@@ -14,7 +14,9 @@ import os
 import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from contextlib import contextmanager
 from itertools import groupby
+from multiprocessing import shared_memory
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +27,25 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 from ua_sahi_mal.kisa_xai.representation import POLICY_MEAN_POOL, encode_interval_binned, raster_sha256  # noqa: E402
 from psa_gradcam import FROZEN, load_protocol, sha256  # noqa: E402
+
+MAX_PASSES = 2016
+
+
+@contextmanager
+def raster_slots(count: int, side: int):
+    """Keep every fixed-size raster slot owned by the main process."""
+    slots = []
+    try:
+        for _ in range(count):
+            slots.append(shared_memory.SharedMemory(
+                create=True, size=MAX_PASSES * side * side * np.dtype(np.float32).itemsize))
+        # On Windows the main process keeps these handles open throughout the pool's lifetime,
+        # so a worker closing its own handle cannot remove a segment before GPU scoring.
+        yield slots
+    finally:
+        for slot in slots:
+            slot.close()
+            slot.unlink()
 
 
 def offsets(intervals: list[list[int]], size: int) -> np.ndarray:
@@ -278,6 +299,20 @@ def score_batch(model, rasters: np.ndarray, device: str, malicious: int,
 
 
 def prepare_sample(task):
+    *sample_task, slot_name, slot_index = task
+    if slot_index < 0:
+        raise ValueError("invalid raster slot index")
+    slot = shared_memory.SharedMemory(name=slot_name)
+    prepared = np.ndarray((MAX_PASSES, sample_task[6], sample_task[6]),
+                          dtype=np.float32, buffer=slot.buf)
+    try:
+        return _prepare_sample_into_slot(sample_task, prepared)
+    finally:
+        del prepared
+        slot.close()
+
+
+def _prepare_sample_into_slot(task, prepared):
     entries, sample_path, manifest_row, index_row, structure, materialised, side, fills, controls, repeats, window, seed_base, malicious = task
     sid = entries[0]["sample_id"]
     data = sample_path.read_bytes()
@@ -296,8 +331,9 @@ def prepare_sample(task):
     raw = cache[0]
     fixed_fills = {"zero": np.zeros_like(raw), "local_median": medians}
     fixed_sums = {name: replacement_sums(values, cache) for name, values in fixed_fills.items()}
-    rows, rasters, targets = [], [], []
+    rows, targets = [], []
     ineligible = 0
+    used_passes = 0
     def pixels_for(chosen):
         # Each position set is consumed once (per budget or per control/repeat), so no cache is kept.
         return selected_pixel_map(cache, chosen)
@@ -341,11 +377,13 @@ def prepare_sample(task):
                             for mode, raster in zip(("deletion", "keep_only"),
                                                     paired_rasters(cache, chosen, replacements, side, fill_sums,
                                                                    pixel_map)):
-                                rasters.append(raster)
+                                if used_passes >= len(prepared):
+                                    raise ValueError(f"raster slot capacity exceeded: {sid}")
+                                prepared[used_passes] = raster
+                                used_passes += 1
                                 targets.append((len(rows), name, mode, original_nll))
                     rows.append(result)
-    prepared = np.ascontiguousarray(np.stack(rasters)) if rasters else np.empty((0, side, side), dtype=np.float32)
-    return rows, prepared, targets, ineligible
+    return rows, targets, ineligible, used_passes
 
 
 def completed_samples(output: Path, expected_rows: dict[str, int]) -> tuple[set[str], dict[str, int]]:
@@ -483,6 +521,8 @@ def main() -> int:
         grouped = grouped[:args.limit_samples]
     expected_rows = {sid: len(entries) * len(fills) * sum(repeats if c.endswith("_20_repeats") else 1 for c in controls)
                      for sid, entries in grouped}
+    if any(rows * 4 > MAX_PASSES for rows in expected_rows.values()):
+        raise ValueError("sample exceeds fixed raster slot capacity")
     if args.resume and output.exists():
         complete, counts = completed_samples(output, expected_rows)
     else:
@@ -498,38 +538,47 @@ def main() -> int:
     started = time.monotonic()
     initial_samples = counts["samples"]
     gpu_wait_seconds = 0.0
-    with ProcessPoolExecutor(max_workers=args.workers) as pool, output.open("a" if args.resume else "x", encoding="utf-8") as out:
+    with raster_slots(args.prefetch, side) as slots, \
+            ProcessPoolExecutor(max_workers=args.workers, max_tasks_per_child=32) as pool, \
+            output.open("a" if args.resume else "x", encoding="utf-8") as out:
         task_iter = iter(tasks())
-        pending = set()
+        pending = {}
 
-        def submit_next():
+        def submit_next(slot_index):
             task = next(task_iter, None)
             if task is not None:
-                pending.add(pool.submit(prepare_sample, task))
+                pending[pool.submit(prepare_sample, (*task, slots[slot_index].name, slot_index))] = slot_index
 
-        for _ in range(args.prefetch):
-            submit_next()
+        for slot_index in range(args.prefetch):
+            submit_next(slot_index)
         try:
             while pending:
                 wait_started = time.monotonic()
-                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                done, _ = wait(pending, return_when=FIRST_COMPLETED)
                 gpu_wait_seconds += time.monotonic() - wait_started
                 future = next(iter(done))
-                pending.update(done - {future})
-                rows, prepared, targets, ineligible = future.result()
-                submit_next()  # CPU preparation continues during this sample's GPU inference.
-                for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
-                        targets, score_batch(model, prepared, device, malicious), strict=True):
-                    if mode == "deletion":
-                        rows[row_number][f"{target_name}_deletion_delta_nll"] = value_nll - original_nll
-                    else:
-                        rows[row_number][f"{target_name}_keep_only_malicious_score"] = malicious_score
-                out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
-                out.flush()
-                counts["samples"] += 1
-                counts["rows"] += len(rows)
-                counts["forward_passes"] += len(prepared)
-                counts["structure_ineligible_rows"] += ineligible
+                slot_index = pending.pop(future)
+                rows, targets, ineligible, used_passes = future.result()
+                if used_passes != len(targets) or not 0 <= used_passes <= MAX_PASSES:
+                    raise ValueError("worker raster pass count mismatch")
+                prepared = np.ndarray((used_passes, side, side), dtype=np.float32,
+                                      buffer=slots[slot_index].buf)
+                try:
+                    for (row_number, target_name, mode, original_nll), (value_nll, malicious_score) in zip(
+                            targets, score_batch(model, prepared, device, malicious), strict=True):
+                        if mode == "deletion":
+                            rows[row_number][f"{target_name}_deletion_delta_nll"] = value_nll - original_nll
+                        else:
+                            rows[row_number][f"{target_name}_keep_only_malicious_score"] = malicious_score
+                    out.writelines(json.dumps(row, allow_nan=False, ensure_ascii=True) + "\n" for row in rows)
+                    out.flush()
+                    counts["samples"] += 1
+                    counts["rows"] += len(rows)
+                    counts["forward_passes"] += used_passes
+                    counts["structure_ineligible_rows"] += ineligible
+                finally:
+                    del prepared
+                submit_next(slot_index)  # Reuse only after GPU scoring and ledger output finish.
                 elapsed = time.monotonic() - started
                 processed = counts["samples"] - initial_samples
                 per_sample = elapsed / processed
