@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-2f(prefetch·GPU 대기); C9x-2g(완료 순서·pixel 캐시 코드); C9x-2h(반복 픽셀 수정); C9x-2i(크기 우선 제출); C9x-3(통계·합성 검증)
-다음: C9v — 합성 회귀 / 구조 audit·XAI 합성 테스트 확인
-남은 청크: C9v 합성 회귀; C10 평가·문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-2f(prefetch·GPU 대기); C9x-2g(완료 순서·pixel 캐시 코드); C9x-2h(반복 픽셀 수정); C9x-2i(크기 우선 제출); C9x-3(통계·합성 검증); C9v-a(사용자 실측·provenance 기록)
+다음: C9v-b — 합성 회귀 / 구조 audit·XAI 합성 테스트 확인
+남은 청크: C9v-b 합성 회귀; C10 평가·문서
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -55,6 +55,6 @@
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인; C9 구조 audit 합성 회귀는 C9v에서 확인. Era 학습 판정 완료. C8r 가중치 동일성은 사용자 보고이며 독립 재실행 없음. 동결 후 test 1회 평가 규칙 유지.
-- 사용자 적용 C9x-2h: 반복 픽셀 `selected_pixel_map` 수정, 20 passed. era Grad-CAM 3개 완료; `psa_gradcam.py` era split 검사 생략 커밋 d236d1f; pixel_maps 캐시 제거 커밋 a9912d5. main seed42 perturb 13,483건 완료 후 재개 중. 남은 3,924건 5.87 GB(앞 13,483건 6.27 GB), 5 MB 초과 146건, GPU 대기 94%는 사용자 실측. C9x-2i: `--order sample_id` 기본·`size-desc` 크기 내림차순, `--prefetch 16` 명령 권장; 연속 표본 블록·resume·통계 호환 합성 테스트 17 passed, 1 skipped(Anaconda; 기존 `.pytest_tmp` 권한 오류 후 별도 basetemp 사용). 실제 perturb 실행 없음. 기존 출력 ledger의 옛 intervals 형식과 새 형식을 섞지 않는다. entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세 구현 가정; 재개는 같은 입력·checkpoint·outdir 전제.
-- 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다.
-- PROGRESS.md 한글이 C6 세션에서 `?`로 손상되어 2026-09-24 복원했다. 이 파일을 고친 뒤에는 한글이 정상인지 확인한다.
+- C9v-a 사용자 적용: C9x-2h 반복 픽셀 `selected_pixel_map` 수정 20 passed; `psa_gradcam.py` era split 검사 생략 d236d1f, `pixel_maps` 캐시 제거 a9912d5, C9x-2i `size-desc` 적용. D: summary 기준 Grad-CAM 6개 완료: main seed42/43/44 각 17,407건(빈 양성 CAM 12/2/12), era seed42/43/44 각 5,332건(20/8/2). 여섯 `ledger_sha256`은 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md` 표에 전부 기록. main seed42 perturb D: summary `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`(42×240), `ledger_sha256=b9e61de6b381427783c0e641d50fd847c5b24d25f5e9745392b38718dc69e6fa`. 사용자 실행 3구간(초기 prefetch 8, resume 8, resume 16), D: 로그 `main_seed42_perturb.log`, `main_seed42_perturb_resume.log`, `main_seed42_perturb_resume2.log` 존재 확인. 나머지 5개 run은 사용자 보고상 `size-desc`·prefetch 16으로 실행 중. 이 세션에서 실행·평가·ledger 재해시 없음.
+- C9x-2i: `--order sample_id` 기본·`size-desc` 크기 내림차순; 연속 표본 블록·resume·통계 호환 합성 테스트 17 passed, 1 skipped(Anaconda; 별도 basetemp). 기존 출력 ledger의 옛 intervals 형식과 새 형식을 섞지 않는다. entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세 구현 가정; 재개는 같은 입력·checkpoint·outdir 전제.
+- 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다. PROGRESS.md 한글은 C6 손상 후 2026-09-24 복원했으므로 수정 뒤 UTF-8 한글을 확인한다.

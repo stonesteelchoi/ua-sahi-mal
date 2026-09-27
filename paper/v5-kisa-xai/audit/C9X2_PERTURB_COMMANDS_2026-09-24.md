@@ -97,3 +97,21 @@ $elapsed = Measure-Command {
 - 장시간 실행은 위 명령처럼 `--prefetch 16 --order size-desc`를 권장한다. 준비된 래스터의 이전 근사치(깊이 × 약 0.4 GB × 2)로 대기열만 약 12.8 GB이며 실제 메모리는 더 클 수 있다. 메모리 여유에 맞춰 prefetch를 줄인다.
 - 기존 outdir의 재개에는 같은 명령에 `--resume`을 붙인다. 완료된 sample_id 블록을 순서와 관계없이 건너뛰고 마지막 불완전 블록을 잘라 다시 계산한다. `--limit-samples`를 함께 쓰면 선택된 정렬 순서에서 앞의 N개를 고른다. `psa_xai_stats.py`는 완전한 연속 표본 블록의 순서에 의존하지 않는다.
 - 사용자 적용: C9x-2h 반복 픽셀 매핑 수정과 20 passed, era Grad-CAM 3개 완료, main seed42 perturb 13,483건 완료 후 재개 중. Grad-CAM era 구조 ledger의 main split 검사 생략은 d236d1f, pixel_maps 캐시 제거는 a9912d5. 남은 3,924건 5.87 GB, 앞의 13,483건 6.27 GB, 5 MB 초과 146건, GPU 대기 94%는 사용자 실측이다. 이 수정의 성능은 아직 측정하지 않았다.
+
+## C9v-a 사용자 적용·실측 기록 (2026-09-27, 추가 실행·평가 없음)
+
+- C9x-2h 반복 픽셀 `selected_pixel_map` 수정은 사용자 적용 후 **20 passed**. `psa_gradcam.py`의 era split 검사 생략은 커밋 `d236d1f`, `pixel_maps` 캐시 제거는 커밋 `a9912d5`다. C9x-2i의 `--order size-desc`가 적용되었다. 위 C9x-2i 절의 13,483건은 당시 중간 상태이며 아래 완료 기록으로 대체한다.
+- D:의 각 `runs/xai_v1_1/{population}_seed{seed}_gradcam/gradcam_summary.json`에서 `counts.samples`, `counts.empty_positive_cam_samples`, `ledger_sha256`을 읽었다. 표의 빈 CAM 수는 표본 수이며, ledger 파일을 재해시하거나 재실행한 결과는 아니다.
+
+| Grad-CAM run | samples | empty_positive_cam_samples | ledger_sha256 |
+|---|---:|---:|---|
+| main seed42 | 17,407 | 12 | `0ad94ba6a89e9afa8cd769fc0af7396e83b5d529a5325c803bb354f95ab22da8` |
+| main seed43 | 17,407 | 2 | `6f4c403c86a74e091622385736e2ffd99733f6e35709495f8cdcb17f2d55bff2` |
+| main seed44 | 17,407 | 12 | `a39649d5abe90ad37e05fde1b2b19ba29f2efb75d4f1de47ea75144430fa2f29` |
+| era seed42 | 5,332 | 20 | `81fb930fd1bedf33e2ea69fc67c8a9bf998919ac063b136e035efd16027e7fb6` |
+| era seed43 | 5,332 | 8 | `b6eb36f826780a09995a0754a2e4fc3750cdcc20ef0649aa8fa692341cfa32f7` |
+| era seed44 | 5,332 | 2 | `2a02b653bb8edaa932958a34f9fcdbf60c2834ab3aaca22f4e275a62c2078063` |
+
+- D: `runs/xai_v1_1/main_seed42_perturb/perturb_summary.json` 확인: `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`(구조 fallback 42건 × 240행), `ledger_sha256=b9e61de6b381427783c0e641d50fd847c5b24d25f5e9745392b38718dc69e6fa`. 요약 JSON의 기록값이며 perturb ledger 재해시·평가는 하지 않았다.
+- main seed42 perturb는 사용자 실행 중 세 구간으로 완료되었다: 초기 `--prefetch 8`, 첫 재개 `--prefetch 8`, 둘째 재개 `--prefetch 16`. provenance 로그는 각각 D: `runs/xai_v1_1/main_seed42_perturb.log`, `main_seed42_perturb_resume.log`, `main_seed42_perturb_resume2.log`다. prefetch 설정·구간 대응은 사용자 보고, 세 로그 파일의 존재는 확인했다.
+- 나머지 5개 perturb run(main seed43·44, era seed42·43·44)은 사용자가 `--order size-desc --prefetch 16`으로 실행 중이라고 보고했다. 완료·평가로 기록하지 않는다.
