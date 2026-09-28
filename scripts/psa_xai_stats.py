@@ -145,7 +145,7 @@ def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
             repeats_expected = expected_controls[control]
             if len(rows) != repeats_expected or {int(r["repeat"]) for r in rows} != set(range(repeats_expected)):
                 raise ValueError(f"incomplete or duplicate repeats {sid} {budget} {fill} {control}")
-            eligible = [r for r in rows if r["eligible"] is True]
+            eligible = sorted((r for r in rows if r["eligible"] is True), key=lambda r: int(r["repeat"]))
             if eligible and len(eligible) != len(rows):
                 raise ValueError(f"mixed eligibility {sid} {control}")
             if not eligible:
@@ -159,10 +159,10 @@ def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
                 ctrl = np.asarray([float(r[f"control_{suffix}"]) for r in eligible])
                 if not np.isfinite(grad).all() or not np.isfinite(ctrl).all():
                     raise ValueError("nonfinite perturbation metric")
-                # The same CAM perturbation is computed for each repeat.
-                if not np.allclose(grad, grad[0], rtol=1e-6, atol=1e-6):
-                    raise ValueError(f"inconsistent Grad-CAM repeat scores {sid}")
-                diff = float(grad[0] - ctrl.mean())
+                # Paired per repeat: gradcam and control share the fill random state
+                # within a repeat, so the gradcam score itself varies across repeats
+                # for random fills. The frozen paired difference is the repeat-wise mean.
+                diff = float(np.mean(grad - ctrl))
                 stat = summaries[(budget, fill, control, h)]
                 stat[0] += diff
                 stat[1] += float(ctrl.mean())
