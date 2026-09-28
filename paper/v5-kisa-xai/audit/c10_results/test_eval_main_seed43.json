@@ -1,0 +1,40 @@
+{
+  "split": "test",
+  "split_counts": {
+    "n": 30146,
+    "benign": 12739,
+    "malicious": 17407
+  },
+  "input_sha256": {
+    "raster_index": "94d02b247fc761d64fdea5aeac9afe2da6dc56bdcc998cc84d4a5c7d3f76f785",
+    "rasters": "bfd5e69305e6bcc0e9d53c1ed7d1434b82327cd79773a82ddd2b0538477f112c",
+    "raster_duplicate_groups": "ce91dec954cbcdbe441b29759b52b163be1d5c3009418c1c6a7131574a91686d"
+  },
+  "protocol_sha256": "c0c7b79775b3aa36d3dc59f5a8544e5248e9517ca218319cb8ee83d88c70e709",
+  "metadata_baseline_auroc": 0.95,
+  "results": [
+    {
+      "macro_f1": 0.9442727800691383,
+      "auroc": 0.987379158482011,
+      "balanced_acc": 0.9451964259411074,
+      "recall_mal": 0.9471476992014707,
+      "recall_ben": 0.9432451526807442,
+      "n": 30146,
+      "confusion_matrix": [
+        [
+          12016,
+          723
+        ],
+        [
+          920,
+          16487
+        ]
+      ],
+      "tag": "seed43_imagenet_bs512",
+      "seed": 43,
+      "init": "imagenet",
+      "checkpoint_sha256": "4156f2b8bf8c7995c8d62e4132102b28430d9fc69de49b293ec561af68bcaf56",
+      "train_best_epoch": 5
+    }
+  ]
+}

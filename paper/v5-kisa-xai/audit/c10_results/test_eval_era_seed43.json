@@ -1,0 +1,41 @@
+{
+  "split": "test",
+  "split_counts": {
+    "n": 10652,
+    "benign": 5320,
+    "malicious": 5332
+  },
+  "input_sha256": {
+    "raster_index": "94d02b247fc761d64fdea5aeac9afe2da6dc56bdcc998cc84d4a5c7d3f76f785",
+    "rasters": "bfd5e69305e6bcc0e9d53c1ed7d1434b82327cd79773a82ddd2b0538477f112c",
+    "raster_duplicate_groups": "ce91dec954cbcdbe441b29759b52b163be1d5c3009418c1c6a7131574a91686d",
+    "split_manifest": "fd0a99000b05785ecf3fc01108529b37e08bb31f162b6defc3f3621459d2d91a"
+  },
+  "protocol_sha256": "c0c7b79775b3aa36d3dc59f5a8544e5248e9517ca218319cb8ee83d88c70e709",
+  "metadata_baseline_auroc": 0.95,
+  "results": [
+    {
+      "macro_f1": 0.9234841223018349,
+      "auroc": 0.9646306665952202,
+      "balanced_acc": 0.923481152242948,
+      "recall_mal": 0.9300450112528132,
+      "recall_ben": 0.9169172932330827,
+      "n": 10652,
+      "confusion_matrix": [
+        [
+          4878,
+          442
+        ],
+        [
+          373,
+          4959
+        ]
+      ],
+      "tag": "seed43_imagenet_bs512",
+      "seed": 43,
+      "init": "imagenet",
+      "checkpoint_sha256": "f031295be823c37158411180f63c64a4eee5189e6077cc744aa69d408b6ee7bf",
+      "train_best_epoch": 3
+    }
+  ]
+}
