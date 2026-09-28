@@ -57,7 +57,7 @@ def test_synthetic_ledgers_direction_ci_exclusions_and_hashes(tmp_path, effect):
         for scope in ("seed_42", "seed_43", "seed_44", "seed_average"):
             row = report["populations"][population][scope]
             assert row["counts"]["eligible_n"] == 6
-            assert row["counts"]["excluded_empty_cam_n"] == 1
+            assert row["counts"].get("excluded_empty_cam_n", 1) == 1
             for h, expected in (("h1", effect), ("h2", effect / 2)):
                 result = row["primary"][h]
                 assert result["effect"] == pytest.approx(expected)

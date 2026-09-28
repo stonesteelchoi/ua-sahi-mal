@@ -217,7 +217,7 @@ def render(report: dict) -> str:
                 continue
             for h, r in data["primary"].items():
                 if "effect" in r:
-                    lines.append(f"| {scope} | {h.upper()} | {r['effect']:.6g} | [{r['ci_95_lower']:.6g}, {r['ci_95_upper']:.6g}] | {r['holm_adjusted_p']:.6g} | {r['eligible_n']} | {r['group_n']} | {data['counts']['excluded_empty_cam_n']} |")
+                    lines.append(f"| {scope} | {h.upper()} | {r['effect']:.6g} | [{r['ci_95_lower']:.6g}, {r['ci_95_upper']:.6g}] | {r['holm_adjusted_p']:.6g} | {r['eligible_n']} | {r['group_n']} | {data['counts'].get('excluded_empty_cam_n', data['counts'].get('excluded_empty_cam_by_seed'))} |")
         lines += ["", "### File bootstrap sensitivity", "", "| Scope | H | Effect | 95% CI | p |",
                   "|---|---|---:|---:|---:|"]
         for scope, data in pop.items():
@@ -273,8 +273,10 @@ def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZE
     for population, seed_data in by_population.items():
         result = {}
         file_sets = [set(seed_data[seed]["files"]) for seed in sorted(seeds)]
-        if len(set(map(frozenset, file_sets))) != 1:
-            raise ValueError(f"seed sample coverage differs for {population}")
+        # Empty-positive-CAM files differ by seed (retain_and_flag), so the seed average
+        # uses the intersection and reports both sizes.
+        coverage = {"seed_union_n": len(set.union(*file_sets)),
+                    "seed_intersection_n": len(set.intersection(*file_sets))}
         for seed in sorted(seeds):
             data = seed_data[seed]
             files = data["files"]
@@ -299,7 +301,8 @@ def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZE
                                  r["predicted_label"] == max(p["eligibility"]["labels"]) for r in rows) else -1,
                              **{h: float(np.mean([r[h] for r in rows])) for h in METRICS}}
         result["seed_average"] = {
-            "counts": {"eligible_n": len(averaged), "excluded_empty_cam_n": seed_data[min(seeds)]["counts"]["excluded_empty_cam_n"]},
+            "counts": {"eligible_n": len(averaged), **coverage,
+                       "excluded_empty_cam_by_seed": {f"seed_{seed}": seed_data[seed]["counts"]["excluded_empty_cam_n"] for seed in sorted(seeds)}},
             "primary": inference(averaged, 2000, BOOTSTRAP_SEED + 900),
             "correctly_detected_malicious": inference(
                 {sid: r for sid, r in averaged.items() if r["predicted_label"] == max(p["eligibility"]["labels"])},
