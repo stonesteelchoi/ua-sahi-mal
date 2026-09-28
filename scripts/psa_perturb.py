@@ -10,7 +10,6 @@ import csv
 import hashlib
 import json
 import math
-import os
 import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
@@ -460,12 +459,13 @@ def main() -> int:
     ap.add_argument("--rasters-dir", type=Path, required=True)
     ap.add_argument("--outdir", type=Path, required=True)
     ap.add_argument("--device", default="auto")
-    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 1) - 4))
+    ap.add_argument("--workers", type=int)
     ap.add_argument("--prefetch", type=int, default=8)
     ap.add_argument("--order", choices=("sample_id", "size-desc"), default="sample_id")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit-samples", type=int)
     args = ap.parse_args()
+    args.workers = args.prefetch if args.workers is None else args.workers
     protocol = load_protocol(FROZEN)
     xai = protocol["xai"]
     repeats = protocol["statistics"]["random_control_repeats_per_file"]

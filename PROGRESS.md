@@ -1,7 +1,7 @@
 목표: PSA-XAI P2 파서 정책을 비조작 원칙으로 확정·검증하고 동결 후 학습·XAI 실험을 재현 가능하게 수행한다.
-완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-2f(prefetch·GPU 대기); C9x-2g(완료 순서·pixel 캐시 코드); C9x-2h(반복 픽셀 수정); C9x-2i(크기 우선 제출); C9x-2j(공유 메모리 IPC); C9x-3(통계·합성 검증); C9v-a(사용자 실측·provenance 기록)
-다음: C9v-b — 합성 회귀 / 구조 audit·XAI 합성 테스트 확인
-남은 청크: C9v-b 합성 회귀; C10 평가·문서
+완료: C0~C8r(세부 아래), C9p, C9a, C9b-b, C8f(전체 프로토콜 동결); C9 도구·명령 준비; C9c-a(test census 증거 복사); C9c-b1(main fallback 판정); C9c-b2(era·freeze 판정); C9x-1(Grad-CAM); C9x-2(대조군·perturb); C9x-2b(성능 코드·명령); C9x-2c(2차 성능 코드·테스트·명령); C9x-2d(Windows 전달 수정); C9x-2e(3차 성능·ledger 수정); C9x-2f(prefetch·GPU 대기); C9x-2g(완료 순서·pixel 캐시 코드); C9x-2h(반복 픽셀 수정); C9x-2i(크기 우선 제출); C9x-2j(공유 메모리 IPC); C9x-3(통계·합성 검증); C9v-a(사용자 실측·provenance 기록); C9v-b(seed43 완료·IPC provenance·workers 기본값); C10-prep(eval 보강·명령·판정 틀)
+다음: C9v-c — 합성 회귀 / 구조 audit·XAI 합성 테스트 확인
+남은 청크: C9v-c 합성 회귀; C10 사용자 실행·평가·판정
 확정 규칙·결정(형식·기준 포함):
 - 세션당 청크 1개만 수행한다. C9b-a는 사용자 지정으로 수정·생성 파일 8개까지 허용했다.
 - held-out test payload는 전체 프로토콜 동결 전 접근하지 않는다. 원본 PE를 실행·가져오기·동적 로드·수정하지 않는다.
@@ -17,7 +17,6 @@
 - C8 gate 기준은 09-15 초안 커밋 c1262f09에 등록, 최종 main 모델은 09-24 provenance 커밋 62a15542f14b94b16271dbac8defbe99ee57b3ca 재학습. 기존 run에 소급하지 않는다. Validation은 초기화·checkpoint 선택에 사용; 성능 보고는 동결 후 held-out test 1회.
 - C8b-c 결정: epoch 상한 30·patience 5는 run 당시 인자 기록이 없어 종료 양상과 run 이후 코드 기본값 경유의 **간접 확증**으로 판정하고 C8b를 종결한다. 전체 프로토콜 동결 승인은 하지 않는다.
 - C8p 결정: YAML에 동일 sample·달성 budget·fill random state 쌍체 규칙과 effect·95% CI·Holm 조정 p·eligible n 보고 필드를 명시했다. P2 교차검사·fallback blocker는 `audit/P2_CENSUS_ADJUDICATION_2026-09-24.md` 근거로 해소했다. 전체 프로토콜 동결은 미승인.
-
 가정:
 - C7~C10은 동결된 P2 매핑 정책 위에서 진행한다. 매핑 정책을 바꾸면 새 버전·fixture·census가 필요하다.
 - 저장소 증거와 합성 fixture로 판정하며 외부 조사 없이 진행한다.
@@ -55,6 +54,7 @@
 미해결·주의:
 - V1.1 동결 완료; 정책·가설·통계 단위 변경 금지, 추가 분석은 V1.2 exploratory로만. 태그 `psa-xai-v1.1-frozen`은 동결 파일 커밋 뒤 사용자가 실행.
 - C9b-a 합성 CLI 회귀 1 passed 사용자 확인; C9 구조 audit 합성 회귀는 C9v에서 확인. Era 학습 판정 완료. C8r 가중치 동일성은 사용자 보고이며 독립 재실행 없음. 동결 후 test 1회 평가 규칙 유지.
-- C9v-a 사용자 적용: C9x-2h 반복 픽셀 `selected_pixel_map` 수정 20 passed; `psa_gradcam.py` era split 검사 생략 d236d1f, `pixel_maps` 캐시 제거 a9912d5, C9x-2i `size-desc` 적용. D: summary 기준 Grad-CAM 6개 완료: main seed42/43/44 각 17,407건(빈 양성 CAM 12/2/12), era seed42/43/44 각 5,332건(20/8/2). 여섯 `ledger_sha256`은 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md` 표에 전부 기록. main seed42 perturb D: summary `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`(42×240), `ledger_sha256=b9e61de6b381427783c0e641d50fd847c5b24d25f5e9745392b38718dc69e6fa`. 사용자 실행 3구간(초기 prefetch 8, resume 8, resume 16), D: 로그 `main_seed42_perturb.log`, `main_seed42_perturb_resume.log`, `main_seed42_perturb_resume2.log` 존재 확인. 나머지 5개 run은 사용자 보고상 `size-desc`·prefetch 16으로 실행 중. 이 세션에서 실행·평가·ledger 재해시 없음.
+- C9v-a 사용자 적용: C9x-2h 반복 픽셀 `selected_pixel_map` 수정 20 passed; `psa_gradcam.py` era split 검사 생략 d236d1f, `pixel_maps` 캐시 제거 a9912d5, C9x-2i `size-desc` 적용. D: summary 기준 Grad-CAM 6개 완료: main seed42/43/44 각 17,407건(빈 양성 CAM 12/2/12), era seed42/43/44 각 5,332건(20/8/2). 여섯 `ledger_sha256`은 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md` 표에 전부 기록. main seed42 perturb D: summary `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`(42×240), `ledger_sha256=b9e61de6b381427783c0e641d50fd847c5b24d25f5e9745392b38718dc69e6fa`. 사용자 실행 3구간(초기 prefetch 8, resume 8, resume 16), D: 로그 `main_seed42_perturb.log`, `main_seed42_perturb_resume.log`, `main_seed42_perturb_resume2.log` 존재 확인. 이후 상태는 C9v-b 참조.
+- C9v-b: 사용자 `.venv` C9x-2j 19 passed·3건 슬롯 smoke 6048 pass 후 커밋 보고. main seed43 D: summary `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`, `ledger_sha256=92a3791e7733b8d9ad3fee107da57563c11b59b424df90224890524c437ab724` 직접 읽음(ledger 재해시 없음). 사용자 보고상 size-desc·prefetch 16 옛 pickle IPC 4328건 → 선택 모드 정지·재부팅 → prefetch 12 resume 완료; 로그 `main_seed43_perturb_*.log` 여러 개. seed44는 슬롯 IPC prefetch 12·workers 28 약 1284건에서 커밋 67/69 GB, 워커의 큰 파일 배열 예약 유지가 원인; prefetch 16·workers 16 resume 진행 중. `--workers` 생략 시 prefetch와 같도록 코드 변경, 두 값을 같게 권장. main42·43은 슬롯 이전 IPC, main42 ledger는 intervals 없는 C9x-2e 이후 형식; main44·era는 슬롯 IPC. 상세 provenance는 C9X2 명령 문서. 실행·평가 없음, 코드 diff check 통과, 테스트 재실행 없음.
 - C9x-2i: `--order sample_id` 기본·`size-desc` 크기 내림차순; 연속 표본 블록·resume·통계 호환 합성 테스트 17 passed, 1 skipped(Anaconda; 별도 basetemp). 기존 출력 ledger의 옛 intervals 형식과 새 형식을 섞지 않는다. entropy 256바이트 창·median 원본 바이트 격자 좌표는 YAML 미상세 구현 가정; 재개는 같은 입력·checkpoint·outdir 전제. C9x-2j: 사용자 prefetch 24 메인 MemoryError·16 워커 WinError 1450 실측에 따라 `psa_perturb.py`가 메인 소유 2016×side² float32 슬롯을 prefetch 수만큼 할당하고 워커가 직접 쓴다. 메인은 512개씩 점수화·ledger 출력 후 슬롯 재사용; `max_tasks_per_child=32`. rows·targets·ineligible·사용 pass 수만 IPC 반환. 합성 PE 슬롯 왕복·prepare_sample 테스트 갱신, 실행 없음; `git diff --check` 통과. 슬롯당 side 224에서 약 386 MiB, prefetch 16 약 6.03 GiB. 상세 `audit/C9X2_PERTURB_COMMANDS_2026-09-24.md`.
-- 기존 사용자 수정(`TRAINING_HANDOFF_KO.md`, `PSA_XAI_V1_0_DRAFT.yaml`)과 미추적 patch·bundle을 보존한다. PROGRESS.md 한글은 C6 손상 후 2026-09-24 복원했으므로 수정 뒤 UTF-8 한글을 확인한다.
+- C10-prep: `psa_train.py eval`에 체크포인트 기대 SHA-256 검증, 혼동행렬, 입력·동결 protocol SHA-256 JSON, test 출력 덮어쓰기 방지 추가. 학습 기본 평가 동작 유지. 명령 `audit/C10_COMMANDS.md`, 판정 틀 `audit/C10_ADJUDICATION_TEMPLATE.md`; 실제 test·ledger 평가 없음. NumPy 대역 합성 pytest 1 passed, py_compile·diff check 통과. 로컬 `.venv`는 연결 Python 경로 오류, Anaconda에는 torch 없음. 사용자 `.venv`에서 실제 실행 필요. 기존 사용자 수정과 미추적 patch·bundle은 보존한다. PROGRESS.md 한글은 수정 뒤 UTF-8 확인.

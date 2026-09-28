@@ -121,3 +121,12 @@ $elapsed = Measure-Command {
 - D: `runs/xai_v1_1/main_seed42_perturb/perturb_summary.json` 확인: `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`(구조 fallback 42건 × 240행), `ledger_sha256=b9e61de6b381427783c0e641d50fd847c5b24d25f5e9745392b38718dc69e6fa`. 요약 JSON의 기록값이며 perturb ledger 재해시·평가는 하지 않았다.
 - main seed42 perturb는 사용자 실행 중 세 구간으로 완료되었다: 초기 `--prefetch 8`, 첫 재개 `--prefetch 8`, 둘째 재개 `--prefetch 16`. provenance 로그는 각각 D: `runs/xai_v1_1/main_seed42_perturb.log`, `main_seed42_perturb_resume.log`, `main_seed42_perturb_resume2.log`다. prefetch 설정·구간 대응은 사용자 보고, 세 로그 파일의 존재는 확인했다.
 - 나머지 5개 perturb run(main seed43·44, era seed42·43·44)은 사용자가 `--order size-desc --prefetch 16`으로 실행 중이라고 보고했다. 완료·평가로 기록하지 않는다.
+
+## C9v-b 사용자 실측·IPC provenance (2026-09-28, 추가 실행·평가 없음)
+
+- C9x-2j 슬롯 IPC는 사용자 `.venv`에서 **19 passed**, 3건 슬롯 smoke **6,048 pass**로 검증한 뒤 커밋되었다(사용자 보고). 이 세션에서 재실행하거나 커밋 ID를 확인하지 않았다.
+- D: `runs/xai_v1_1/main_seed43_perturb/perturb_summary.json`의 `counts`: `samples=17407`, `rows=8773128`, `forward_passes=35052192`, `structure_ineligible_rows=10080`; `ledger_sha256=92a3791e7733b8d9ad3fee107da57563c11b59b424df90224890524c437ab724`. 이는 요약 JSON 기록값이며 ledger 재해시·평가는 하지 않았다.
+- main seed43 perturb는 `--order size-desc --prefetch 16`의 **옛 pickle IPC**로 4,328건까지 진행했다. 선택 모드 정지·재부팅 후 `--prefetch 12 --resume`으로 완료했다. 로그는 D: `runs/xai_v1_1/main_seed43_perturb_*.log` 여러 개다. 구간·설정·로그 위치는 사용자 보고이며 이 세션에서 로그 파일은 열지 않았다.
+- main seed44 perturb는 **새 슬롯 IPC**로 `--prefetch 12 --workers 28`에서 약 1,284건 진행 중 커밋 메모리 67/69 GB가 관측되어, `--prefetch 16 --workers 16 --resume`으로 재개 중이다(사용자 보고). 워커 28개가 큰 파일의 작업 배열을 예약한 채 유지한 것이 커밋 급증의 사용자 실측 원인이다. 완료로 기록하지 않는다.
+- 이후 명령에서는 `--workers`를 `--prefetch`와 같게 설정하는 것을 권장한다. `psa_perturb.py`는 `--workers` 생략 시 지정한 `--prefetch` 값을 기본값으로 사용한다. 위 C9x-2c의 CPU 수 기반 기본값은 이전 구현 이력이다. 슬롯 메모리 외에 각 워커의 큰 파일 작업 배열도 커밋을 차지하므로 실제 메모리를 관찰하며 값을 정한다.
+- Ledger 형식·IPC provenance: main seed42 perturb는 `control_intervals`·`gradcam_intervals`가 없는 **C9x-2e 이후 형식**으로 생성되었으나 슬롯 IPC 이전이다. main seed43은 같은 옛 pickle IPC이고, main seed44 및 era perturb는 새 슬롯 IPC다(사용자 보고; era 완료 여부 미확인). IPC 변경과 ledger 형식 변경을 구분해 후속 통계 입력의 출처를 기록한다.

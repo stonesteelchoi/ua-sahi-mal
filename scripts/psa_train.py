@@ -174,7 +174,7 @@ def macro_f1(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 @torch.no_grad()
-def evaluate(model, loader, device):
+def evaluate(model, loader, device, include_confusion=False):
     model.eval()
     ys, ps, probs = [], [], []
     for x, y in loader:
@@ -190,10 +190,16 @@ def evaluate(model, loader, device):
     pr = np.concatenate(probs)
     ba = 0.5 * (((p == 1) & (y == 1)).sum() / max((y == 1).sum(), 1)
                 + ((p == 0) & (y == 0)).sum() / max((y == 0).sum(), 1))
-    return {"macro_f1": macro_f1(y, p), "auroc": auroc(pr, y), "balanced_acc": float(ba),
+    metrics = {"macro_f1": macro_f1(y, p), "auroc": auroc(pr, y), "balanced_acc": float(ba),
             "recall_mal": float(((p == 1) & (y == 1)).sum() / max((y == 1).sum(), 1)),
             "recall_ben": float(((p == 0) & (y == 0)).sum() / max((y == 0).sum(), 1)),
             "n": int(len(y))}
+    if include_confusion:
+        metrics["confusion_matrix"] = [
+            [int(((y == actual) & (p == predicted)).sum()) for predicted in (0, 1)]
+            for actual in (0, 1)
+        ]
+    return metrics
 
 
 def make_loaders(rasters_dir, batch_size, workers, split_manifest=None):
@@ -368,14 +374,23 @@ def _majority_macro_f1(c):
     return macro_f1(y, p)
 
 
+def file_sha256(path):
+    with open(path, "rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
 def cmd_eval(args):
     """Score saved checkpoints on a split (AUROC + macro-F1). No training.
 
     The whole study hinges on CNN val AUROC vs the metadata-only baseline (0.95); the
     early runs were trained before AUROC was reported, so this recomputes it from best.pt."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers, args.split_manifest)
-    loader = loaders[args.split]
+    if bool(args.checkpoint) != bool(args.checkpoint_sha256):
+        raise ValueError("--checkpoint and --checkpoint-sha256 must be provided together")
+    if args.split == "test" and (not args.checkpoint or not args.out):
+        raise ValueError("test evaluation requires --checkpoint, --checkpoint-sha256 and --out")
+    dst = args.out or os.path.join(args.runs_dir if not args.checkpoint else ".", f"auroc_{args.split}.json")
+    if args.split == "test" and os.path.exists(dst):
+        raise FileExistsError(f"test output already exists: {dst}")
     ckpts = []
     if args.checkpoint:
         ckpts = [args.checkpoint]
@@ -387,14 +402,31 @@ def cmd_eval(args):
     if not ckpts:
         print("no checkpoints found", file=sys.stderr)
         return 1
+    checkpoint_hashes = {c: file_sha256(c) for c in ckpts}
+    if args.checkpoint and checkpoint_hashes[args.checkpoint] != args.checkpoint_sha256.lower():
+        raise ValueError("checkpoint SHA-256 mismatch")
+    protocol_path = os.path.join(os.path.dirname(__file__), "..", "paper", "v5-kisa-xai",
+                                 "protocol", "PSA_XAI_V1_1_FROZEN.yaml")
+    input_paths = {"raster_index": os.path.join(args.rasters_dir, "raster_index.csv"),
+                   "rasters": os.path.join(args.rasters_dir, "rasters.npy")}
+    duplicate_path = os.path.join(args.rasters_dir, "raster_duplicate_groups.csv")
+    if os.path.exists(duplicate_path):
+        input_paths["raster_duplicate_groups"] = duplicate_path
+    if args.split_manifest:
+        input_paths["split_manifest"] = args.split_manifest
+    input_hashes = {key: file_sha256(path) for key, path in input_paths.items()}
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    loaders, counts = make_loaders(args.rasters_dir, args.batch_size, args.workers, args.split_manifest)
+    loader = loaders[args.split]
     rows = []
     for c in ckpts:
         ck = torch.load(c, map_location=device, weights_only=True)
         model = build_model("random", device)          # weights overwritten; no imagenet download
         model.load_state_dict(ck["model"])
-        m = evaluate(model, loader, device)
+        m = evaluate(model, loader, device, include_confusion=True)
         tag = os.path.basename(os.path.dirname(c))
         m.update({"tag": tag, "seed": ck.get("seed"), "init": ck.get("init"),
+                  "checkpoint_sha256": checkpoint_hashes[c],
                   "train_best_epoch": ck.get("epoch")})
         rows.append(m)
         print(f"  {tag:28} {args.split}  AUROC {m['auroc']:.4f}  macroF1 {m['macro_f1']:.4f}  "
@@ -404,9 +436,11 @@ def cmd_eval(args):
         print(f"\n  imagenet AUROC: mean {statistics.mean(au):.4f}  "
               f"min {min(au):.4f}  max {max(au):.4f}  vs metadata baseline 0.95 "
               f"(delta {statistics.mean(au)-0.95:+.4f})")
-    out = {"split": args.split, "metadata_baseline_auroc": 0.95, "results": rows}
-    dst = args.out or os.path.join(args.runs_dir if not args.checkpoint else ".", f"auroc_{args.split}.json")
-    json.dump(out, open(dst, "w"), indent=2)
+    out = {"split": args.split, "split_counts": counts[args.split],
+           "input_sha256": input_hashes, "protocol_sha256": file_sha256(protocol_path),
+           "metadata_baseline_auroc": 0.95, "results": rows}
+    with open(dst, "x" if args.split == "test" else "w", encoding="utf-8") as stream:
+        json.dump(out, stream, indent=2)
     print(f"\nwrote {dst}")
     return 0
 
@@ -441,6 +475,7 @@ def main() -> int:
     ep.add_argument("--split-manifest", default=None, help="optional split assignment CSV; default uses raster_index.csv")
     ep.add_argument("--runs-dir", help="scan every <run>/best.pt under here")
     ep.add_argument("--checkpoint", help="score a single best.pt instead")
+    ep.add_argument("--checkpoint-sha256", help="expected SHA-256 of --checkpoint")
     ep.add_argument("--split", choices=("val", "test", "train"), default="val")
     ep.add_argument("--batch-size", type=int, default=512)
     ep.add_argument("--workers", type=int, default=4)
