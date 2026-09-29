@@ -5,7 +5,7 @@ import argparse
 import hashlib
 import json
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -332,16 +332,338 @@ def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZE
     return report
 
 
+def descriptive_bootstrap(files: dict, repeats: int, seed: int) -> dict:
+    """Group CI for a descriptive contrast; no hypothesis test is defined."""
+    if not files:
+        return {"eligible_n": 0, "group_n": 0, "p_value": None}
+    groups = defaultdict(list)
+    for row in files.values():
+        groups[row["group"]].append(row["effect"])
+    values = np.asarray([np.mean(x) for x in groups.values()])
+    result = bootstrap(values, repeats, seed)
+    result.pop("p_unadjusted")
+    result.update(eligible_n=len(files), group_n=len(groups), p_value=None)
+    return result
+
+
+def distribution(values: list[float]) -> dict:
+    if not values:
+        return {"n": 0}
+    a = np.asarray(values, dtype=float)
+    return {"n": len(a), "mean": float(a.mean()), "median": float(np.median(a)),
+            "q05": float(np.quantile(a, 0.05)), "q95": float(np.quantile(a, 0.95))}
+
+
+def collect_v12(perturb: Path, seed: int, addendum: dict) -> dict:
+    fills = set(addendum["experiment"]["fills"])
+    budgets = set(map(float, addendum["experiment"]["budgets"]))
+    repeat_n = addendum["experiment"]["repeats_per_file_budget"]
+    metrics = {"h1": "deletion_delta_nll", "h2": "keep_only_malicious_score"}
+    files = defaultdict(dict)
+    counts = defaultdict(int)
+    excluded = defaultdict(set)
+    shapes = {arm: {name: [] for name in ("n_runs", "mean_run_len", "pixels_touched", "pixels_intact")}
+              for arm in ("gradcam", "control")}
+    differences = {name: [] for name in shapes["gradcam"]}
+    realized = {name: [] for name in ("n_runs", "mean_run_len")}
+    realized_run_lengths = Counter()
+    row_exclusions = defaultdict(lambda: defaultdict(int))
+    flagged_files = defaultdict(set)
+    seen = set()
+    for row in jsonl(perturb):
+        sid, budget = str(row["sample_id"]), float(row["budget"])
+        if int(row["checkpoint_seed"]) != seed or budget not in budgets or row["fill"] not in fills or row["control"] != "shape_matched_random":
+            raise ValueError("unexpected V1.2 ledger row")
+        repeat = int(row["repeat"])
+        key = (sid, budget, repeat)
+        if key in seen or not 0 <= repeat < repeat_n:
+            raise ValueError("duplicate or invalid V1.2 repeat")
+        seen.add(key)
+        counts["rows"] += 1
+        bucket = files[(sid, budget)]
+        if "group" in bucket and bucket["group"] != row["group"]:
+            raise ValueError("inconsistent V1.2 group")
+        bucket["group"] = row["group"]
+        if row["eligible"] is not True or row.get("structure_ineligible") is True:
+            counts["structure_ineligible_rows"] += 1
+            row_exclusions[budget]["structure_ineligible_rows"] += 1
+            excluded[(sid, budget)].add("structure_ineligible")
+            continue
+        counts["eligible_rows"] += 1
+        unplaced = int(row["unplaced_byte_count"])
+        for name in ("placement_fallback", "run_split"):
+            counts[name + "_rows"] += bool(row[name])
+            if row[name]:
+                flagged_files[name].add(sid)
+        counts["unplaced_rows"] += unplaced > 0
+        if unplaced:
+            flagged_files["unplaced"].add(sid)
+        row_exclusions[budget]["unplaced_rows"] += unplaced > 0
+        row_exclusions[budget]["split_rows"] += bool(row["run_split"])
+        counts["unplaced_bytes"] += unplaced
+        for name in ("total_bytes_match", "region_bytes_match"):
+            counts[name + "_violations"] += row[name] is not True
+        if not row["run_split"]:
+            counts["run_length_multiset_match_violations"] += row["run_length_multiset_match"] is not True
+        counts["empty_cam_rows"] += int(row["gradcam_shape"]["n_runs"]) == 0
+        if int(row["gradcam_shape"]["n_runs"]) == 0:
+            flagged_files["empty_cam"].add(sid)
+        for arm, field in (("gradcam", "gradcam_shape"), ("control", "control_shape")):
+            for name in shapes[arm]:
+                shapes[arm][name].append(float(row[field][name]))
+        for name in differences:
+            differences[name].append(float(row["control_shape"][name]) - float(row["gradcam_shape"][name]))
+        for name in realized:
+            realized[name].append(float(row["control_shape"]["control_realized_" + name]))
+        realized_run_lengths.update(int(n) for n in row["control_shape"]["control_realized_run_length_multiset"])
+        counts["control_realized_merged_rows"] += (row["control_shape"]["control_realized_n_runs"]
+                                                   < row["control_shape"]["n_runs"])
+        if unplaced:
+            excluded[(sid, budget)].add("unplaced")
+            continue
+        effect = {}
+        for h, suffix in metrics.items():
+            value = float(row["gradcam_" + suffix]) - float(row["control_" + suffix])
+            if not math.isfinite(value):
+                raise ValueError("nonfinite V1.2 effect")
+            effect[h] = value
+        bucket.setdefault("repeats", {})[repeat] = {"effects": effect, "split": bool(row["run_split"]),
+            "control": {h: float(row["control_" + suffix]) for h, suffix in metrics.items()}}
+    expected = repeat_n * len(budgets)
+    sample_ids = {sid for sid, _ in files}
+    if len(seen) != expected * len(sample_ids):
+        raise ValueError("incomplete V1.2 sample/budget/repeats")
+    primary, no_split, all_budgets, controls = {}, {}, defaultdict(dict), {}
+    exclusion = {str(b): {"unplaced_rows": 0, "unplaced_files": 0, "all_repeats_excluded_files": 0,
+                          "split_rows": 0, "split_files": 0, "structure_ineligible_rows": 0,
+                          "structure_ineligible_files": 0} for b in sorted(budgets)}
+    for (sid, budget), bucket in files.items():
+        label = str(budget)
+        reasons = excluded[(sid, budget)]
+        exclusion[label]["unplaced_files"] += "unplaced" in reasons
+        exclusion[label]["structure_ineligible_files"] += "structure_ineligible" in reasons
+        repeats = bucket.get("repeats", {})
+        exclusion[label]["all_repeats_excluded_files"] += not repeats and "structure_ineligible" not in reasons
+        exclusion[label]["split_files"] += any(r["split"] for r in repeats.values())
+        if not repeats:
+            continue
+        entry = {"group": bucket["group"], **{h: float(np.mean([r["effects"][h] for r in repeats.values()])) for h in metrics}}
+        all_budgets[budget][sid] = entry
+        controls[(sid, budget)] = {h: float(np.mean([r["control"][h] for r in repeats.values()])) for h in metrics}
+        if budget == float(addendum["experiment"]["primary_budget"]):
+            primary[sid] = entry
+            subset = [r for r in repeats.values() if not r["split"]]
+            if subset:
+                no_split[sid] = {"group": bucket["group"], **{h: float(np.mean([r["effects"][h] for r in subset])) for h in metrics}}
+    # Row counts are recorded during streaming; files are distinct within each budget.
+    for budget in budgets:
+        label = str(budget)
+        for name in ("unplaced_rows", "split_rows", "structure_ineligible_rows"):
+            exclusion[label][name] = row_exclusions[budget][name]
+    matching = {"arms": {arm: {n: distribution(v) for n, v in fields.items()} for arm, fields in shapes.items()},
+                "shape_minus_gradcam": {n: distribution(v) for n, v in differences.items()},
+                "control_realized": {**{n: distribution(v) for n, v in realized.items()},
+                                     "run_length_histogram": {str(k): v for k, v in sorted(realized_run_lengths.items())}},
+                "counts": {**dict(counts), **{k + "_files": len(v) for k, v in flagged_files.items()}}}
+    return {"primary_files": primary, "split_excluded_files": no_split, "budget_files": dict(all_budgets),
+            "controls": controls, "exclusions": exclusion, "matching": matching,
+            "counts": {"samples": len(sample_ids), "primary_eligible_n": len(primary)}}
+
+
+def collect_v11_scatter(path: Path, seed: int) -> dict:
+    """Keep only the two relevant V1.1 combinations while streaming JSONL."""
+    sums = defaultdict(lambda: {"h1": 0.0, "h2": 0.0, "n": 0})
+    for row in jsonl(path):
+        if (row.get("control") != "structure_matched_random_20_repeats"
+                or row.get("fill") != "structure_conditioned_resampling"
+                or float(row.get("budget", -1)) not in (0.10, 0.20)):
+            continue
+        if int(row["checkpoint_seed"]) != seed:
+            continue
+        if row["eligible"] is not True:
+            continue
+        key = (str(row["sample_id"]), seed, float(row["budget"]), row["fill"])
+        item = sums[key]
+        item["h1"] += float(row["control_deletion_delta_nll"])
+        item["h2"] += float(row["control_keep_only_malicious_score"])
+        item["n"] += 1
+    return {key: {h: value[h] / value["n"] for h in ("h1", "h2")} for key, value in sums.items()}
+
+
+def adjudication(primary: dict) -> dict:
+    h1, h2 = primary["h1"], primary["h2"]
+    if "holm_adjusted_p" not in h1 or "holm_adjusted_p" not in h2:
+        return {"status": "insufficient_eligible_files"}
+    h1_yes = h1["holm_adjusted_p"] < 0.05
+    h2_yes = h2["holm_adjusted_p"] < 0.05
+    h2_zero = h2["ci_95_lower"] <= 0 <= h2["ci_95_upper"]
+    return {"h1prime_holm_p_lt_0_05": h1_yes, "h2prime_holm_p_lt_0_05": h2_yes,
+            "h2prime_ci_includes_zero": h2_zero,
+            "template_conditions": {"h1prime_supported": h1_yes, "h1prime_not_supported": not h1_yes,
+                                    "h2prime_supported": h2_yes,
+                                    "h2prime_not_supported_ci_includes_zero": not h2_yes and h2_zero}}
+
+
+def ci_only(value):
+    """Era is a directional replication, outside the main testing family."""
+    if isinstance(value, dict):
+        return {k: ci_only(v) for k, v in value.items() if k not in ("p_unadjusted", "holm_adjusted_p")}
+    if isinstance(value, list):
+        return [ci_only(v) for v in value]
+    return value
+
+
+def build_v12(inputs: list[tuple[str, int, Path, Path]], v11_inputs: list[tuple[str, int, Path, Path]],
+              addendum_path: Path, expected_sha256: str) -> dict:
+    from psa_perturb import load_addendum
+    addendum = load_addendum(addendum_path, expected_sha256)
+    parent_sha = digest(FROZEN)
+    expected_pairs = {(p, s) for p in ("main", "era") for s in (42, 43, 44)}
+    if {(p, s) for p, s, _, _ in inputs} != expected_pairs or len(inputs) != 6:
+        raise ValueError("six distinct V1.2 population/seed inputs required")
+    if {(p, s) for p, s, _, _ in v11_inputs} != expected_pairs or len(v11_inputs) != 6:
+        raise ValueError("six distinct V1.1 population/seed inputs required")
+    old = {(p, s): (ledger, summary) for p, s, ledger, summary in v11_inputs}
+    report = {"addendum_sha256": digest(addendum_path), "parent_protocol_sha256": parent_sha,
+              "inputs_sha256": {}, "v11_inputs_sha256": {}, "bootstrap": {"repeats": 2000,
+              "seed": BOOTSTRAP_SEED}, "populations": {}}
+    for pop, seed, ledger, cam in inputs:
+        summary = ledger.parent / "perturb_summary.json"
+        summary_data = json.loads(summary.read_text(encoding="utf-8"))
+        sha = digest(ledger)
+        if (summary_data.get("ledger_sha256") != sha or summary_data.get("addendum_sha256") != report["addendum_sha256"]
+                or summary_data.get("parent_protocol_sha256") != parent_sha or int(summary_data["checkpoint_seed"]) != seed):
+            raise ValueError("V1.2 summary SHA or seed mismatch")
+        report["inputs_sha256"][f"{pop}/seed_{seed}"] = {"perturb": sha, "summary": digest(summary), "gradcam": digest(cam)}
+        data = collect_v12(ledger, seed, addendum)
+        # Reuse frozen CAM metadata rules for subset and representation scopes.
+        cams = {}
+        for row in jsonl(cam):
+            if math.isclose(float(row["budget"]["requested_fraction"]), 0.10, abs_tol=1e-9):
+                cams[str(row["sample_id"])] = row
+        for sid, entry in data["primary_files"].items():
+            c = cams[sid]
+            entry.update(repr_policy=c["representation_policy"], predicted_label=c["predicted_label"])
+        for sid, entry in data["split_excluded_files"].items():
+            c = cams[sid]
+            entry.update(repr_policy=c["representation_policy"], predicted_label=c["predicted_label"])
+        old_ledger, old_summary = old[(pop, seed)]
+        old_meta = json.loads(old_summary.read_text(encoding="utf-8"))
+        old_sha = digest(old_ledger)
+        if old_meta.get("ledger_sha256") != old_sha:
+            raise ValueError("V1.1 ledger SHA-256 mismatch")
+        report["v11_inputs_sha256"][f"{pop}/seed_{seed}"] = {"perturb": old_sha, "summary": digest(old_summary)}
+        scatter = collect_v11_scatter(old_ledger, seed)
+        dispersion = {}
+        for budget in addendum["experiment"]["budgets"]:
+            dispersion[str(budget)] = {}
+            for i, h in enumerate(("h1", "h2")):
+                joined = {}
+                for sid, shape in data["budget_files"].get(float(budget), {}).items():
+                    key = (sid, seed, float(budget), "structure_conditioned_resampling")
+                    if key in scatter:
+                        joined[sid] = {"group": shape["group"], "effect": data["controls"][(sid, float(budget))][h] - scatter[key][h]}
+                dispersion[str(budget)][h] = descriptive_bootstrap(joined, 2000, BOOTSTRAP_SEED + seed + i)
+        pop_data = report["populations"].setdefault(pop, {})
+        pop_data[f"seed_{seed}"] = {"files": data["primary_files"], "split_files": data["split_excluded_files"],
+                                    "counts": data["counts"], "exclusions": data["exclusions"],
+                                    "matching": data["matching"], "dispersion_effect": dispersion,
+                                    "budget_0_20": {h: descriptive_bootstrap(
+                                        {sid: {"group": r["group"], "effect": r[h]} for sid, r in data["budget_files"].get(0.20, {}).items()},
+                                        2000, BOOTSTRAP_SEED + seed + i) for i, h in enumerate(("h1", "h2"))}}
+    protocol = protocol_settings(FROZEN)
+    for pop, scopes in report["populations"].items():
+        for seed in (42, 43, 44):
+            scope = scopes[f"seed_{seed}"]
+            f = scope["files"]
+            scope["primary"] = inference(f, 2000, BOOTSTRAP_SEED + seed)
+            scope["run_split_excluded_sensitivity"] = inference(scope["split_files"], 2000, BOOTSTRAP_SEED + seed + 300)
+            scope["correctly_detected_malicious"] = inference(
+                {sid: r for sid, r in f.items() if r["predicted_label"] == 1}, 2000, BOOTSTRAP_SEED + seed + 500)
+            scope["repr_policy"] = {name: inference({sid: r for sid, r in f.items() if r["repr_policy"] == policy},
+                2000, BOOTSTRAP_SEED + seed + j * 1000) for j, (name, policy) in enumerate((("mean_pool", protocol["representation"]["long_file_policy"]),
+                ("nearest_repetition", protocol["representation"]["short_file_policy"])), 1)}
+        common = set.intersection(*(set(scopes[f"seed_{s}"]["files"]) for s in (42, 43, 44)))
+        average = {}
+        for sid in common:
+            rows = [scopes[f"seed_{s}"]["files"][sid] for s in (42, 43, 44)]
+            if len({(r["group"], r["repr_policy"]) for r in rows}) != 1:
+                raise ValueError("V1.2 seed metadata mismatch")
+            average[sid] = {"group": rows[0]["group"], "repr_policy": rows[0]["repr_policy"],
+                            "predicted_label": 1 if all(r["predicted_label"] == 1 for r in rows) else -1,
+                            **{h: float(np.mean([r[h] for r in rows])) for h in ("h1", "h2")}}
+        primary = inference(average, 2000, BOOTSTRAP_SEED + 900)
+        scopes["seed_average"] = {"counts": {"eligible_n": len(common)}, "primary": primary,
+            "adjudication_conditions": adjudication(primary),
+            "correctly_detected_malicious": inference({sid: r for sid, r in average.items() if r["predicted_label"] == 1}, 2000, BOOTSTRAP_SEED + 1400),
+            "repr_policy": {name: inference({sid: r for sid, r in average.items() if r["repr_policy"] == policy},
+                2000, BOOTSTRAP_SEED + 1900 + j * 1000) for j, (name, policy) in enumerate((("mean_pool", protocol["representation"]["long_file_policy"]),
+                ("nearest_repetition", protocol["representation"]["short_file_policy"])), 1)}}
+        split_common = set.intersection(*(set(scopes[f"seed_{s}"]["split_files"]) for s in (42, 43, 44)))
+        split_average = {sid: {"group": scopes["seed_42"]["split_files"][sid]["group"],
+            **{h: float(np.mean([scopes[f"seed_{s}"]["split_files"][sid][h] for s in (42, 43, 44)])) for h in ("h1", "h2")}}
+            for sid in split_common}
+        scopes["seed_average"]["run_split_excluded_sensitivity"] = inference(split_average, 2000, BOOTSTRAP_SEED + 1200)
+        for seed in (42, 43, 44):
+            scopes[f"seed_{seed}"].pop("files")
+            scopes[f"seed_{seed}"].pop("split_files")
+        if pop == "era":
+            report["populations"][pop] = ci_only(scopes)
+            report["populations"][pop]["seed_average"].pop("adjudication_conditions")
+    return report
+
+
+def render_v12(report: dict) -> str:
+    lines = ["# PSA-XAI V1.2 statistics", "", f"Addendum SHA-256: `{report['addendum_sha256']}`",
+             f"Parent SHA-256: `{report['parent_protocol_sha256']}`", "",
+             "Dispersion effect: descriptive only because fill random states differ by control name; p value: none.", ""]
+    for pop, scopes in report["populations"].items():
+        if pop == "main":
+            lines += [f"## {pop}", "", "| Scope | H | Effect | 95% CI | One-sided p | Holm p | Eligible files | Groups |",
+                      "|---|---|---:|---|---:|---:|---:|---:|"]
+        else:
+            lines += [f"## {pop}", "", "| Scope | H | Effect | 95% CI | Eligible files | Groups |",
+                      "|---|---|---:|---|---:|---:|"]
+        for name, scope in scopes.items():
+            for h, r in scope["primary"].items():
+                if "effect" in r:
+                    if pop == "main":
+                        lines.append(f"| {name} | {h} | {r['effect']:.6g} | [{r['ci_95_lower']:.6g}, {r['ci_95_upper']:.6g}] | {r['p_unadjusted']:.6g} | {r['holm_adjusted_p']:.6g} | {r['eligible_n']} | {r['group_n']} |")
+                    else:
+                        lines.append(f"| {name} | {h} | {r['effect']:.6g} | [{r['ci_95_lower']:.6g}, {r['ci_95_upper']:.6g}] | {r['eligible_n']} | {r['group_n']} |")
+        if pop == "main":
+            lines += ["", "### Adjudication template conditions", "", "```json",
+                      json.dumps(scopes["seed_average"]["adjudication_conditions"], ensure_ascii=False, indent=2), "```", ""]
+        for name, scope in scopes.items():
+            lines += [f"### {name} details", "", "```json",
+                      json.dumps({k: v for k, v in scope.items() if k not in ("primary", "adjudication_conditions")}, ensure_ascii=False, indent=2), "```", ""]
+        lines += ["### Input SHA-256", "", "```json",
+                  json.dumps({"v1_2": {k: v for k, v in report["inputs_sha256"].items() if k.startswith(pop + "/")},
+                              "v1_1": {k: v for k, v in report["v11_inputs_sha256"].items() if k.startswith(pop + "/")}}, indent=2), "```", ""]
+    return "\n".join(lines) + "\n"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--ledger", nargs=4, action="append", metavar=("POPULATION", "SEED", "PERTURB", "GRADCAM"), required=True)
+    ap.add_argument("--addendum", type=Path)
+    ap.add_argument("--addendum-sha256")
+    ap.add_argument("--v11-ledger", nargs=4, action="append", metavar=("POPULATION", "SEED", "PERTURB", "SUMMARY"))
     ap.add_argument("--outdir", type=Path, required=True)
     args = ap.parse_args()
     rows = [(pop, int(seed), Path(pert), Path(cam)) for pop, seed, pert, cam in args.ledger]
-    report = build(rows)
+    if any((args.addendum is not None, args.addendum_sha256 is not None, args.v11_ledger is not None)):
+        if args.addendum is None or args.addendum_sha256 is None or args.v11_ledger is None:
+            ap.error("V1.2 requires --addendum, --addendum-sha256 and six --v11-ledger inputs")
+        old = [(pop, int(seed), Path(pert), Path(summary)) for pop, seed, pert, summary in args.v11_ledger]
+        report = build_v12(rows, old, args.addendum, args.addendum_sha256)
+        rendered = render_v12(report)
+    else:
+        report = build(rows)
+        rendered = render(report)
     args.outdir.mkdir(parents=True, exist_ok=False)
     (args.outdir / "psa_xai_stats.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    (args.outdir / "psa_xai_stats.md").write_text(render(report), encoding="utf-8")
+    (args.outdir / "psa_xai_stats.md").write_text(rendered, encoding="utf-8")
     return 0
 
 

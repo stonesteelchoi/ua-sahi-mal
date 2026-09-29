@@ -94,3 +94,30 @@ foreach ($pop in @('main','era')) {
 ```
 
 완료 기대값은 **seed별** main `samples=17407`, `rows=696280`, `structure_ineligible_rows=1680`, `forward_passes=2778400`; era `samples=5332`, `rows=213280`, `structure_ineligible_rows=40`, `forward_passes=852960`이다. `perturb_summary.json`의 `ledger_sha256`은 완료 뒤 실제 ledger 재해시와 대조한다. 3건 smoke는 전체 기대값에 해당하지 않는다.
+
+## C11-c V1.2 통계 실행 명령 (전체 perturb 완료 뒤)
+
+아래 경로는 여섯 V1.2 perturb ledger, 같은 seed의 V1.1 Grad-CAM ledger, 여섯 V1.1 perturb ledger·summary를 명시한다. 실행 전에 V1.2 여섯 `perturb_summary.json`이 존재하고 전체 run의 기대 counts와 일치하는지 확인한다. 통계 스크립트는 addendum·parent SHA, V1.2 summary의 SHA 필드, V1.1 ledger와 summary의 SHA를 자체 검사한다.
+
+```powershell
+$py = '.\.venv\Scripts\python.exe'
+$runs = 'D:\secure-malware-data\psa\runs'
+$addendum = 'paper/v5-kisa-xai/protocol/PSA_XAI_V1_2_ADDENDUM.yaml'
+$addendumSha = '9712217fc49db0fb1f495a901526e985c731bfe3650dacb1bb875fbe4fcb4162'
+$argsList = @()
+foreach ($pop in @('main','era')) {
+    foreach ($seed in 42,43,44) {
+        $v12 = Join-Path $runs "xai_v1_2\${pop}_seed${seed}_perturb\perturb_ledger.jsonl"
+        $cam = Join-Path $runs "xai_v1_1\${pop}_seed${seed}_gradcam\gradcam_ledger.jsonl"
+        $v11 = Join-Path $runs "xai_v1_1\${pop}_seed${seed}_perturb\perturb_ledger.jsonl"
+        $v11Summary = Join-Path $runs "xai_v1_1\${pop}_seed${seed}_perturb\perturb_summary.json"
+        $argsList += @('--ledger', $pop, [string]$seed, $v12, $cam)
+        $argsList += @('--v11-ledger', $pop, [string]$seed, $v11, $v11Summary)
+    }
+}
+$outdir = 'paper/v5-kisa-xai/audit/c11_results/'
+& $py scripts\psa_xai_stats.py @argsList --addendum $addendum --addendum-sha256 $addendumSha --outdir $outdir
+if ($LASTEXITCODE -ne 0) { throw 'C11-c statistics failed' }
+```
+
+출력은 `c11_results/psa_xai_stats.json`과 `.md`이다. 새 outdir가 필요하며 동일 경로 재실행 시 기존 출력 때문에 중단한다. 예상 소요는 실측 전 추정으로 **수십 분에서 수 시간**이다. V1.1 ledger 여섯 개 전체 SHA-256 재계산 1회와 JSONL 스트리밍 필터 1회를 각각 수행하므로, 원본을 두 번 읽는 디스크 I/O와 약 3천만 행의 JSON 파싱이 주 비용이다. V1.2 ledger 여섯 개도 SHA 재계산과 통계 읽기를 각각 수행한다. 실제 완료 시간은 C11-d에서 기록한다.
