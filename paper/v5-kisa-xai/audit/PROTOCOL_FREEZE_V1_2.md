@@ -1,6 +1,6 @@
 # PSA-XAI V1.2 동결 준비 초안
 
-상태: 사전 등록 addendum 작성 완료, 실제 동결·실행 전. V1.1 동결 YAML·가설·판정은 유지한다. V1.2는 탐색적 추가 검정이다.
+상태: 사용자 태그로 V1.2 사전 등록 동결 완료, V1.2 실제 데이터 실행 전. V1.1 동결 YAML·가설·판정은 유지한다. V1.2는 탐색적 추가 검정이다.
 
 ## 실행 전 확인 및 동결 절차
 
@@ -32,8 +32,8 @@ git rev-parse psa-xai-v1.2-frozen^{commit}
 |---|---|
 | V1.1 parent YAML SHA-256 | `c0c7b79775b3aa36d3dc59f5a8544e5248e9517ca218319cb8ee83d88c70e709` (C11-a 재계산 확인) |
 | V1.2 addendum YAML SHA-256 | `9712217fc49db0fb1f495a901526e985c731bfe3650dacb1bb875fbe4fcb4162` (C11-a2 보정 후 재계산, 실행 전 재확인) |
-| 사전 실행 커밋 ID | ____ |
-| 커밋 후 작업 트리 상태 | ____ |
-| 사용자 태그 생성 일시 | ____ |
-| `psa-xai-v1.2-frozen` 대상 커밋 ID | ____ |
+| 사전 실행 커밋 ID | `89abb69db6666ffcd92fec4261d48d2763f54afc` (`git rev-parse psa-xai-v1.2-frozen^{commit}`) |
+| 커밋 후 작업 트리 상태 | 태그 시점 상태는 Git 기록만으로 재구성 불가; C11-b 시작 시 기존 미추적 파일 다수, 추적 파일 수정 없음 |
+| 사용자 태그 생성 일시 | 2026-09-29 12:21:55 +09:00 (annotated tag의 Git taggerdate) |
+| `psa-xai-v1.2-frozen` 대상 커밋 ID | `89abb69db6666ffcd92fec4261d48d2763f54afc` |
 | 실행 시작 일시 | ____ |

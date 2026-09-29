@@ -28,16 +28,18 @@ from ua_sahi_mal.kisa_xai.representation import POLICY_MEAN_POOL, encode_interva
 from psa_gradcam import FROZEN, load_protocol, sha256  # noqa: E402
 
 MAX_PASSES = 2016
+ADDENDUM_PASSES = 160
+FROZEN_ADDENDUM_SHA256 = "9712217fc49db0fb1f495a901526e985c731bfe3650dacb1bb875fbe4fcb4162"
 
 
 @contextmanager
-def raster_slots(count: int, side: int):
+def raster_slots(count: int, side: int, max_passes: int = MAX_PASSES):
     """Keep every fixed-size raster slot owned by the main process."""
     slots = []
     try:
         for _ in range(count):
             slots.append(shared_memory.SharedMemory(
-                create=True, size=MAX_PASSES * side * side * np.dtype(np.float32).itemsize))
+                create=True, size=max_passes * side * side * np.dtype(np.float32).itemsize))
         # On Windows the main process keeps these handles open throughout the pool's lifetime,
         # so a worker closing its own handle cannot remove a segment before GPU scoring.
         yield slots
@@ -66,6 +68,112 @@ def region_ids(spans: list[dict], size: int) -> np.ndarray:
     if cursor != size:
         raise ValueError("incomplete structure partition")
     return ids
+
+
+def source_runs(selected: np.ndarray, regions: np.ndarray) -> list[tuple[int, int, int]]:
+    """Maximal selected runs, split on region transitions."""
+    selected = np.sort(np.asarray(selected, dtype=np.int64))
+    if not len(selected):
+        return []
+    cuts = np.flatnonzero((np.diff(selected) != 1) | (np.diff(regions[selected]) != 0)) + 1
+    bounds = np.r_[0, cuts, len(selected)]
+    return [(int(selected[a]), int(b - a), int(regions[selected[a]]))
+            for a, b in zip(bounds[:-1], bounds[1:], strict=True)]
+
+
+def shape_matched_offsets(selected: np.ndarray, regions: np.ndarray, imap, spans: list[dict],
+                          rng: np.random.Generator) -> tuple[np.ndarray, dict]:
+    """Place each source run in the same region without overlapping moved runs."""
+    runs = source_runs(selected, regions)
+    placed = []
+    unplaced = 0
+    split = False
+    segment_ends = np.asarray([int(span["end"]) for span in spans], dtype=np.int64)
+    free = {}
+    for span in spans:
+        free.setdefault(int(regions[span["start"]]), []).append(
+            (int(span["start"]), int(span["end"])))
+    phase_positions = {}
+
+    def candidates(length, region, phase):
+        ranges = [(a, b - length + 1) for a, b in free.get(region, ()) if b - a >= length]
+        if not ranges:
+            return []
+        # The containing source pixel defines phase for both raster policies.
+        if phase not in phase_positions:
+            phase_positions[phase] = np.unique((imap.starts + phase)[imap.ends - imap.starts > phase])
+        bucket = phase_positions[phase]
+        slices = [(int(np.searchsorted(bucket, a)), int(np.searchsorted(bucket, b))) for a, b in ranges]
+        return (bucket, slices) if any(hi > lo for lo, hi in slices) else ranges
+
+    def place(start, length, region):
+        pix = min(int(np.searchsorted(imap.ends, start, side="right")), len(imap.starts) - 1)
+        phase = start - int(imap.starts[pix])
+        choices = candidates(length, region, phase)
+        if not choices:
+            return False
+        if isinstance(choices, tuple):
+            bucket, slices = choices
+            counts = np.array([hi - lo for lo, hi in slices], dtype=np.int64)
+            pick = int(rng.integers(int(counts.sum())))
+            for (lo, _), count in zip(slices, counts, strict=True):
+                if pick < count:
+                    dest = int(bucket[lo + pick])
+                    break
+                pick -= int(count)
+        else:
+            counts = np.array([b - a for a, b in choices], dtype=np.int64)
+            pick = int(rng.integers(int(counts.sum())))
+            for (a, _), count in zip(choices, counts, strict=True):
+                if pick < count:
+                    dest = a + pick
+                    break
+                pick -= int(count)
+        intervals = free[region]
+        for index, (a, b) in enumerate(intervals):
+            if a <= dest and dest + length <= b:
+                intervals[index:index + 1] = ([(a, dest)] if a < dest else []) + (
+                    [(dest + length, b)] if dest + length < b else [])
+                break
+        else:
+            raise AssertionError("placement overlaps an occupied run")
+        placed.append((dest, length, region))
+        return True
+
+    for start, length, region in sorted(runs, key=lambda r: (-r[1], r[0], r[2])):
+        if place(start, length, region):
+            continue
+        # Only original structure segment boundaries may divide a failed run.
+        cuts = [int(edge) for edge in segment_ends if start < edge < start + length]
+        if not cuts:
+            unplaced += length
+            continue
+        split = True
+        bounds = [start, *cuts, start + length]
+        for a, b in zip(bounds[:-1], bounds[1:], strict=True):
+            if not place(a, b - a, region):
+                unplaced += b - a
+    moved = np.concatenate([np.arange(a, a + n, dtype=np.int64) for a, n, _ in placed]) if placed else np.empty(0, dtype=np.int64)
+    return np.sort(moved), {"run_split": split, "placement_fallback": bool(unplaced),
+                            "unplaced_byte_count": unplaced,
+                            "placed_run_lengths": sorted(n for _, n, _ in placed)}
+
+
+def shape_audit(selected: np.ndarray, regions: np.ndarray, imap) -> dict:
+    runs = source_runs(selected, regions)
+    if imap.policy == POLICY_MEAN_POOL:
+        pixel_ids = np.searchsorted(imap.ends, selected, side="right")
+        per_pixel = np.bincount(pixel_ids, minlength=len(imap.starts))
+    else:
+        per_pixel = np.isin(imap.starts, selected).astype(np.int64)
+    return {"n_runs": len(runs),
+            "mean_run_len": float(np.mean([n for _, n, _ in runs])) if runs else 0.0,
+            "run_length_multiset": sorted(n for _, n, _ in runs),
+            "region_byte_counts": {str(int(r)): int(np.count_nonzero(regions[selected] == r))
+                                   for r in np.unique(regions)},
+            "total_selected_unique_source_bytes": len(selected),
+            "pixels_touched": int(np.count_nonzero(per_pixel)),
+            "pixels_intact": int(np.count_nonzero(per_pixel == imap.ends - imap.starts))}
 
 
 def entropy_scores(data: bytes, window: int = 256) -> np.ndarray:
@@ -256,14 +364,21 @@ def control_offsets_sha256(selected: np.ndarray) -> str:
 
 def verify_control_offsets(row: dict, data: bytes, cam_offsets: np.ndarray,
                            regions: np.ndarray | None = None,
-                           entropy: np.ndarray | None = None) -> bool:
+                           entropy: np.ndarray | None = None,
+                           spans: list[dict] | None = None, side: int = 224) -> bool:
     """Regenerate ledger control positions and check their count and digest."""
     if not row["eligible"]:
         raise ValueError("ineligible row has no control offsets")
-    generated = control_offsets(row["control"], data, int(row["achieved_bytes"]),
-        np.random.default_rng(offset_seed(int(row["checkpoint_seed"]), row["sample_id"],
-                                   float(row["budget"]), row["control"], int(row["repeat"]))),
-        cam_offsets, regions, entropy)
+    rng = np.random.default_rng(offset_seed(int(row["checkpoint_seed"]), row["sample_id"],
+                                            float(row["budget"]), row["control"], int(row["repeat"])))
+    if row["control"] == "shape_matched_random":
+        if regions is None or spans is None:
+            raise ValueError("shape matching verification requires regions and spans")
+        generated, _ = shape_matched_offsets(cam_offsets, regions,
+                                              encode_interval_binned(data, side=side)[1], spans, rng)
+    else:
+        generated = control_offsets(row["control"], data, int(row["achieved_bytes"]),
+                                    rng, cam_offsets, regions, entropy)
     return (len(generated) == int(row["control_offsets_n"])
             and control_offsets_sha256(generated) == row["control_offsets_sha256"])
 
@@ -302,7 +417,8 @@ def prepare_sample(task):
     if slot_index < 0:
         raise ValueError("invalid raster slot index")
     slot = shared_memory.SharedMemory(name=slot_name)
-    prepared = np.ndarray((MAX_PASSES, sample_task[6], sample_task[6]),
+    max_passes = ADDENDUM_PASSES if len(sample_task) > 13 and sample_task[13] else MAX_PASSES
+    prepared = np.ndarray((max_passes, sample_task[6], sample_task[6]),
                           dtype=np.float32, buffer=slot.buf)
     try:
         return _prepare_sample_into_slot(sample_task, prepared)
@@ -312,7 +428,8 @@ def prepare_sample(task):
 
 
 def _prepare_sample_into_slot(task, prepared):
-    entries, sample_path, manifest_row, index_row, structure, materialised, side, fills, controls, repeats, window, seed_base, malicious = task
+    entries, sample_path, manifest_row, index_row, structure, materialised, side, fills, controls, repeats, window, seed_base, malicious = task[:13]
+    addendum_mode = bool(task[13]) if len(task) > 13 else False
     sid = entries[0]["sample_id"]
     data = sample_path.read_bytes()
     source_sha = hashlib.sha256(data).hexdigest()
@@ -343,17 +460,33 @@ def _prepare_sample_into_slot(task, prepared):
         if len(selected) != budget["achieved_bytes"] or entry["file_size"] != len(data):
             raise ValueError(f"achieved budget mismatch: {sid}")
         selected_map = pixels_for(selected)
+        grad_audit = shape_audit(selected, regions, imap) if addendum_mode and regions is not None else None
         for control in controls:
-            for repeat in range(repeats if control.endswith("_20_repeats") else 1):
-                eligible = control != "structure_matched_random_20_repeats" or regions is not None
+            for repeat in range(repeats if control.endswith("_20_repeats") or control == "shape_matched_random" else 1):
+                eligible = control not in ("structure_matched_random_20_repeats", "shape_matched_random") or regions is not None
                 matched = None
+                placement = None
                 if eligible:
-                    matched = control_offsets(control, data, len(selected),
-                        np.random.default_rng(offset_seed(seed_base, sid, budget["requested_fraction"], control, repeat)),
-                        selected, regions, entropy)
-                    if len(matched) != len(selected):
+                    position_rng = np.random.default_rng(offset_seed(seed_base, sid, budget["requested_fraction"], control, repeat))
+                    if addendum_mode:
+                        matched, placement = shape_matched_offsets(
+                            selected, regions, imap, structure["structure"]["spans"], position_rng)
+                    else:
+                        matched = control_offsets(control, data, len(selected), position_rng,
+                                                  selected, regions, entropy)
+                    if len(matched) != len(selected) and not (addendum_mode and placement["placement_fallback"]):
                         raise AssertionError("control byte budget mismatch")
                     matched_map = pixels_for(matched)
+                    control_audit = shape_audit(matched, regions, imap) if addendum_mode else None
+                    if addendum_mode:
+                        lengths = placement["placed_run_lengths"]
+                        control_audit.update(
+                            control_realized_n_runs=control_audit["n_runs"],
+                            control_realized_mean_run_len=control_audit["mean_run_len"],
+                            control_realized_run_length_multiset=control_audit["run_length_multiset"])
+                        control_audit.update(n_runs=len(lengths),
+                                             mean_run_len=float(np.mean(lengths)) if lengths else 0.0,
+                                             run_length_multiset=lengths)
                 for fill in fills:
                     result = {"sample_id": sid, "source_sha256": source_sha, "group": entry["group"], "checkpoint_seed": seed_base,
                               "budget": budget["requested_fraction"], "achieved_bytes": len(selected),
@@ -361,11 +494,22 @@ def _prepare_sample_into_slot(task, prepared):
                               "structure_status": entry["structure_status"]}
                     if not eligible:
                         result["reason"] = "structure_status_not_agreement"
+                        if addendum_mode:
+                            result["structure_ineligible"] = True
                         ineligible += 1
                     else:
                         seed = pair_seed(seed_base, sid, budget["requested_fraction"], fill, control, repeat)
                         result.update(pair_seed=seed, control_offsets_sha256=control_offsets_sha256(matched),
                                       control_offsets_n=len(matched))
+                        if addendum_mode:
+                            result.update(structure_ineligible=False, run_split=placement["run_split"],
+                                          placement_fallback=placement["placement_fallback"],
+                                          unplaced_byte_count=placement["unplaced_byte_count"],
+                                          gradcam_shape=grad_audit, control_shape=control_audit,
+                                          total_bytes_match=grad_audit["total_selected_unique_source_bytes"] == control_audit["total_selected_unique_source_bytes"],
+                                          region_bytes_match=grad_audit["region_byte_counts"] == control_audit["region_byte_counts"],
+                                          run_length_multiset_match=(None if placement["run_split"] else
+                                              grad_audit["run_length_multiset"] == control_audit["run_length_multiset"]))
                         if fill in fixed_fills:
                             replacements, fill_sums = fixed_fills[fill], fixed_sums[fill]
                         else:
@@ -446,6 +590,39 @@ def ordered_sample_blocks(ledger: list[dict], order: str) -> list[tuple[str, lis
     raise ValueError(f"unknown sample order: {order}")
 
 
+def filter_addendum_budgets(ledger: list[dict], budgets: list[float]) -> list[dict]:
+    """Select addendum budgets and require one row per budget for every source sample."""
+    filtered = []
+    counts = {}
+    for row in ledger:
+        sid = row["sample_id"]
+        per_budget = counts.setdefault(sid, [0] * len(budgets))
+        fraction = float(row["budget"]["requested_fraction"])
+        for index, budget in enumerate(budgets):
+            if math.isclose(fraction, budget, rel_tol=0.0, abs_tol=1e-9):
+                per_budget[index] += 1
+                filtered.append(row)
+                break
+    if not counts or any(per_budget != [1] * len(budgets) for per_budget in counts.values()):
+        raise ValueError("Grad-CAM ledger sample lacks exactly one row per addendum budget")
+    return filtered
+
+
+def load_addendum(path: Path, expected_sha256: str) -> dict:
+    if expected_sha256.lower() != FROZEN_ADDENDUM_SHA256 or sha256(path) != FROZEN_ADDENDUM_SHA256:
+        raise ValueError("addendum SHA-256 mismatch")
+    import yaml
+    addendum = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if (addendum["protocol"]["parent_protocol_sha256"] != sha256(FROZEN)
+            or addendum["protocol"]["parent"] != "PSA-XAI-V1.1-FROZEN"
+            or addendum["experiment"]["control"] != "shape_matched_random"
+            or addendum["experiment"]["repeats_per_file_budget"] != 20
+            or addendum["experiment"]["fills"] != ["structure_conditioned_resampling"]
+            or addendum["experiment"]["budgets"] != [0.10, 0.20]):
+        raise ValueError("unsupported addendum or parent SHA-256 mismatch")
+    return addendum
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--checkpoint", type=Path, required=True)
@@ -464,6 +641,8 @@ def main() -> int:
     ap.add_argument("--order", choices=("sample_id", "size-desc"), default="sample_id")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--limit-samples", type=int)
+    ap.add_argument("--protocol-addendum", type=Path)
+    ap.add_argument("--protocol-addendum-sha256")
     args = ap.parse_args()
     args.workers = args.prefetch if args.workers is None else args.workers
     protocol = load_protocol(FROZEN)
@@ -474,6 +653,15 @@ def main() -> int:
     window = tuple(xai["fills"]["local_median_window"])
     if repeats != 20 or len(set(fills)) != 3 or controls != ["uniform_random_20_repeats", "front_position", "entropy", "structure_matched_random_20_repeats"]:
         raise ValueError("unsupported frozen perturbation protocol")
+    addendum_mode = args.protocol_addendum is not None
+    if addendum_mode != (args.protocol_addendum_sha256 is not None):
+        raise ValueError("both protocol addendum path and SHA-256 are required")
+    if addendum_mode:
+        addendum = load_addendum(args.protocol_addendum, args.protocol_addendum_sha256)
+        controls = [addendum["experiment"]["control"]]
+        fills = addendum["experiment"]["fills"]
+        repeats = addendum["experiment"]["repeats_per_file_budget"]
+    max_passes = ADDENDUM_PASSES if addendum_mode else MAX_PASSES
     expected = {args.checkpoint: args.checkpoint_sha256.lower(), args.gradcam_ledger: args.gradcam_ledger_sha256.lower(),
                 args.structure_ledger: args.structure_ledger_sha256.lower(), args.stage2_manifest: protocol["tooling"]["manifest_stage2_sha256"],
                 args.rasters_dir / "raster_index.csv": protocol["representation"]["materialised"]["raster_index_sha256"],
@@ -493,6 +681,8 @@ def main() -> int:
     model.load_state_dict(checkpoint["model"], strict=True)
     model.eval()
     ledger = [json.loads(line) for line in args.gradcam_ledger.open(encoding="utf-8")]
+    if addendum_mode:
+        ledger = filter_addendum_budgets(ledger, addendum["experiment"]["budgets"])
     wanted = {entry["sample_id"] for entry in ledger}
     manifest = manifest_records(args.stage2_manifest, wanted)
     index = {}
@@ -519,9 +709,9 @@ def main() -> int:
     grouped = ordered_sample_blocks(ledger, args.order)
     if args.limit_samples is not None:
         grouped = grouped[:args.limit_samples]
-    expected_rows = {sid: len(entries) * len(fills) * sum(repeats if c.endswith("_20_repeats") else 1 for c in controls)
+    expected_rows = {sid: len(entries) * len(fills) * sum(repeats if c.endswith("_20_repeats") or c == "shape_matched_random" else 1 for c in controls)
                      for sid, entries in grouped}
-    if any(rows * 4 > MAX_PASSES for rows in expected_rows.values()):
+    if any(rows * 4 > max_passes for rows in expected_rows.values()):
         raise ValueError("sample exceeds fixed raster slot capacity")
     if args.resume and output.exists():
         complete, counts = completed_samples(output, expected_rows)
@@ -534,11 +724,14 @@ def main() -> int:
                 continue
             yield (entries, args.samples_dir / sid, manifest[sid], index[sid], structures[sid],
                    np.asarray(rasters[int(index[sid]["row"])], dtype=np.float32), side, fills, controls,
+                   repeats, window, checkpoint["seed"], malicious, addendum_mode) if addendum_mode else (
+                   entries, args.samples_dir / sid, manifest[sid], index[sid], structures[sid],
+                   np.asarray(rasters[int(index[sid]["row"])], dtype=np.float32), side, fills, controls,
                    repeats, window, checkpoint["seed"], malicious)
     started = time.monotonic()
     initial_samples = counts["samples"]
     gpu_wait_seconds = 0.0
-    with raster_slots(args.prefetch, side) as slots, \
+    with raster_slots(args.prefetch, side, max_passes) as slots, \
             ProcessPoolExecutor(max_workers=args.workers, max_tasks_per_child=32) as pool, \
             output.open("a" if args.resume else "x", encoding="utf-8") as out:
         task_iter = iter(tasks())
@@ -559,7 +752,7 @@ def main() -> int:
                 future = next(iter(done))
                 slot_index = pending.pop(future)
                 rows, targets, ineligible, used_passes = future.result()
-                if used_passes != len(targets) or not 0 <= used_passes <= MAX_PASSES:
+                if used_passes != len(targets) or not 0 <= used_passes <= max_passes:
                     raise ValueError("worker raster pass count mismatch")
                 prepared = np.ndarray((used_passes, side, side), dtype=np.float32,
                                       buffer=slots[slot_index].buf)
@@ -594,9 +787,13 @@ def main() -> int:
                     future.result()
                 except Exception:
                     pass
-    (args.outdir / "perturb_summary.json").write_text(json.dumps({"protocol_sha256": sha256(FROZEN),
+    summary = {"protocol_sha256": sha256(FROZEN),
         "inputs": {str(p): v for p, v in expected.items()}, "checkpoint_seed": checkpoint["seed"],
-        "counts": counts, "ledger_sha256": sha256(output)}, indent=2) + "\n", encoding="utf-8")
+        "counts": counts, "ledger_sha256": sha256(output)}
+    if addendum_mode:
+        summary.update(addendum_sha256=sha256(args.protocol_addendum),
+                       parent_protocol_sha256=sha256(FROZEN))
+    (args.outdir / "perturb_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return 0
 
 
