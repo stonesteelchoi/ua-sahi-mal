@@ -1,0 +1,117 @@
+# Prospective exploratory addendum. V1.1 findings and frozen inputs remain unchanged.
+protocol:
+  id: PSA-XAI-V1.2-EXPLORATORY
+  status: frozen_by_git_tag_psa-xai-v1.2-frozen
+  parent: PSA-XAI-V1.1-FROZEN
+  parent_file: paper/v5-kisa-xai/protocol/PSA_XAI_V1_1_FROZEN.yaml
+  parent_protocol_sha256: c0c7b79775b3aa36d3dc59f5a8544e5248e9517ca218319cb8ee83d88c70e709
+  scope: shape_matched_random_control_only
+  retrospective_v1_1_adjudication_change: forbidden
+  execution_gate: commit_and_user_tag_psa-xai-v1.2-frozen_before_execution
+
+rationale:
+  observation: V1.1_H1_negative_effect
+  concern: Grad-CAM selects pixel blocks while V1.1 structure_matched_random scatters bytes.
+  keep_only_asymmetry: Complete pixels may survive at different rates across arms.
+  status: hypothesis_not_causal_conclusion
+
+population:
+  datasets: [main_test, era_test]
+  model_seeds: [42, 43, 44]
+  target: all_malicious_test_files
+  main_malicious_files: 17407
+  era_malicious_files: 5332
+  empty_positive_cam: retain_flag_and_place_zero_runs
+  structure_fallback:
+    main_files: 42
+    era_files: 1
+    policy: retain_rows_mark_structure_ineligible_no_forward_passes
+
+experiment:
+  budgets: [0.10, 0.20]
+  primary_budget: 0.10
+  achieved_budget: same_unique_source_byte_count_as_gradcam
+  fills: [structure_conditioned_resampling]
+  perturbations: [deletion, keep_only]
+  repeats_per_file_budget: 20
+  control: shape_matched_random
+  fill_pairing: same_as_v1_1_per_sample_budget_fill_control_repeat
+  pair_seed: v1_1_pair_seed_including_control_name
+  position_seed: v1_1_offset_seed_including_control_name
+  position_seed_control_name: shape_matched_random
+
+shape_matched_random:
+  input: unique_gradcam_selected_source_byte_offsets
+  run_construction:
+    - Sort selected byte offsets and coalesce consecutive offsets into maximal runs.
+    - Split runs at structure region boundaries and record each as {start, len, region}.
+  placement_domain: same_region_segments
+  length_policy: preserve_each_run_length
+  order: descending_run_length
+  tie_break: stable_original_start_then_region
+  candidate_positions: all_starts_in_remaining_unoccupied_intervals_that_fit_run
+  sampling: uniform_over_candidate_starts
+  phase: prefer_candidates_matching_original_start_minus_containing_pixel_start
+  phase_fallback: if_no_phase_matched_candidate_sample_uniformly_from_all_candidates
+  overlap_between_moved_runs: forbidden
+  overlap_with_original_gradcam_offsets: allowed_as_in_v1_1_structure_matched
+  placement_failure:
+    first: split_failed_run_at_segment_boundaries_then_retry_placement
+    final: retain_file_and_rows_record_placement_fallback_true_and_unplaced_byte_count
+    forward_passes: always_computed
+    segment_split_rows: flag_run_split_true_include_in_primary_report_sensitivity_excluding_split
+    unplaced_rows: rows_with_unplaced_bytes_gt_0_excluded_from_primary_and_sensitivity_statistics_counts_reported
+    file_effect: mean_over_remaining_repeats_file_ineligible_for_budget_if_all_repeats_excluded
+  empty_cam: n_runs_zero_no_placement
+
+matching_audit:
+  exact_requirements:
+    - total_selected_unique_source_bytes
+    - selected_source_bytes_per_region
+    - run_length_multiset_only_when_run_split_false
+  report_for_both_arms: [pixels_intact, pixels_touched]
+  pixel_count_rule: no_exact_match_required
+  pixel_count_reason: mean_pool_and_nearest_repetition_vary_source_bytes_per_pixel
+  pixel_count_validation: report_distribution_of_shape_minus_gradcam_differences
+  report: [n_runs, run_length_multiset, region_byte_counts, placement_fallback, unplaced_byte_count]
+  unmatched_property: two_dimensional_vertical_continuity_and_block_clumping
+  failure_reporting: retain_mismatch_fields_report_run_split_and_unplaced_counts_include_split_in_primary_report_sensitivity_excluding_split_exclude_unplaced_from_primary_and_sensitivity_statistics
+
+primary_hypotheses:
+  h1prime: gradcam_top10_deletion_delta_nll_gt_shape_matched_random
+  h2prime: gradcam_top10_keep_only_malicious_logit_gt_shape_matched_random
+  effect: mean_over_repeats_of_paired_gradcam_minus_shape_matched_random
+  main_family: [h1prime, h2prime]
+  correction: holm
+  support: holm_adjusted_one_sided_p_lt_0_05
+  era: robustness_replication_direction_and_ci_not_added_to_main_family
+
+statistics:
+  inherited_from_v1_1_section_4_3:
+    unit: imphash_group_mean_of_paired_file_effects
+    bootstrap_repeats: 2000
+    bootstrap_seed: 20260924
+    confidence_level: 0.95
+    seed_average: intersection_of_eligible_files
+    sensitivity: paired_file_bootstrap
+    secondary_subset: correctly_detected_malicious
+    representation_subgroups: [mean_pool, nearest_repetition]
+  descriptive:
+    - budget_0_20_h1prime_h2prime
+    - matching_field_summaries_and_pixel_count_difference_distributions
+    - placement_fallback_file_and_row_counts_and_unplaced_bytes
+    - empty_cam_counts
+  dispersion_effect:
+    definition: control_shape_minus_control_scatter
+    control_scatter_source: V1.1_structure_matched_rows_from_frozen_ledger
+    join_keys: [sample_id, checkpoint_seed, budget, fill]
+    aggregation: file_mean_for_each_of_h1_deletion_and_h2_keep_only
+    report_budgets: [0.10, 0.20]
+    interpretation: descriptive_only_because_fill_random_states_differ_by_control_name
+    p_value: none
+
+expected_work:
+  rows_per_file_per_seed: 40
+  forward_passes_per_file_per_seed: 160
+  main: {files_per_seed: 17407, rows_per_seed: 696280, structure_ineligible_rows_per_seed: 1680, forward_passes_per_seed: 2778400}
+  era: {files_per_seed: 5332, rows_per_seed: 213280, structure_ineligible_rows_per_seed: 40, forward_passes_per_seed: 852960}
