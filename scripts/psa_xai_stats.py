@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FROZEN = ROOT / "paper/v5-kisa-xai/protocol/PSA_XAI_V1_1_FROZEN.yaml"
 METRICS = {"h1": "deletion_delta_nll", "h2": "keep_only_malicious_score"}
 BOOTSTRAP_SEED = 20260924
+SECONDARY_CONTROLS = ("uniform_random_20_repeats", "entropy", "front_position")
 
 
 def digest(path: Path) -> str:
@@ -65,6 +66,34 @@ def bootstrap(values: np.ndarray, repeats: int, seed: int) -> dict:
             "ci_95_upper": float(upper), "p_unadjusted": p, "unit_n": len(values)}
 
 
+def secondary_inference(files: dict[str, dict], repeats: int, seed: int) -> dict:
+    """Paired file effects followed by an imphash-group bootstrap, without a p value."""
+    if not files:
+        return {h: {"preregistered": False, "family": "secondary", "eligible_n": 0,
+                    "group_n": 0, "status": "no_eligible_files"} for h in METRICS}
+    groups = defaultdict(list)
+    for row in files.values():
+        groups[row["group"]].append(row)
+    result = {}
+    for i, h in enumerate(METRICS):
+        values = np.asarray([np.mean([r[h]["effect"] for r in members])
+                             for members in groups.values()], dtype=float)
+        rng = np.random.default_rng(seed + i)
+        draws = np.empty(repeats)
+        batch = max(1, min(128, 2_000_000 // len(values)))
+        for start in range(0, repeats, batch):
+            n = min(batch, repeats - start)
+            draws[start:start + n] = values[rng.integers(0, len(values), (n, len(values)))].mean(axis=1)
+        lower, upper = np.quantile(draws, [0.025, 0.975])
+        result[h] = {"preregistered": False, "family": "secondary",
+                     "effect": float(values.mean()), "ci_95_lower": float(lower),
+                     "ci_95_upper": float(upper), "eligible_n": len(files),
+                     "group_n": len(groups),
+                     "gradcam_mean": float(np.mean([r[h]["gradcam_mean"] for r in files.values()])),
+                     "control_mean": float(np.mean([r[h]["control_mean"] for r in files.values()]))}
+    return result
+
+
 def holm(results: dict) -> None:
     ordered = sorted(results, key=lambda key: results[key]["p_unadjusted"])
     adjusted = 0.0
@@ -92,7 +121,8 @@ def inference(files: dict[str, dict], repeats: int, seed: int) -> dict:
     return result
 
 
-def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
+def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int,
+            secondary_controls: bool = False) -> dict:
     x, s = protocol["xai"], protocol["statistics"]
     primary_budget, primary_fill = x["primary_budget"], x["fills"]["primary"]
     primary_control = x["primary_comparator"] + "_20_repeats"
@@ -114,6 +144,7 @@ def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
         raise ValueError("empty Grad-CAM ledger")
     summaries = defaultdict(lambda: [0.0, 0.0, 0])
     primary_files = {}
+    secondary_files = {control: {} for control in SECONDARY_CONTROLS} if secondary_controls else None
     excluded_empty = {sid for (sid, budget), row in cams.items()
                       if budget == primary_budget and int(row["budget"]["achieved_bytes"]) == 0}
     excluded_ineligible = set()
@@ -171,6 +202,10 @@ def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
                     entry = primary_files.setdefault(sid, {"group": cam["group"],
                         "repr_policy": cam["representation_policy"], "predicted_label": cam["predicted_label"]})
                     entry[h] = diff
+                if secondary_files is not None and budget == primary_budget and fill == primary_fill and control in secondary_files:
+                    entry = secondary_files[control].setdefault(sid, {"group": cam["group"]})
+                    entry[h] = {"effect": diff, "gradcam_mean": float(grad.mean()),
+                                "control_mean": float(ctrl.mean())}
 
     for row in jsonl(perturb):
         sid = str(row["sample_id"])
@@ -198,12 +233,17 @@ def collect(perturb: Path, gradcam: Path, protocol: dict, seed: int) -> dict:
     table = [{"budget": k[0], "fill": k[1], "control": k[2], "hypothesis": k[3],
               "paired_mean": v[0] / v[2], "control_mean": v[1] / v[2], "eligible_n": v[2]}
              for k, v in sorted(summaries.items())]
-    return {"files": primary_files, "descriptive": table,
+    result = {"files": primary_files, "descriptive": table,
             "counts": {"cam_sample_n": len({sid for sid, _ in cams}),
                        "excluded_empty_cam_n": len(excluded_empty),
                        "excluded_ineligible_n": len(excluded_ineligible),
                        "eligible_n": len(primary_files)},
             "structure_cam_mass": {k: {"mean": v[0] / v[1], "n": v[1]} for k, v in sorted(mass.items())}}
+    if secondary_files is not None:
+        if any(set(METRICS) - row.keys() for files in secondary_files.values() for row in files.values()):
+            raise ValueError("incomplete secondary metrics")
+        result["secondary_files"] = secondary_files
+    return result
 
 
 def render(report: dict) -> str:
@@ -255,7 +295,8 @@ def render(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZEN) -> dict:
+def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZEN,
+          secondary_controls: bool = False) -> dict:
     p = protocol_settings(protocol_path)
     seeds = set(map(int, p["model"]["seeds"]))
     by_population = defaultdict(dict)
@@ -264,7 +305,7 @@ def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZE
         if population not in {"main", "era"} or seed not in seeds or seed in by_population[population]:
             raise ValueError("unexpected population/seed or duplicate ledger pair")
         hashes[f"{population}/seed_{seed}"] = {"perturb": digest(perturb), "gradcam": digest(gradcam)}
-        by_population[population][seed] = collect(perturb, gradcam, p, seed)
+        by_population[population][seed] = collect(perturb, gradcam, p, seed, secondary_controls)
     if set(by_population) != {"main", "era"} or any(set(v) != seeds for v in by_population.values()):
         raise ValueError("three seeds are required for both main and era")
     report = {"protocol_sha256": digest(protocol_path), "ledger_sha256": hashes,
@@ -328,6 +369,28 @@ def build(inputs: list[tuple[str, int, Path, Path]], protocol_path: Path = FROZE
         result["seed_average"]["structure_cam_mass"] = {
             region: {"mean": float(np.mean([r["mean"] for r in rows])), "n": min(r["n"] for r in rows)}
             for region, rows in sorted(mass.items())}
+        if secondary_controls:
+            for seed in sorted(seeds):
+                result[f"seed_{seed}"]["secondary_controls"] = {
+                    control: secondary_inference(seed_data[seed]["secondary_files"][control], 2000,
+                                                 BOOTSTRAP_SEED + seed)
+                    for control in SECONDARY_CONTROLS}
+            secondary_average = {}
+            for control in SECONDARY_CONTROLS:
+                files_by_seed = [seed_data[seed]["secondary_files"][control] for seed in sorted(seeds)]
+                shared = set.intersection(*(set(files) for files in files_by_seed))
+                averaged_files = {}
+                for sid in shared:
+                    rows = [files[sid] for files in files_by_seed]
+                    if len({row["group"] for row in rows}) != 1:
+                        raise ValueError("secondary seed metadata mismatch")
+                    averaged_files[sid] = {"group": rows[0]["group"], **{
+                        h: {key: float(np.mean([row[h][key] for row in rows]))
+                            for key in ("effect", "gradcam_mean", "control_mean")}
+                        for h in METRICS}}
+                secondary_average[control] = secondary_inference(averaged_files, 2000,
+                                                                  BOOTSTRAP_SEED + 900)
+            result["seed_average"]["secondary_controls"] = secondary_average
         report["populations"][population] = result
     return report
 
@@ -649,17 +712,20 @@ def main() -> int:
     ap.add_argument("--addendum", type=Path)
     ap.add_argument("--addendum-sha256")
     ap.add_argument("--v11-ledger", nargs=4, action="append", metavar=("POPULATION", "SEED", "PERTURB", "SUMMARY"))
+    ap.add_argument("--secondary-controls", action="store_true")
     ap.add_argument("--outdir", type=Path, required=True)
     args = ap.parse_args()
     rows = [(pop, int(seed), Path(pert), Path(cam)) for pop, seed, pert, cam in args.ledger]
     if any((args.addendum is not None, args.addendum_sha256 is not None, args.v11_ledger is not None)):
+        if args.secondary_controls:
+            ap.error("--secondary-controls applies to V1.1 statistics only")
         if args.addendum is None or args.addendum_sha256 is None or args.v11_ledger is None:
             ap.error("V1.2 requires --addendum, --addendum-sha256 and six --v11-ledger inputs")
         old = [(pop, int(seed), Path(pert), Path(summary)) for pop, seed, pert, summary in args.v11_ledger]
         report = build_v12(rows, old, args.addendum, args.addendum_sha256)
         rendered = render_v12(report)
     else:
-        report = build(rows)
+        report = build(rows, secondary_controls=args.secondary_controls)
         rendered = render(report)
     args.outdir.mkdir(parents=True, exist_ok=False)
     (args.outdir / "psa_xai_stats.json").write_text(json.dumps(report, indent=2, allow_nan=False) + "\n", encoding="utf-8")

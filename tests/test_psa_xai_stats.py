@@ -86,3 +86,51 @@ def test_collect_accepts_out_of_order_complete_sample_blocks(tmp_path):
     actual = collect(perturb, cam, protocol, 42)
     assert actual["counts"] == expected["counts"]
     assert actual["files"] == expected["files"]
+
+
+def test_secondary_controls_paired_group_ci_and_seed_intersection(tmp_path):
+    inputs = []
+    for population in ("main", "era"):
+        for seed in (42, 43, 44):
+            perturb, cam = ledgers(tmp_path / f"{population}_{seed}", seed, 1.0)
+            changed = []
+            for line in perturb.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                if row["budget"] == 0.10 and row["fill"] == "structure_conditioned_resampling" and row["control"] in (
+                        "uniform_random_20_repeats", "entropy", "front_position"):
+                    if row["control"] == "uniform_random_20_repeats":
+                        row.update(gradcam_deletion_delta_nll=10 + row["repeat"],
+                                   control_deletion_delta_nll=2 + 2 * row["repeat"])
+                    elif row["control"] == "entropy":
+                        row.update(gradcam_deletion_delta_nll=6, control_deletion_delta_nll=3)
+                        if seed == 43 and row["sample_id"] == "6":
+                            row["eligible"] = False
+                    else:
+                        row.update(gradcam_deletion_delta_nll=6 if row["sample_id"] == "6" else 1,
+                                   control_deletion_delta_nll=4)
+                changed.append(json.dumps(row) + "\n")
+            perturb.write_text("".join(changed), encoding="utf-8")
+            inputs.append((population, seed, perturb, cam))
+    report = build(inputs, secondary_controls=True)
+    expected = {"uniform_random_20_repeats": (-1.5, 19.5, 21.0, 7, 4),
+                "entropy": (3.0, 6.0, 3.0, 6, 3),
+                "front_position": (-1.75, 12 / 7, 4.0, 7, 4)}
+    for population in ("main", "era"):
+        scopes = report["populations"][population]
+        for scope in ("seed_42", "seed_43", "seed_44", "seed_average"):
+            for control, (effect, grad, comparison, n, groups) in expected.items():
+                row = scopes[scope]["secondary_controls"][control]["h1"]
+                scope_n = 7 if control == "entropy" and scope != "seed_43" and scope != "seed_average" else n
+                assert row["eligible_n"] == scope_n
+                assert row["group_n"] == (4 if scope_n == 7 else groups)
+                assert row["effect"] == pytest.approx(effect)
+                assert row["ci_95_lower"] <= effect <= row["ci_95_upper"]
+                if control != "front_position":
+                    assert row["ci_95_lower"] == pytest.approx(effect)
+                    assert row["ci_95_upper"] == pytest.approx(effect)
+                assert row["gradcam_mean"] == pytest.approx(grad)
+                assert row["control_mean"] == pytest.approx(comparison)
+                assert row["preregistered"] is False and row["family"] == "secondary"
+                assert not any("p_unadjusted" in key or "holm" in key for key in row)
+                assert scopes[scope]["secondary_controls"][control]["h2"]["eligible_n"] == scope_n
+        assert scopes["seed_average"]["primary"]["h1"]["eligible_n"] == 6

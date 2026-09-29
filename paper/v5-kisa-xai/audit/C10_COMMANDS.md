@@ -55,3 +55,24 @@ if ($LASTEXITCODE -ne 0) { throw 'XAI statistics failed' }
 ```
 
 두 스크립트 모두 C10-prep에서는 실행하지 않았다. Checkpoint SHA-256과 동결 YAML SHA-256은 `PROTOCOL_FREEZE_2026-09-24.md`, era manifest SHA-256은 `PROGRESS.md`의 동결 기록을 따른다.
+
+## C10-x 2차 대조군 기술 분석
+
+기존 여섯 V1.1 ledger 쌍을 사용해 주 budget 0.10·주 fill의 uniform random, entropy, front position 대조군을 분석한다. 대조군마다 repeat별 쌍체 차이의 파일 평균, imphash 그룹 평균, 그룹 bootstrap 2,000회 95% CI를 계산한다. seed 평균은 대조군별 적격 파일 교집합에서 구한다. JSON의 `secondary_controls`는 `preregistered: false`, `family: secondary`로 표시하며 p 값과 Holm 값은 산출하지 않는다. 실제 ledger 실행은 사용자 `.venv` 창에서 수행한다.
+
+```powershell
+$python = '.\.venv\Scripts\python.exe'
+$xai = 'D:\secure-malware-data\psa\runs\xai_v1_1'
+$statsArgs = @('scripts\psa_xai_stats.py', '--secondary-controls')
+foreach ($pop in @('main','era')) {
+  foreach ($seed in @(42,43,44)) {
+    $perturb = Join-Path $xai "${pop}_seed${seed}_perturb\perturb_ledger.jsonl"
+    $gradcam = Join-Path $xai "${pop}_seed${seed}_gradcam\gradcam_ledger.jsonl"
+    if (-not (Test-Path -LiteralPath $perturb -PathType Leaf)) { throw "missing $perturb" }
+    if (-not (Test-Path -LiteralPath $gradcam -PathType Leaf)) { throw "missing $gradcam" }
+    $statsArgs += @('--ledger',$pop,"$seed",$perturb,$gradcam)
+  }
+}
+& $python @statsArgs --outdir 'runs\psa-orchestration\xai_stats_secondary_20260930'
+if ($LASTEXITCODE -ne 0) { throw 'secondary XAI statistics failed' }
+```
