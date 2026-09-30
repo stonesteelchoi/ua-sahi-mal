@@ -499,12 +499,16 @@ def collect_v12(perturb: Path, seed: int, addendum: dict) -> dict:
     primary, no_split, all_budgets, controls = {}, {}, defaultdict(dict), {}
     exclusion = {str(b): {"unplaced_rows": 0, "unplaced_files": 0, "all_repeats_excluded_files": 0,
                           "split_rows": 0, "split_files": 0, "structure_ineligible_rows": 0,
-                          "structure_ineligible_files": 0} for b in sorted(budgets)}
+                          "structure_ineligible_files": 0, "empty_cam_files": 0} for b in sorted(budgets)}
     for (sid, budget), bucket in files.items():
         label = str(budget)
         reasons = excluded[(sid, budget)]
         exclusion[label]["unplaced_files"] += "unplaced" in reasons
         exclusion[label]["structure_ineligible_files"] += "structure_ineligible" in reasons
+        if sid in flagged_files["empty_cam"]:
+            # Parent-protocol rule (V1.1): files with no positive CAM are flagged, not eligible.
+            exclusion[label]["empty_cam_files"] += 1
+            continue
         repeats = bucket.get("repeats", {})
         exclusion[label]["all_repeats_excluded_files"] += not repeats and "structure_ineligible" not in reasons
         exclusion[label]["split_files"] += any(r["split"] for r in repeats.values())
